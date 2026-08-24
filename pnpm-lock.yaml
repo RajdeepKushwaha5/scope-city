@@ -276,6 +276,31 @@ importers:
         specifier: ^3.2.0
         version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.10)
 
+  packages/mission:
+    dependencies:
+      '@scope-city/harness':
+        specifier: workspace:*
+        version: link:../harness
+      '@scope-city/ledger':
+        specifier: workspace:*
+        version: link:../ledger
+      '@scope-city/proxy':
+        specifier: workspace:*
+        version: link:../proxy
+      '@scope-city/scope':
+        specifier: workspace:*
+        version: link:../scope
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.10)
+
   packages/protocol:
     dependencies:
       zod:

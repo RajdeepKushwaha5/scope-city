@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./hud/hud.css";
 import { pickCell } from "./iso/projection.js";
 import { drawScene, fitCamera, type Figure, type SceneState } from "./render/scene.js";
-import { DISTRICT_PLOTS, plotFor } from "./render/world.js";
+import { DISTRICT_PLOTS, layOutCity, plotFor } from "./render/world.js";
 import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
@@ -29,6 +29,10 @@ export function App(): React.JSX.Element {
   const replay = useMission();
   const live = useLiveMission();
   const mission = live.active ? live : replay;
+  const structureCount = useMemo(
+    () => layOutCity(mission.offices).length + DISTRICT_PLOTS.length + 4,
+    [mission.offices],
+  );
 
   // --- canvas sizing ----------------------------------------------------
 
@@ -164,6 +168,7 @@ export function App(): React.JSX.Element {
               online={mission.online}
               granted={mission.granted}
               offices={mission.offices}
+              structureCount={structureCount}
               dispositions={mission.scope?.offices ?? []}
               inspecting={mission.inspecting}
             />
@@ -198,7 +203,7 @@ export function App(): React.JSX.Element {
             job={mission.job}
             treasury={mission.treasury}
             fieldSize={mission.figures.length}
-            structureCount={mission.offices.length}
+            structureCount={structureCount}
             sandboxOpen={mission.sandboxOpen}
             expiresIn={mission.expiresIn}
             connection={live.connection}

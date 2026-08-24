@@ -359,6 +359,7 @@ export function drawTree(
   u: number,
   v: number,
   seed: number,
+  muted = false,
 ): void {
   const c = toScreen(u, v, 0);
   const scale = 0.85 + (seed % 4) * 0.12;
@@ -373,16 +374,89 @@ export function drawTree(
   ctx.fillStyle = UI.treeTrunk;
   ctx.fillRect(c.x - 2, c.y - 12 * scale, 4, 12 * scale);
 
-  ctx.fillStyle = UI.treeShade;
+  ctx.fillStyle = muted ? UI.treeFogShade : UI.treeShade;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y - 18 * scale, 11 * scale, 10 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = UI.treeLight;
+  ctx.fillStyle = muted ? UI.treeFogLight : UI.treeLight;
   ctx.beginPath();
   ctx.ellipse(c.x - 3 * scale, c.y - 22 * scale, 8 * scale, 7 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
 
+  ctx.restore();
+}
+
+/** A small civic fountain placed in open park cells. */
+export function drawFountain(ctx: CanvasRenderingContext2D, u: number, v: number, muted = false): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  drawDiamond(ctx, u, v, 0.02, muted ? "#4b555f" : UI.fountainStone, 0.68);
+  drawDiamond(ctx, u, v, 0.04, muted ? "#34434b" : UI.fountainWater, 0.48);
+  ctx.fillStyle = muted ? "#67717a" : UI.fountainShade;
+  ctx.fillRect(c.x - 2, c.y - 13, 4, 13);
+  ctx.fillStyle = muted ? "#65747c" : UI.fountainWater;
+  ctx.fillRect(c.x - 1, c.y - 18, 2, 8);
+  ctx.fillRect(c.x - 5, c.y - 14, 3, 2);
+  ctx.fillRect(c.x + 2, c.y - 14, 3, 2);
+  ctx.restore();
+}
+
+/**
+ * A compact moving road vehicle. The body is rotated into the projected road
+ * axis, while wheels and glass stay deliberately chunky at city-map scale.
+ */
+export function drawVehicle(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  colour: string,
+  muted = false,
+): void {
+  const c = toScreen(u, v, -0.07);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+
+  ctx.save();
+  ctx.translate(c.x, c.y - 3);
+  ctx.rotate(angle);
+
+  ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+  ctx.fillRect(-11, -2, 22, 7);
+  ctx.fillStyle = "#222a31";
+  ctx.fillRect(-8, -6, 4, 3);
+  ctx.fillRect(5, -6, 4, 3);
+  ctx.fillStyle = muted ? "#59636d" : colour;
+  ctx.fillRect(-11, -8, 22, 8);
+  ctx.fillStyle = muted ? "#414b55" : "#c8e5f4";
+  ctx.fillRect(-4, -11, 10, 5);
+  ctx.fillStyle = muted ? "#77818a" : "#fff1a6";
+  ctx.fillRect(9, -6, 3, 3);
+  ctx.strokeStyle = UI.outline;
+  ctx.lineWidth = 1;
+  ctx.strokeRect(-11.5, -8.5, 23, 9);
+  ctx.restore();
+}
+
+/** A dome makes the Exchequer read as a civic centre rather than another tower. */
+export function drawCivicDome(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  base: number,
+  muted = false,
+): void {
+  const p = toScreen(u, v, base);
+  ctx.save();
+  ctx.fillStyle = muted ? "#4b555f" : "#eee9d9";
+  ctx.fillRect(p.x - 10, p.y - 7, 20, 9);
+  ctx.fillStyle = muted ? "#59636c" : "#fffaf0";
+  ctx.beginPath();
+  ctx.ellipse(p.x, p.y - 8, 13, 10, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = muted ? "#68727b" : "#d7caa8";
+  ctx.fillRect(p.x - 2, p.y - 24, 4, 7);
+  ctx.fillRect(p.x - 1, p.y - 29, 2, 5);
   ctx.restore();
 }
 

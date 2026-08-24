@@ -128,8 +128,13 @@ export const UI = {
   treeTrunk: "#5a4230",
   treeShade: "#2f6b34",
   treeLight: "#3f8a41",
+  treeFogShade: "#394640",
+  treeFogLight: "#46534c",
   lamp: "#39424d",
   lampLight: "#f0d890",
+  fountainStone: "#d8dee4",
+  fountainShade: "#aeb8c2",
+  fountainWater: "#72c7e8",
 } as const;
 
 export const AGENT = {

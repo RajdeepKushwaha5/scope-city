@@ -1,4 +1,4 @@
-import { blockBounds, depth, toScreen } from "../iso/projection.js";
+import { UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
 import {
   AGENT,
   CONCRETE,
@@ -11,11 +11,15 @@ import {
 } from "./palette.js";
 import {
   drawBuilding,
+  drawCivicDome,
+  drawFountain,
   drawLamp,
   drawPerimeter,
   drawShadow,
   drawTree,
+  drawVehicle,
 } from "./shapes.js";
+import { bake, blit } from "./bake.js";
 import {
   blendAmount,
   drawDitheredTile,
@@ -26,6 +30,7 @@ import {
   DISTRICT_PLOTS,
   ISLAND_H,
   ISLAND_W,
+  fountainCells,
   hash,
   isInScope,
   layOutCity,
@@ -76,18 +81,21 @@ interface Drawable {
 let cachedKey = "";
 let cachedCity: Building[] = [];
 let cachedTrees: { u: number; v: number }[] = [];
+let cachedFountains: { u: number; v: number }[] = [];
 
 function cityFor(offices: readonly { office: string; district: string }[]): {
   buildings: Building[];
   trees: { u: number; v: number }[];
+  fountains: { u: number; v: number }[];
 } {
   const key = offices.map((o) => `${o.district}/${o.office}`).join(",");
   if (key !== cachedKey) {
     cachedKey = key;
     cachedCity = layOutCity(offices);
     cachedTrees = treeCells(cachedCity);
+    cachedFountains = fountainCells(cachedCity);
   }
-  return { buildings: cachedCity, trees: cachedTrees };
+  return { buildings: cachedCity, trees: cachedTrees, fountains: cachedFountains };
 }
 
 export function drawScene(
@@ -105,13 +113,15 @@ export function drawScene(
   ctx.scale(camera.zoom, camera.zoom);
   ctx.imageSmoothingEnabled = false;
 
-  const { buildings, trees } = cityFor(state.offices);
+  const { buildings, trees, fountains } = cityFor(state.offices);
 
   const items: Drawable[] = [
     ...groundItems(state),
+    ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...buildingItems(buildings, state),
     ...landmarkItems(state),
+    ...trafficItems(state, time),
     ...figureItems(state),
   ];
 
@@ -217,13 +227,27 @@ function treeItems(
   trees: readonly { u: number; v: number }[],
   state: SceneState,
 ): Drawable[] {
-  return trees
-    .filter((cell) => state.scopeState === "none" || isInScope(cell, state.granted))
-    .map((cell) => ({
+  return trees.map((cell) => {
+    const muted = state.scopeState !== "none" && !isInScope(cell, state.granted);
+    return {
       z: depth(cell.u, cell.v, 1),
       draw: (ctx: CanvasRenderingContext2D) =>
-        drawTree(ctx, cell.u, cell.v, hash(`t:${cell.u}:${cell.v}`)),
-    }));
+        drawTree(ctx, cell.u, cell.v, hash(`t:${cell.u}:${cell.v}`), muted),
+    };
+  });
+}
+
+function fountainItems(
+  fountains: readonly { u: number; v: number }[],
+  state: SceneState,
+): Drawable[] {
+  return fountains.map((cell) => {
+    const muted = state.scopeState !== "none" && !isInScope(cell, state.granted);
+    return {
+      z: depth(cell.u, cell.v, 0.4),
+      draw: (ctx: CanvasRenderingContext2D) => drawFountain(ctx, cell.u, cell.v, muted),
+    };
+  });
 }
 
 function buildingItems(buildings: readonly Building[], state: SceneState): Drawable[] {
@@ -235,36 +259,72 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
     if (state.scopeState !== "none" && !inScope) style = FOGGED;
 
     const height = building.height;
-    const seed = building.seed;
+    const seed = building.seed % 105;
+    const lit = state.scopeState === "none" || inScope;
+    const styleName = style === FOGGED ? "fog" : building.kind === "house" ? "house" : "concrete";
 
     return {
       z: depth(u, v, height),
       draw: (ctx: CanvasRenderingContext2D) => {
-        drawShadow(ctx, u, v, 0.7);
-        drawBuilding(ctx, u, v, height, style, seed, state.scopeState === "none" || inScope);
+        const rise = height * UNIT_H;
+        const sprite = bake(
+          `building:${styleName}:${height.toFixed(2)}:${seed}:${lit ? 1 : 0}`,
+          96,
+          rise + 76,
+          48,
+          rise + 46,
+          (spriteCtx) => {
+            drawShadow(spriteCtx, 0, 0, 0.7);
+            drawBuilding(spriteCtx, 0, 0, height, style, seed, lit);
+          },
+        );
+        const anchor = toScreen(u, v, 0);
+        blit(ctx, sprite, anchor.x, anchor.y);
       },
     };
   });
 }
 
-/** Each connected district's landmark: taller, its own colour, a plinth. */
+/** Every district keeps a visible civic landmark, even before MCP connects. */
 function landmarkItems(state: SceneState): Drawable[] {
   const items: Drawable[] = [];
   for (const plot of DISTRICT_PLOTS) {
-    if (!state.online.includes(plot.id)) continue;
-
     const { u, v } = plot.landmark;
     const inScope = isInScope(plot.landmark, state.granted);
-    const style = inScope ? landmarkStyle(plot.id) : FOGGED;
+    const visible = state.scopeState === "none" || inScope;
+    const style = visible ? landmarkStyle(plot.id) : FOGGED;
     const height = plot.landmarkHeight;
     const gated = state.gates.includes(plot.id);
+    const online = state.online.includes(plot.id);
     const seed = hash(plot.id);
+
+    if (plot.id === "exchequer") {
+      for (const [du, dv] of [[-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+        const wingU = u + du;
+        const wingV = v + dv;
+        items.push({
+          z: depth(wingU, wingV, 0.8),
+          draw: (ctx) => {
+            drawShadow(ctx, wingU, wingV, 0.72);
+            drawBuilding(ctx, wingU, wingV, 0.72, style, seed + du * 7 + dv * 11, visible);
+          },
+        });
+      }
+    }
 
     items.push({
       z: depth(u, v, height + 1),
       draw: (ctx) => {
         drawShadow(ctx, u, v, 1.1);
-        drawBuilding(ctx, u, v, height, style, seed, inScope);
+        drawBuilding(ctx, u, v, height, style, seed, visible);
+
+        if (plot.id === "exchequer") drawCivicDome(ctx, u, v, height + 0.02, !visible);
+
+        if (online && !gated) {
+          const beacon = toScreen(u, v, height + (plot.id === "exchequer" ? 0.5 : 0.15));
+          ctx.fillStyle = UI.good;
+          ctx.fillRect(beacon.x - 2, beacon.y - 8, 4, 4);
+        }
 
         if (gated) {
           // A mast on the roof while this district is holding a gate.
@@ -279,6 +339,37 @@ function landmarkItems(state: SceneState): Drawable[] {
   }
 
   return items;
+}
+
+const TRAFFIC = [
+  { axis: "u", road: 6, lane: -0.16, speed: 1.2, offset: 0.04, colour: "#d8584d" },
+  { axis: "u", road: 12, lane: 0.16, speed: 0.86, offset: 0.43, colour: "#f1b33b" },
+  { axis: "u", road: 18, lane: -0.16, speed: 1.05, offset: 0.71, colour: "#377fc1" },
+  { axis: "u", road: 24, lane: 0.16, speed: 0.95, offset: 0.21, colour: "#efe9dc" },
+  { axis: "u", road: 30, lane: -0.16, speed: 1.15, offset: 0.58, colour: "#5ba36b" },
+  { axis: "v", road: 6, lane: 0.16, speed: 0.92, offset: 0.14, colour: "#eee8da" },
+  { axis: "v", road: 12, lane: -0.16, speed: 1.08, offset: 0.52, colour: "#cf5f50" },
+  { axis: "v", road: 18, lane: 0.16, speed: 0.82, offset: 0.82, colour: "#e4aa38" },
+  { axis: "v", road: 24, lane: -0.16, speed: 1.18, offset: 0.32, colour: "#5f91c8" },
+  { axis: "v", road: 30, lane: 0.16, speed: 0.98, offset: 0.64, colour: "#72a76a" },
+  { axis: "v", road: 36, lane: -0.16, speed: 0.76, offset: 0.08, colour: "#f0e8d8" },
+] as const;
+
+function trafficItems(state: SceneState, time: number): Drawable[] {
+  return TRAFFIC.map((route) => {
+    const min = 2;
+    const max = route.axis === "u" ? ISLAND_W - 2 : ISLAND_H - 2;
+    const span = max - min;
+    const progress = ((time / 1000) * route.speed / span + route.offset) % 1;
+    const moving = min + progress * span;
+    const u = route.axis === "u" ? moving : route.road + route.lane;
+    const v = route.axis === "v" ? moving : route.road + route.lane;
+    const muted = state.scopeState !== "none" && !isInScope({ u, v }, state.granted);
+    return {
+      z: depth(u, v, 0.5),
+      draw: (ctx: CanvasRenderingContext2D) => drawVehicle(ctx, u, v, route.axis, route.colour, muted),
+    };
+  });
 }
 
 function figureItems(state: SceneState): Drawable[] {

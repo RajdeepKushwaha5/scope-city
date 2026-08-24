@@ -11,6 +11,7 @@ export function DistrictScan(props: {
   online: readonly string[];
   granted: readonly string[];
   offices: readonly { office: string; district: string }[];
+  structureCount: number;
   dispositions: readonly { office: string; disposition: "allowed" | "gated" | "blocked" }[];
   inspecting: string | null;
 }): React.JSX.Element {
@@ -25,12 +26,12 @@ export function DistrictScan(props: {
   }
 
   return (
-    <Window title="DISTRICT SCAN" right={<span>{props.online.length} ONLINE</span>}>
-      <div className="big">{props.offices.length}</div>
-      <div style={{ color: "var(--ink-dim)", marginBottom: 8 }}>offices mapped</div>
+    <Window title="DISTRICT SCAN" right={<span>{props.online.length ? `${props.online.length} ONLINE` : "CITY READY"}</span>}>
+      <div className="big">{props.structureCount}</div>
+      <div style={{ color: "var(--ink-dim)", marginBottom: 8 }}>structures mapped</div>
 
       {props.online.length === 0 ? (
-        <div className="empty">Waiting for MCP servers.</div>
+        <div className="empty">City fabric ready. Dispatch a mission to bring systems online.</div>
       ) : (
         props.online.map((district) => (
           <Stat key={district} label={district}>

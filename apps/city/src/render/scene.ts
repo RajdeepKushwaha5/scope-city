@@ -132,9 +132,15 @@ export function drawScene(
  * the fog palette -- unreachable places read as unmapped rather than disabled.
  */
 /** The material a ground tile is painted in, given whether it is reachable. */
-function groundMaterial(kind: ReturnType<typeof tileKindAt>, inScope: boolean) {
+function groundMaterial(
+  kind: ReturnType<typeof tileKindAt>,
+  inScope: boolean,
+  scopeState: SceneState["scopeState"],
+) {
   if (kind === "water") return GROUND.water!;
-  if (!inScope) return kind === "grass" ? GROUND.fogGrass! : GROUND.fogged!;
+  if (scopeState !== "none" && !inScope) {
+    return kind === "grass" ? GROUND.fogGrass! : GROUND.fogged!;
+  }
   if (kind === "sand") return GROUND.sand!;
   if (kind === "pavement") return GROUND.pavement!;
   if (kind === "road") return GROUND.road!;
@@ -156,13 +162,13 @@ function groundItems(state: SceneState): Drawable[] {
     for (let v = -2; v <= ISLAND_H + 2; v += 1) {
       const kind = tileKindAt(u, v);
       const inScope = scoped(u, v);
-      const material = groundMaterial(kind, inScope);
+      const material = groundMaterial(kind, inScope, state.scopeState);
       const cu = u;
       const cv = v;
 
       if (kind === "road") {
         const mask = roadConnections(cu, cv);
-        const kerb = inScope ? GROUND.pavement! : GROUND.fogged!;
+        const kerb = state.scopeState === "none" || inScope ? GROUND.pavement! : GROUND.fogged!;
         items.push({
           z: depth(cu, cv, -1),
           draw: (ctx) => {
@@ -179,7 +185,7 @@ function groundItems(state: SceneState): Drawable[] {
       let amount = 0;
       if (kind === "grass") {
         amount = blendAmount(cu, cv, isGrass, isSand);
-        blend = inScope ? GROUND.sand! : GROUND.fogged!;
+        blend = state.scopeState === "none" || inScope ? GROUND.sand! : GROUND.fogged!;
       } else if (kind === "sand") {
         amount = blendAmount(cu, cv, isSand, isWater);
         blend = GROUND.water!;
@@ -212,7 +218,7 @@ function treeItems(
   state: SceneState,
 ): Drawable[] {
   return trees
-    .filter((cell) => isInScope(cell, state.granted))
+    .filter((cell) => state.scopeState === "none" || isInScope(cell, state.granted))
     .map((cell) => ({
       z: depth(cell.u, cell.v, 1),
       draw: (ctx: CanvasRenderingContext2D) =>
@@ -226,7 +232,7 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
     const inScope = isInScope(building.cell, state.granted);
 
     let style: BuildingStyleSet = building.kind === "house" ? HOUSE : CONCRETE;
-    if (!inScope) style = FOGGED;
+    if (state.scopeState !== "none" && !inScope) style = FOGGED;
 
     const height = building.height;
     const seed = building.seed;
@@ -235,7 +241,7 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
       z: depth(u, v, height),
       draw: (ctx: CanvasRenderingContext2D) => {
         drawShadow(ctx, u, v, 0.7);
-        drawBuilding(ctx, u, v, height, style, seed, inScope);
+        drawBuilding(ctx, u, v, height, style, seed, state.scopeState === "none" || inScope);
       },
     };
   });

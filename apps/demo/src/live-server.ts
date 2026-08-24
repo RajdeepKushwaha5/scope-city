@@ -28,6 +28,7 @@ type MissionStatus = "starting" | "running" | "completed" | "failed" | "cancelle
 
 interface LiveMission {
   readonly id: string;
+  readonly order: string;
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly scope: ReturnType<typeof createFixtureMission>["scope"];
@@ -71,6 +72,13 @@ async function main(): Promise<void> {
     }
 
     if (req.method === "POST" && url.pathname === "/api/missions") {
+      const body = await readJson(req);
+      const order = typeof body.order === "string" ? body.order.trim() : "";
+      if (!order || order.length > 500) {
+        json(res, 400, { error: "order must contain between 1 and 500 characters" });
+        return;
+      }
+
       const active = [...missions.values()].find(
         (mission) => mission.status === "starting" || mission.status === "running",
       );
@@ -98,6 +106,7 @@ async function main(): Promise<void> {
 
       const live: LiveMission = {
         id,
+        order,
         feed,
         gates,
         scope: fixture.scope,
@@ -206,7 +215,7 @@ async function main(): Promise<void> {
             sessionId: live.sessionId,
             scope: live.scope,
             book,
-            prompt: "Resolve ticket tkt_184.",
+            prompt: live.order,
             maxTurns: 8,
             decide: (gate: GateRequest) => live.gates.wait(gate),
             onRaw: (event) => {

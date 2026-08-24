@@ -71,7 +71,7 @@ export function useLiveMission() {
     [closeSource],
   );
 
-  const launch = useCallback(async () => {
+  const launch = useCallback(async (order: string) => {
     closeSource();
     setActive(true);
     setMissionId(null);
@@ -81,7 +81,11 @@ export function useLiveMission() {
     setConnection("connecting");
 
     try {
-      const response = await fetch("/api/missions", { method: "POST" });
+      const response = await fetch("/api/missions", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ order }),
+      });
       const body = (await response.json()) as LaunchResponse & { error?: string; detail?: string };
       if (!response.ok) throw new Error(body.detail ?? body.error ?? `launch failed (${response.status})`);
       setMissionId(body.missionId);

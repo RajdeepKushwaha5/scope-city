@@ -5,10 +5,9 @@ import { drawScene, fitCamera, type Figure, type SceneState } from "./render/sce
 import { DISTRICT_PLOTS, plotFor } from "./render/world.js";
 import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
-import { GatePanel } from "./hud/GatePanel.js";
-import { RecordPanel } from "./hud/RecordPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
-import { useMission, type LogLine } from "./useMission.js";
+import { MissionOrder } from "./hud/MissionOrder.js";
+import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
 
 /**
@@ -159,87 +158,55 @@ export function App(): React.JSX.Element {
       />
 
       <div className="hud">
-        <div style={{ gridColumn: 1, gridRow: 1, display: "grid", gap: 12 }}>
-          <DistrictScan
-            online={mission.online}
-            granted={mission.granted}
-            offices={mission.offices}
-            dispositions={mission.scope?.offices ?? []}
-            inspecting={mission.inspecting}
-          />
-          <ScopePanel
-            scope={mission.scope}
-            scopeState={mission.scopeState}
-            onPropose={mission.propose}
-            onGrant={mission.grant}
-            onDeny={mission.denyScope}
-            onRevoke={mission.revoke}
-          />
+        <div className="hud__main">
+          <div className="hud__scan-stack">
+            <DistrictScan
+              online={mission.online}
+              granted={mission.granted}
+              offices={mission.offices}
+              dispositions={mission.scope?.offices ?? []}
+              inspecting={mission.inspecting}
+            />
+            <ScopePanel
+              scope={mission.scope}
+              scopeState={mission.scopeState}
+              onPropose={mission.propose}
+              onGrant={mission.grant}
+              onDeny={mission.denyScope}
+              onRevoke={mission.revoke}
+            />
+          </div>
+
+          <div className="hud__order">
+            <MissionOrder
+              active={live.active}
+              connection={live.connection}
+              error={live.error}
+              onLaunch={live.launch}
+              onStop={live.leave}
+              onPoisonedReplay={replay.runPoisonedTicket}
+              onCleanReplay={replay.runCleanJob}
+              onNoScopeReplay={replay.runNoScope}
+              onResetView={() => setCamera(fitCamera(size))}
+            />
+          </div>
         </div>
 
-        <div style={{ gridColumn: 1, gridRow: 3 }}>
-          <RecordPanel lines={mission.log as LogLine[]} />
-        </div>
-
-        <div style={{ gridColumn: 3, gridRow: 1, display: "grid", gap: 12 }}>
+        <div className="hud__console">
           <CityConsole
             phase={mission.phase}
             job={mission.job}
             treasury={mission.treasury}
             fieldSize={mission.figures.length}
+            structureCount={mission.offices.length}
             sandboxOpen={mission.sandboxOpen}
             expiresIn={mission.expiresIn}
+            connection={live.connection}
+            lines={mission.log}
+            gate={mission.gate}
+            onApprove={() => mission.countersign(true)}
+            onDeny={() => mission.countersign(false)}
           />
-          {mission.gate ? (
-            <GatePanel
-              gate={mission.gate}
-              onApprove={() => mission.countersign(true)}
-              onDeny={() => mission.countersign(false)}
-            />
-          ) : null}
-        </div>
-
-        <div style={{ gridColumn: 3, gridRow: 3, alignSelf: "end" }}>
-          <div className="window">
-            <div className="window__bar">
-              <span>DEMO</span>
-              <span className="window__rule" />
-            </div>
-            <div className="window__body">
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                {!live.active ? (
-                  <button className="btn btn--primary" onClick={() => void live.launch()}>
-                    Launch live mission
-                  </button>
-                ) : (
-                  <button className="btn btn--danger" onClick={() => void live.leave()}>
-                    Stop live mission
-                  </button>
-                )}
-                <span style={{ color: live.connection === "live" ? "var(--good)" : "var(--ink-dim)" }}>
-                  {live.active ? `● ${live.connection}` : "○ replay mode"}
-                </span>
-                {live.error ? <span style={{ color: "var(--danger)" }}>{live.error}</span> : null}
-              </div>
-              <div style={{ color: "var(--ink-dim)", marginTop: 10, marginBottom: 6 }}>
-                OFFLINE SECURITY REPLAYS
-              </div>
-              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button className="btn" disabled={live.active} onClick={replay.runPoisonedTicket}>
-                  Poisoned ticket
-                </button>
-                <button className="btn" disabled={live.active} onClick={replay.runCleanJob}>
-                  Clean job
-                </button>
-                <button className="btn btn--danger" disabled={live.active} onClick={replay.runNoScope}>
-                  No scope
-                </button>
-                <button className="btn" onClick={() => setCamera(fitCamera(size))}>
-                  Reset view
-                </button>
-              </div>
-            </div>
-          </div>
         </div>
       </div>
     </>

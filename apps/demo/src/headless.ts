@@ -176,7 +176,10 @@ async function main(): Promise<void> {
         call: { office: request.office, args: request.args, attemptedAt: Date.now() },
       });
 
-      const verdict = book.checkFingerprint(fingerprint);
+      // Take rather than peek: one human decision authorises one attempt. The
+      // entry is consumed before upstream I/O, so neither a retry nor a failed
+      // execution can reuse it.
+      const verdict = book.consumeFingerprint(fingerprint);
       if (!verdict.approved) {
         console.log(
           `${c.red("  ⌐ NOT COUNTERSIGNED".padEnd(22))} ${request.office} — ${verdict.reason}`,

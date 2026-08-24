@@ -139,9 +139,18 @@ export class CountersignBook {
     toolCallId?: string;
     reason?: string;
   } {
-    for (const [toolCallId, entry] of this.#pending) {
-      if (entry.fingerprint !== fingerprint) continue;
-
+    const matches = [...this.#pending.entries()].filter(
+      ([, entry]) => entry.fingerprint === fingerprint,
+    );
+    if (matches.length > 1) {
+      return {
+        approved: false,
+        reason: "multiple gated calls have this fingerprint; tool-call identity is ambiguous",
+      };
+    }
+    const match = matches[0];
+    if (match) {
+      const [toolCallId] = match;
       const verdict = this.#verdicts.get(toolCallId);
       if (!verdict) {
         return { approved: false, toolCallId, reason: "the operator has not decided yet" };
@@ -159,6 +168,27 @@ export class CountersignBook {
     // Nothing was raised for this call. Either the harness never gated it, or
     // the call being made is not the call that was shown.
     return { approved: false, reason: "no approval was granted for this exact call" };
+  }
+
+  /**
+   * Atomically takes the verdict for one exact call.
+   *
+   * The proxy has no TrueForge tool-call id, so a fingerprint is safe only
+   * when it names exactly one raised gate. A decided verdict is removed before
+   * the upstream action starts: success, failure and retry must all see it as
+   * spent. Undecided gates stay pending because an early proxy request must not
+   * erase the operator's chance to answer.
+   */
+  consumeFingerprint(fingerprint: string): {
+    approved: boolean;
+    toolCallId?: string;
+    reason?: string;
+  } {
+    const result = this.checkFingerprint(fingerprint);
+    if (!result.toolCallId) return result;
+    if (!this.#verdicts.has(result.toolCallId)) return result;
+    this.close(result.toolCallId);
+    return result;
   }
 
   /** Drops a settled entry once the call it guarded has run or failed. */

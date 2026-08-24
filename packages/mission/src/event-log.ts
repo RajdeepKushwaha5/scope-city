@@ -70,7 +70,7 @@ export class MissionEventLog {
    */
   since(cursor: number): Replay {
     const oldest = this.#dropped + 1;
-    const truncated = cursor > 0 && cursor + 1 < oldest;
+    const truncated = this.#dropped > 0 && cursor + 1 < oldest;
 
     const events = this.#events.filter((e) => e.sequence > (truncated ? 0 : cursor));
 

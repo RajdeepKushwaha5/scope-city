@@ -234,4 +234,36 @@ describe("checkFingerprint — the binding the proxy actually uses", () => {
     const result = book.checkFingerprint("invented");
     expect(Object.values(result)).not.toContain("invented");
   });
+
+  it("refuses identical gates because a fingerprint cannot identify which verdict applies", () => {
+    const book = new CountersignBook();
+    const first = raise(book);
+    book.raise({
+      scope: scope(),
+      toolCallId: "tc2",
+      threadId: "field-2",
+      office: "charge.refund",
+      args: REFUND_184,
+      now: NOW,
+    });
+    book.settle("tc1", { status: "approved", at: NOW });
+    book.settle("tc2", { status: "denied", at: NOW });
+
+    expect(book.checkFingerprint(first.fingerprint)).toMatchObject({
+      approved: false,
+      reason: expect.stringMatching(/ambiguous/),
+    });
+  });
+
+  it("consumes a decided approval exactly once", () => {
+    const book = new CountersignBook();
+    const raised = raise(book);
+    book.settle("tc1", { status: "approved", at: NOW });
+
+    expect(book.consumeFingerprint(raised.fingerprint).approved).toBe(true);
+    expect(book.consumeFingerprint(raised.fingerprint)).toMatchObject({
+      approved: false,
+      reason: expect.stringMatching(/no approval/),
+    });
+  });
 });

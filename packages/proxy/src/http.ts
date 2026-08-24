@@ -83,7 +83,7 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
     // used to probe which mission ids exist.
     if (options.token && !hasToken(req, options.token)) {
       res.writeHead(401, { "content-type": "application/json" });
-      res.end(JSON.stringify({ error: "unauthorized" }));
+      res.end(JSON.stringify({ error: "unauthorised" }));
       return;
     }
 

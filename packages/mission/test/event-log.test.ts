@@ -69,6 +69,16 @@ describe("bounded memory", () => {
     expect(replay.events).toHaveLength(3);
   });
 
+  it("tells a fresh client when the retained suffix is not the whole history", () => {
+    const log = new MissionEventLog(2);
+    for (let i = 1; i <= 4; i += 1) log.append(event(i), NOW);
+
+    const replay = log.since(0);
+
+    expect(replay.truncated).toBe(true);
+    expect(replay.events.map((entry) => entry.sequence)).toEqual([3, 4]);
+  });
+
   it("does not claim truncation for a client that is merely behind", () => {
     const log = new MissionEventLog(10);
     for (let i = 1; i <= 5; i += 1) log.append(event(i), NOW);

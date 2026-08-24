@@ -133,6 +133,7 @@ export function useMission() {
     const tick = window.setInterval(() => {
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
+        clearTimers();
         setExpiresAt(null);
         setExpiresIn(0);
         setScopeState("none");
@@ -151,7 +152,7 @@ export function useMission() {
       setExpiresIn(remaining);
     }, 250);
     return () => window.clearInterval(tick);
-  }, [expiresAt]);
+  }, [clearTimers, expiresAt]);
 
   const api: StepApi = {
     log: (what, kind = "plain") =>
@@ -247,21 +248,23 @@ export function useMission() {
   }, []);
 
   const denyScope = useCallback(() => {
+    clearTimers();
     setScopeState("none");
     setScope(null);
     setPhase("drafting");
     setGate(null);
     setExpiresAt(null);
     api.log("Scope refused. Nothing was granted.", "refused");
-  }, []);
+  }, [clearTimers]);
 
   const revoke = useCallback(() => {
+    clearTimers();
     setScopeState("none");
     setExpiresAt(null);
     setPhase("done");
     setGate(null);
     api.log("Scope revoked. Every office is unreachable again.", "refused");
-  }, []);
+  }, [clearTimers]);
 
   const countersign = useCallback(
     (approved: boolean) => {

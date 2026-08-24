@@ -253,9 +253,10 @@ async function main(): Promise<void> {
     let completed: MissionResult | undefined;
 
     for (const model of pool.available(Date.now())) {
+      let attemptSessionId: string | undefined;
       try {
         line(c.green("model"), model);
-        const sessionId = await driver.createSession(
+        attemptSessionId = await driver.createSession(
           missionAgentSpec({
             model,
             proxyName,
@@ -264,7 +265,7 @@ async function main(): Promise<void> {
             instructions: missionBrief({ ticketId: "tkt_184", sandbox: SANDBOX }),
           }),
         );
-        line(c.green("session"), sessionId);
+        line(c.green("session"), attemptSessionId);
 
         console.log();
         console.log(c.dim("  ── the mission ─────────────────────────────────────"));
@@ -272,7 +273,7 @@ async function main(): Promise<void> {
 
         completed = await runMission({
           driver,
-          sessionId,
+          sessionId: attemptSessionId,
           scope,
           book,
           prompt: "Resolve ticket tkt_184.",
@@ -306,6 +307,9 @@ async function main(): Promise<void> {
         break;
       } catch (error) {
         lastError = error;
+        // Every rotation abandons a real server-side session unless it is
+        // explicitly cancelled. Preserve the provider error if cleanup fails.
+        if (attemptSessionId) await driver.cancel(attemptSessionId).catch(() => undefined);
         const kind = classifyFailure(error);
         if (!isWorthRotating(kind)) throw error;
         pool.penalise(model, kind, Date.now());

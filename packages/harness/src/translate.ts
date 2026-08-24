@@ -7,6 +7,19 @@ export interface TranslateResult {
 }
 
 /**
+ * Reads an identifier off an event, or nothing.
+ *
+ * These arrive over the wire, so a field the schema calls a string may not be
+ * one. Coercing with String() would turn a malformed object into the literal
+ * "[object Object]" and then use it as a map key, which is how unrelated
+ * streams end up sharing state. An id we cannot trust is treated as absent.
+ */
+function id(event: TurnEvent, field: string): string | undefined {
+  const value = (event as Record<string, unknown>)[field];
+  return typeof value === "string" && value.length > 0 ? value : undefined;
+}
+
+/**
  * Turns one harness event into zero or more things the city can show.
  *
  * A pure reducer rather than a class with callbacks, so the whole mapping can
@@ -24,8 +37,7 @@ export function translate(
 
   switch (event.type) {
     case "turn.created": {
-      const turnId = String((event as { turn_id?: unknown }).turn_id ?? "");
-      events.push({ type: "mission.started", turnId, at: now });
+      events.push({ type: "mission.started", turnId: id(event, "turn_id") ?? "", at: now });
       break;
     }
 
@@ -58,17 +70,17 @@ export function translate(
     }
 
     case "sandbox.created": {
-      const sandboxId = String((event as { sandbox_id?: unknown }).sandbox_id ?? "");
-      events.push({ type: "yard.opened", sandboxId, at: now });
+      const sandboxId = id(event, "sandbox_id");
+      if (sandboxId) events.push({ type: "yard.opened", sandboxId, at: now });
       break;
     }
 
     case "thread.created": {
-      const threadId = String((event as { thread_id?: unknown }).thread_id ?? "");
+      const threadId = id(event, "thread_id");
       // The root thread is the agent itself; only additional threads are extra
       // figures in the field. A parent is what distinguishes them.
       const parent = (event as { parent?: unknown }).parent;
-      if (parent) {
+      if (threadId && parent) {
         const title = (event as { title?: string | null }).title ?? null;
         events.push({ type: "field.joined", threadId, title, at: now });
         next = { ...next, threads: new Set(next.threads).add(threadId) };
@@ -77,8 +89,8 @@ export function translate(
     }
 
     case "thread.done": {
-      const threadId = String((event as { thread_id?: unknown }).thread_id ?? "");
-      if (next.threads.has(threadId)) {
+      const threadId = id(event, "thread_id");
+      if (threadId && next.threads.has(threadId)) {
         events.push({ type: "field.left", threadId, at: now });
         const threads = new Set(next.threads);
         threads.delete(threadId);
@@ -94,14 +106,20 @@ export function translate(
         content?: string | null;
         tool_calls?: readonly PendingToolCall[];
       };
-      const id = e.id ?? "";
       const threadId = e.thread_id ?? "";
 
       // A model.message arrives with empty content and is filled in by deltas
       // sharing its id. Seed the buffer so those deltas have somewhere to go.
-      const messages = new Map(next.messages);
-      messages.set(id, e.content ?? "");
-      next = { ...next, messages };
+      //
+      // An event with no id is not given one: defaulting to "" would make every
+      // such event share a single buffer, so two unrelated streamed messages
+      // would concatenate into each other. Better to lose a malformed message
+      // than to corrupt a well-formed one.
+      if (e.id) {
+        const messages = new Map(next.messages);
+        messages.set(e.id, e.content ?? "");
+        next = { ...next, messages };
+      }
 
       if (e.content) {
         events.push({ type: "transmission", threadId, text: e.content, at: now });
@@ -109,16 +127,17 @@ export function translate(
 
       // Remember which office each pending call belongs to, so the matching
       // tool.response can say where the agent finished.
+      //
+      // `name` is optional in the harness's schema. Recording the mapping only
+      // when it is present meant a nameless call never produced agent.finished
+      // and the agent appeared to stand in that office forever, so the id is
+      // used as its own label when nothing better exists.
       if (e.tool_calls?.length) {
         const toolCalls = new Map(next.toolCalls);
         for (const call of e.tool_calls) {
-          if (call.name) toolCalls.set(call.tool_call_id, call.name);
-          events.push({
-            type: "agent.arrived",
-            threadId,
-            office: call.name ?? call.tool_call_id,
-            at: now,
-          });
+          const office = call.name ?? call.tool_call_id;
+          toolCalls.set(call.tool_call_id, office);
+          events.push({ type: "agent.arrived", threadId, office, at: now });
         }
         next = { ...next, toolCalls };
       }
@@ -127,10 +146,12 @@ export function translate(
 
     case "model.message.delta": {
       const e = event as { id?: string; thread_id?: string; content?: string | null };
-      const id = e.id ?? "";
-      if (e.content) {
+      // Without a trustworthy id there is no buffer this delta belongs to.
+      // Dropping it loses a fragment; guessing merges two conversations.
+      const messageId = id(event, "id");
+      if (messageId && e.content) {
         const messages = new Map(next.messages);
-        messages.set(id, (messages.get(id) ?? "") + e.content);
+        messages.set(messageId, (messages.get(messageId) ?? "") + e.content);
         next = { ...next, messages };
       }
       // Deltas are not emitted as transmissions -- the accumulated text is read
@@ -140,9 +161,9 @@ export function translate(
 
     case "tool.response": {
       const e = event as { thread_id?: string; tool_call_id?: string };
-      const toolCallId = e.tool_call_id ?? "";
-      const office = next.toolCalls.get(toolCallId);
-      if (office) {
+      const toolCallId = id(event, "tool_call_id");
+      const office = toolCallId ? next.toolCalls.get(toolCallId) : undefined;
+      if (toolCallId && office) {
         events.push({
           type: "agent.finished",
           threadId: e.thread_id ?? "",

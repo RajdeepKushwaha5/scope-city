@@ -192,3 +192,68 @@ describe("unknown events", () => {
     expect(result.events).toEqual([]);
   });
 });
+
+describe("malformed events must not corrupt well-formed ones", () => {
+  // Both found by Qodo review.
+  it("still finishes a tool call whose name the harness omitted", () => {
+    // PendingToolCall.name is optional. Recording the mapping only when it was
+    // present meant a nameless call never produced agent.finished, so the agent
+    // appeared to stand in that office forever.
+    const { events } = run([
+      {
+        type: "model.message",
+        id: "m1",
+        thread_id: "root",
+        tool_calls: [{ tool_call_id: "tc1" }],
+      },
+      { type: "tool.response", thread_id: "root", tool_call_id: "tc1", content: {} },
+    ]);
+
+    expect(events.map((e) => e.type)).toEqual(["agent.arrived", "agent.finished"]);
+    expect(events[0]).toMatchObject({ office: "tc1" });
+  });
+
+  it("does not merge two id-less messages into one buffer", () => {
+    // Defaulting a missing id to "" gave every such message the same key, so
+    // two unrelated streams concatenated into each other.
+    const { state } = run([
+      { type: "model.message", thread_id: "a", content: "first" },
+      { type: "model.message", thread_id: "b", content: "second" },
+      { type: "model.message.delta", thread_id: "a", content: "-more" },
+    ]);
+
+    expect(messageText(state, "")).toBe("");
+  });
+
+  it("ignores an id that is not a string, rather than stringifying it", () => {
+    // String({}) is "[object Object]", which is a perfectly usable map key and
+    // exactly the wrong one.
+    const { state } = run([
+      { type: "model.message", id: { nested: true } as never, thread_id: "a", content: "x" },
+    ]);
+
+    expect(messageText(state, "[object Object]")).toBe("");
+  });
+
+  it("keeps two properly-identified streams apart", () => {
+    const { state } = run([
+      { type: "model.message", id: "m1", thread_id: "a", content: "" },
+      { type: "model.message", id: "m2", thread_id: "b", content: "" },
+      { type: "model.message.delta", id: "m1", content: "one" },
+      { type: "model.message.delta", id: "m2", content: "two" },
+    ]);
+
+    expect(messageText(state, "m1")).toBe("one");
+    expect(messageText(state, "m2")).toBe("two");
+  });
+
+  it("ignores a sandbox event with no id", () => {
+    const { events } = run([{ type: "sandbox.created", thread_id: null } as never]);
+    expect(events).toEqual([]);
+  });
+
+  it("ignores a thread event with no id", () => {
+    const { events } = run([{ type: "thread.created", parent: "root" } as never]);
+    expect(events).toEqual([]);
+  });
+});

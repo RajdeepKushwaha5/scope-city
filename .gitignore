@@ -1,0 +1,17 @@
+.env*
+.DS_Store
+# Per-user repo clones, when SCOPE_CITY_CLONE_ROOT points inside the checkout.
+# The default is <tmpdir>/scopecity, but a local override lands here.
+.scopecity-clones/
+.pnpm-store/
+.scopecity/
+dist/
+node_modules/
+playwright-report/
+test-results/
+.gstack/
+supabase/.temp/
+
+# Dev-only harnesses for eyeballing baked props. Handy locally, not shipped.
+apps/web/navy-preview.html
+apps/web/src/dev/

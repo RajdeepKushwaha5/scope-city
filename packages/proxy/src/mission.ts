@@ -32,6 +32,21 @@ export function newMissionId(): string {
   return `m_${randomBytes(24).toString("hex")}`;
 }
 
+/**
+ * A mission is keyed by `mission.id`, but the ledger is keyed by
+ * `scope.missionId`. If those ever diverge the quota is counted against one
+ * mission and forgotten with another, so budgets silently leak and `forget`
+ * cleans up nothing. They are the same identity and must be checked, not
+ * assumed.
+ */
+function assertSameMission(id: string, scope: Scope): void {
+  if (scope.missionId !== id) {
+    throw new Error(
+      `scope belongs to mission ${scope.missionId}, not ${id}; quota would be counted against the wrong mission`,
+    );
+  }
+}
+
 export class MissionRegistry {
   readonly #missions = new Map<string, Mission>();
 
@@ -39,6 +54,7 @@ export class MissionRegistry {
     if (this.#missions.has(mission.id)) {
       throw new Error(`mission ${mission.id} already registered`);
     }
+    assertSameMission(mission.id, mission.scope);
     this.#missions.set(mission.id, mission);
   }
 
@@ -55,6 +71,7 @@ export class MissionRegistry {
   updateScope(id: string, scope: Scope): boolean {
     const mission = this.#missions.get(id);
     if (!mission) return false;
+    assertSameMission(id, scope);
     mission.scope = scope;
     return true;
   }

@@ -181,3 +181,26 @@ describe("missionFromPath", () => {
     expect(missionFromPath(registryOfMissions, "/mission/../../etc/passwd")).toBeUndefined();
   });
 });
+
+describe("a mission and its scope are one identity", () => {
+  // Found by Qodo review. Missions are keyed by mission.id but the ledger is
+  // keyed by scope.missionId; if those diverge, quota is counted against one
+  // mission and forgotten with another.
+  it("refuses to register a scope belonging to a different mission", () => {
+    const registryOfMissions = new MissionRegistry();
+    const m = mission();
+    const wrong: Mission = { ...m, scope: scopeFor(newMissionId()) };
+
+    expect(() => registryOfMissions.register(wrong)).toThrow(/not/);
+  });
+
+  it("refuses to swap in a scope belonging to a different mission", () => {
+    const registryOfMissions = new MissionRegistry();
+    const m = mission();
+    registryOfMissions.register(m);
+
+    expect(() => registryOfMissions.updateScope(m.id, scopeFor(newMissionId()))).toThrow(
+      /quota would be counted against the wrong mission/,
+    );
+  });
+});

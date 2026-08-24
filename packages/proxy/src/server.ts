@@ -121,12 +121,25 @@ function inputSchemaFor(
  * Two identical calls are the same logical operation. Deriving the key from the
  * call rather than generating one means a model that retries a refund verbatim
  * gets the original result instead of a second refund.
+ *
+ * The canonicalisation has to reach all the way down. Sorting only the top
+ * level would give `{a: {x: 1, y: 2}}` and `{a: {y: 2, x: 1}}` different keys,
+ * so the same refund submitted with its nested fields in a different order
+ * would look like a new operation and be performed twice.
  */
 function idempotencyKeyFor(office: string, args: Record<string, unknown>): string {
-  const sorted = Object.entries(args)
+  return `${office}:${JSON.stringify(canonicalise(args))}`;
+}
+
+function canonicalise(value: unknown): unknown {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(canonicalise);
+
+  const entries = Object.entries(value as Record<string, unknown>)
     .filter(([, v]) => v !== undefined)
     .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-  return `${office}:${JSON.stringify(sorted)}`;
+
+  return Object.fromEntries(entries.map(([k, v]) => [k, canonicalise(v)]));
 }
 
 /** Looks a mission up by the id embedded in the proxy URL path. */

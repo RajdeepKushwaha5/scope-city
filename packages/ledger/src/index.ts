@@ -16,11 +16,17 @@ export type ClaimOutcome =
   | { readonly won: false; readonly reason: "exhausted"; readonly used: number }
   | { readonly won: false; readonly reason: "replayed"; readonly sequence: number }
   | {
-      /** Same idempotency key as an earlier claim: return that claim, don't consume again. */
+      /**
+       * Same idempotency key as an earlier claim. The operation already
+       * happened, so callers must return `result` rather than performing it
+       * again -- see the note on `settle` below.
+       */
       readonly won: true;
       readonly replayOf: string;
       readonly used: number;
       readonly sequence: number;
+      readonly settled: boolean;
+      readonly result: unknown;
     };
 
 export interface LedgerEntry {
@@ -29,6 +35,10 @@ export interface LedgerEntry {
   readonly office: string;
   readonly idempotencyKey: string;
   readonly at: number;
+  /** True once the call actually completed against the upstream system. */
+  settled: boolean;
+  /** What the upstream returned, so a retry can be answered without re-running. */
+  result: unknown;
 }
 
 interface MissionState {
@@ -84,13 +94,17 @@ export class QuotaLedger {
 
     const previous = state.byIdempotencyKey.get(idempotencyKey);
     if (previous) {
-      // A retry of an operation we already performed. Hand back the original
-      // rather than spending a second unit of quota.
+      // A retry of an operation we already claimed. Hand back the original
+      // rather than spending a second unit of quota -- and, crucially, tell the
+      // caller whether it actually completed. A caller that treats this like a
+      // fresh claim will perform an irreversible action twice.
       return {
         won: true,
         replayOf: previous.idempotencyKey,
         used: state.consumed.get(office) ?? 0,
         sequence: previous.sequence,
+        settled: previous.settled,
+        result: previous.result,
       };
     }
 
@@ -108,12 +122,42 @@ export class QuotaLedger {
     const next = used + 1;
     state.consumed.set(office, next);
     const sequence = ++this.#sequence;
-    const entry: LedgerEntry = { sequence, missionId, office, idempotencyKey, at: now };
+    const entry: LedgerEntry = {
+      sequence,
+      missionId,
+      office,
+      idempotencyKey,
+      at: now,
+      settled: false,
+      result: undefined,
+    };
     state.byIdempotencyKey.set(idempotencyKey, entry);
     state.entries.push(entry);
     // --- end critical section ---
 
     return { won: true, used: next, sequence };
+  }
+
+  /**
+   * Marks a claim as having actually happened, and stores what it returned.
+   *
+   * Until this is called a claim is only a reservation: the quota is held but
+   * the world is unchanged, so `release` may still give it back. After it, the
+   * claim is a fact -- a retry gets `result` back and `release` must refuse,
+   * because you cannot un-send an email by decrementing a counter.
+   */
+  settle(params: {
+    missionId: string;
+    idempotencyKey: string;
+    result: unknown;
+  }): boolean {
+    const entry = this.#missions
+      .get(params.missionId)
+      ?.byIdempotencyKey.get(params.idempotencyKey);
+    if (!entry) return false;
+    entry.settled = true;
+    entry.result = params.result;
+    return true;
   }
 
   /**
@@ -127,10 +171,27 @@ export class QuotaLedger {
     const entry = state.byIdempotencyKey.get(params.idempotencyKey);
     if (!entry) return false;
 
+    // A settled claim describes something that happened in the world. Giving
+    // its quota back would let the same irreversible action run again, so a
+    // release here is refused rather than honoured.
+    if (entry.settled) return false;
+
     state.byIdempotencyKey.delete(params.idempotencyKey);
     const used = state.consumed.get(params.office) ?? 0;
     state.consumed.set(params.office, Math.max(0, used - 1));
     return true;
+  }
+
+  /**
+   * The entry for one logical operation, if it exists.
+   *
+   * Callers use this to answer a retry before applying policy: an operation
+   * that already completed is a matter of record, not a decision to make
+   * again. Evaluating it afresh would refuse it for spending the very quota it
+   * spent itself.
+   */
+  lookup(missionId: string, idempotencyKey: string): LedgerEntry | undefined {
+    return this.#missions.get(missionId)?.byIdempotencyKey.get(idempotencyKey);
   }
 
   /** The audit trail for one mission, in the order things actually happened. */

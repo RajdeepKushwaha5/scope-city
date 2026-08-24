@@ -19,3 +19,13 @@ export {
 } from "./world-events.js";
 
 export { messageText, translate, translateAll, type TranslateResult } from "./translate.js";
+
+export { HarnessDriver, missionAgentSpec, type DriverOptions } from "./driver.js";
+
+export {
+  ModelPool,
+  classifyFailure,
+  isWorthRotating,
+  type FailureKind,
+  type PoolEntry,
+} from "./model-pool.js";

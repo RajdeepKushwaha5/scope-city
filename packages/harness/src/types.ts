@@ -10,31 +10,39 @@
 /** AgentSpec.mcp_servers[] -- how a scope becomes something the harness enforces too. */
 export interface McpServerBinding {
   readonly name: string;
-  readonly enable_tools?: readonly string[];
-  readonly disable_tools?: readonly string[];
-  readonly preload_tools?: readonly string[];
+  readonly enableTools?: readonly string[];
+  readonly disableTools?: readonly string[];
+  readonly preloadTools?: readonly string[];
   /**
    * Tools the harness pauses on. This is The Gate: it asks a human. It is a
    * different mechanism from the scope proxy, which never asks anyone.
    */
-  readonly require_approval_for_tools?: readonly string[];
+  readonly requireApprovalForTools?: readonly string[];
   readonly preload?: boolean;
 }
 
+/**
+ * Mirrors the SDK's TypeScript surface, which is camelCase.
+ *
+ * The OpenAPI document describes the wire format and is snake_case. The two are
+ * not interchangeable: the SDK converts on the way out, so a snake_case key is
+ * accepted and dropped rather than rejected. That failure is invisible -- the
+ * session starts, the agent simply has no tools.
+ */
 export interface AgentSpec {
   readonly model: {
     readonly name: string;
     readonly params?: Record<string, unknown>;
   };
   readonly instructions?: string;
-  readonly mcp_servers?: readonly McpServerBinding[];
+  readonly mcpServers?: readonly McpServerBinding[];
   readonly skills?: readonly { readonly name: string }[];
   readonly config?: {
-    readonly iteration_limit?: number;
-    readonly sandbox?: { readonly enabled: boolean; readonly file_downloads?: boolean };
-    readonly dynamic_sub_agents?: { readonly enabled?: boolean };
-    readonly generative_ui?: { readonly enabled?: boolean };
-    readonly ask_user_questions?: { readonly enabled?: boolean };
+    readonly iterationLimit?: number;
+    readonly sandbox?: { readonly enabled: boolean; readonly fileDownloads?: boolean };
+    readonly dynamicSubAgents?: { readonly enabled?: boolean };
+    readonly generativeUi?: { readonly enabled?: boolean };
+    readonly askUserQuestions?: { readonly enabled?: boolean };
   };
 }
 
@@ -70,15 +78,15 @@ export interface UserMessage {
  */
 export interface UserToolApproval {
   readonly type: "user.tool_approval";
-  readonly thread_id: string;
-  readonly tool_call_id: string;
+  readonly threadId: string;
+  readonly toolCallId: string;
   readonly approval: { readonly status: "allow" } | { readonly status: "deny"; readonly reason?: string };
 }
 
 export interface UserToolResponse {
   readonly type: "user.tool_response";
-  readonly thread_id: string;
-  readonly tool_call_id: string;
+  readonly threadId: string;
+  readonly toolCallId: string;
   readonly content: string;
 }
 

@@ -173,8 +173,26 @@ export async function resolve(params: {
   for (const step of steps) {
     const key = `${step.office}:${step.needs}`;
     const existing = merged.get(key);
-    if (existing) Object.assign(existing.yields, step.yields);
-    else merged.set(key, { office: step.office, needs: step.needs, yields: { ...step.yields } });
+    if (!existing) {
+      merged.set(key, { office: step.office, needs: step.needs, yields: { ...step.yields } });
+      continue;
+    }
+
+    // Two steps mapping the same response field to different resource classes
+    // is a contradiction in the step table, not something to resolve by
+    // whichever was declared last. Keeping the first and ignoring the second
+    // would make the table order-dependent in a way nobody reading it would
+    // expect, so the conflict is refused outright.
+    for (const [field, cls] of Object.entries(step.yields)) {
+      const already = existing.yields[field];
+      if (already !== undefined && already !== cls) {
+        throw new Error(
+          `resolver step table conflict: ${step.office}.${field} is mapped to ` +
+            `both ${already} and ${cls}`,
+        );
+      }
+      existing.yields[field] = cls;
+    }
   }
   const plan = [...merged.values()];
 

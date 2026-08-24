@@ -74,17 +74,48 @@ export function usableOffices(params: {
   readonly offices: readonly string[];
   readonly resources: Readonly<Record<string, readonly string[]>>;
   readonly registry: OfficeRegistry;
+  readonly maxAmountMinor?: Readonly<Record<string, number>>;
 }): readonly string[] {
-  return params.offices.filter((office) => {
-    const spec = params.registry.get(office);
-    if (!spec) return false;
-    for (const [, binding] of Object.entries(spec.args)) {
-      if (binding.kind !== "resource" || !binding.required) continue;
+  return params.offices.filter((office) => whyUnusable(office, params) === null);
+}
+
+/**
+ * Why an office cannot be used, or null if it can.
+ *
+ * Split out from the filter so the caller can tell the operator what went
+ * wrong. "No office in this city can do that" is a useless message when the
+ * real answer is "you did not say how much".
+ */
+export function whyUnusable(
+  office: string,
+  params: {
+    readonly resources: Readonly<Record<string, readonly string[]>>;
+    readonly registry: OfficeRegistry;
+    readonly maxAmountMinor?: Readonly<Record<string, number>>;
+  },
+): string | null {
+  const spec = params.registry.get(office);
+  if (!spec) return `${office} is not an office this city has`;
+
+  for (const [, binding] of Object.entries(spec.args)) {
+    if (binding.kind === "resource" && binding.required) {
       const ids = params.resources[binding.resourceClass];
-      if (!ids || ids.length === 0) return false;
+      if (!ids || ids.length === 0) return `no ${binding.resourceClass} was named or resolved`;
     }
-    return true;
-  });
+
+    // An amount office with no ceiling is dead on arrival. The evaluator fails
+    // closed on an absent ceiling -- correctly -- so the office would sit in
+    // the scope refusing every call for `amount_over_limit`, which reads on
+    // the map as the enforcement misfiring rather than the scope never having
+    // said how much. Money is the one thing not to guess at: the operator is
+    // asked instead.
+    if (binding.kind === "amount_minor" && binding.required) {
+      const ceiling = params.maxAmountMinor?.[office];
+      if (ceiling === undefined || ceiling <= 0) return `no amount limit was stated for ${office}`;
+    }
+  }
+
+  return null;
 }
 
 export function compileScope(params: CompileParams): Scope {
@@ -95,7 +126,12 @@ export function compileScope(params: CompileParams): Scope {
     if (ids.length > 0) resolved[cls] = [...ids].sort();
   }
 
-  const offices = usableOffices({ offices: envelope.offices, resources: resolved, registry });
+  const offices = usableOffices({
+    offices: envelope.offices,
+    resources: resolved,
+    registry,
+    maxAmountMinor: envelope.maxAmountMinor,
+  });
 
   // Resources are then narrowed to what the surviving offices consult.
   //

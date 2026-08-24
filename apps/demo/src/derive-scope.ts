@@ -3,7 +3,7 @@ import {
   constrainEnvelope,
   draftFromText,
   resolve,
-  unfilledClasses,
+  whyUnusable,
   type IntentEnvelope,
   type Resolution,
   type ResolverIO,
@@ -35,8 +35,14 @@ export interface DerivedScope {
   readonly scope: Scope;
   readonly envelope: IntentEnvelope;
   readonly resolution: Resolution;
-  /** Resource classes an office needs and resolution could not fill. */
-  readonly unfilled: readonly string[];
+  /**
+   * Offices the draft asked for that could not be granted, and why.
+   *
+   * Reported rather than swallowed: an operator whose job produced no scope is
+   * owed the reason. "No office in this city can do that" is a useless answer
+   * when the truth is "you did not say how much".
+   */
+  readonly dropped: readonly { readonly office: string; readonly reason: string }[];
 }
 
 /**
@@ -116,12 +122,22 @@ export async function deriveScopeFromJob(params: {
     now,
   });
 
-  return {
-    scope,
-    envelope,
-    resolution,
-    unfilled: unfilledClasses({ offices: scope.offices, resources: scope.resources, registry }),
-  };
+  // Compared against the envelope rather than the compiled scope: the scope has
+  // already had unusable offices pruned out of it, so asking it what is missing
+  // can only ever return nothing.
+  const dropped = envelope.offices
+    .filter((office) => !scope.offices.includes(office))
+    .map((office) => ({
+      office,
+      reason:
+        whyUnusable(office, {
+          resources: resolution.resolved,
+          registry,
+          maxAmountMinor: envelope.maxAmountMinor,
+        }) ?? "not usable with the resources on hand",
+    }));
+
+  return { scope, envelope, resolution, dropped };
 }
 
 /** A short stable tag for a job string. Cosmetic; never a security boundary. */

@@ -157,22 +157,19 @@ async function main(): Promise<void> {
       const derived = await deriveScopeFromJob({ job: order, missionId: id });
 
       if (derived.scope.offices.length === 0) {
+        // Carry the reasons. A job that produced no scope because the operator
+        // did not state an amount is a completely different problem from one
+        // that named no system this city has, and the operator can only fix the
+        // one they are told about.
         json(res, 422, {
-          error: "no office in this city can do that",
-          detail: "Nothing in the request matched a system the city can reach.",
-          job: order,
-        });
-        return;
-      }
-
-      if (derived.unfilled.length > 0) {
-        // A scope whose offices need a resource class that resolution could not
-        // fill is not a tight scope, it is a broken one: every call it makes
-        // would be refused for `resource_not_in_scope`, which reads on the map
-        // as the enforcement misfiring rather than the lookup having failed.
-        json(res, 422, {
-          error: "could not resolve everything that job needs",
-          detail: `unresolved: ${derived.unfilled.join(", ")}`,
+          error:
+            derived.dropped.length > 0
+              ? "that job could not be scoped"
+              : "no office in this city can do that",
+          detail:
+            derived.dropped.length > 0
+              ? derived.dropped.map((d) => `${d.office}: ${d.reason}`).join("; ")
+              : "Nothing in the request matched a system the city can reach.",
           job: order,
         });
         return;

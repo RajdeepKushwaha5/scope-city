@@ -7,6 +7,7 @@ export {
 } from "./envelope.js";
 
 export {
+  appearsInJob,
   constrainEnvelope,
   type DerivationBounds,
   type RawDerivation,
@@ -22,4 +23,10 @@ export {
   type ResolverStep,
 } from "./resolve.js";
 
-export { compileScope, unfilledClasses, usableOffices, type CompileParams } from "./compile.js";
+export {
+  compileScope,
+  unfilledClasses,
+  usableOffices,
+  whyUnusable,
+  type CompileParams,
+} from "./compile.js";

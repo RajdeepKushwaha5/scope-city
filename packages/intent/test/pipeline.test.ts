@@ -3,7 +3,7 @@ import { buildRegistry, evaluate, type OfficeSpec } from "@scope-city/scope";
 import { amountMinorIn, draftFromText } from "../src/draft.js";
 import { constrainEnvelope, type DerivationBounds } from "../src/derive.js";
 import { resolve, type ResolverIO } from "../src/resolve.js";
-import { compileScope, unfilledClasses } from "../src/compile.js";
+import { compileScope, unfilledClasses, whyUnusable } from "../src/compile.js";
 
 const SPECS: OfficeSpec[] = [
   {
@@ -131,7 +131,7 @@ describe("the scope follows the operator's words", () => {
   it("derives a different scope from a different sentence", async () => {
     // The property the whole feature exists for. If these two produce the same
     // scope, the pipeline is decoration over a constant.
-    const refund = await pipeline("Refund order #184");
+    const refund = await pipeline("Refund order #184 up to $49");
     const reply = await pipeline("Reply to ticket #184");
 
     expect(refund.scope.offices).toContain("charge.refund");
@@ -140,8 +140,47 @@ describe("the scope follows the operator's words", () => {
   });
 
   it("does not grant mail for a job that never mentions telling anyone", async () => {
-    const { scope } = await pipeline("Refund order #184");
+    const { scope } = await pipeline("Refund order #184 up to $49");
     expect(scope.offices).not.toContain("mail.send");
+  });
+
+  it("refuses to guess an amount the operator never stated", async () => {
+    // The evaluator fails closed on a missing ceiling, so granting the office
+    // anyway would put it in the scope refusing every call for
+    // `amount_over_limit` -- which reads as the enforcement misfiring rather
+    // than the job never having said how much. Money is not guessed at.
+    const { scope } = await pipeline("Refund order #184");
+    expect(scope.offices).not.toContain("charge.refund");
+  });
+
+  it("refuses an id the operator never wrote, however confidently proposed", async () => {
+    // The whole claim for stage 1 is that the envelope comes from the
+    // operator's sentence. Without this the claim is a property of which
+    // drafter ran, not of the system.
+    const envelope = constrainEnvelope({
+      job: "Refund order #184 up to $49",
+      raw: {
+        offices: ["charge.refund"],
+        named: { charge_ids: ["ch_184", "ch_999"], order_ids: ["ord_184"] },
+        maxAmountMinor: { "charge.refund": 4900 },
+      },
+      bounds: BOUNDS,
+    });
+    // `ch_184` survives: the operator wrote "184", so that id traces back to
+    // their sentence whichever class the drafter assigned it to. `ch_999` does
+    // not appear anywhere in what they wrote, and no amount of confidence in
+    // the draft makes it theirs.
+    expect(envelope.named["charge_ids"]).toEqual(["ch_184"]);
+    expect(envelope.named["charge_ids"]).not.toContain("ch_999");
+  });
+
+  it("drops a zero ceiling rather than granting a dead office", async () => {
+    const envelope = constrainEnvelope({
+      job: "Refund order #184",
+      raw: { offices: ["charge.refund"], maxAmountMinor: { "charge.refund": 0 } },
+      bounds: BOUNDS,
+    });
+    expect(envelope.maxAmountMinor["charge.refund"]).toBeUndefined();
   });
 
   it("never grants an office no verb asked for", async () => {
@@ -149,23 +188,39 @@ describe("the scope follows the operator's words", () => {
     expect(scope.offices).not.toContain("customer.list");
   });
 
+  it("says why an office was dropped, rather than only that it was", async () => {
+    const envelope = constrainEnvelope({
+      job: "Refund order #184",
+      raw: draftFromText("Refund order #184"),
+      bounds: BOUNDS,
+    });
+    const resolution = await resolve({ envelope, registry, io });
+    expect(
+      whyUnusable("charge.refund", {
+        resources: resolution.resolved,
+        registry,
+        maxAmountMinor: envelope.maxAmountMinor,
+      }),
+    ).toContain("no amount limit");
+  });
+
   it("resolves the charge the operator could not name", async () => {
     // "Refund order #184" contains no charge id. Only a lookup can produce one,
     // which is the entire reason stage 2 exists.
-    const { envelope, scope } = await pipeline("Refund order #184");
+    const { envelope, scope } = await pipeline("Refund order #184 up to $49");
     expect(envelope.named["charge_ids"]).toBeUndefined();
     expect(scope.resources["charge_ids"]).toEqual(["ch_184"]);
   });
 
   it("compiles to `proposed`, never to granted", async () => {
-    const { scope } = await pipeline("Refund order #184");
+    const { scope } = await pipeline("Refund order #184 up to $49");
     expect(scope.state).toBe("proposed");
     expect(scope.grantedBy).toBeNull();
     expect(scope.grantedAt).toBeNull();
   });
 
   it("projects out free text by default", async () => {
-    const { scope } = await pipeline("Refund order #184");
+    const { scope } = await pipeline("Refund order #184 up to $49");
     expect(scope.projection["charge.get"]).toContain("amount");
     expect(scope.projection["charge.get"]).not.toContain("customer.history");
   });

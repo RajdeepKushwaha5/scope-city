@@ -47,6 +47,36 @@ function stringArray(value: unknown): string[] {
   return value.filter((v): v is string => typeof v === "string" && v.length > 0);
 }
 
+/**
+ * Whether an id actually appears in the operator's sentence.
+ *
+ * The entire claim for stage 1 is that the envelope is derived *exclusively*
+ * from the operator's own request. Accepting whatever ids the draft supplies
+ * quietly makes that a property of which drafter happened to run rather than a
+ * property of the system: the deterministic one extracts ids from the text and
+ * is fine, while a model -- confused or influenced -- could return `ch_999` and
+ * have it granted.
+ *
+ * So the sentence is the authority. An id survives only if its distinguishing
+ * part is present in what the operator wrote, which is what lets `ord_184`
+ * through for "refund order #184" while `ord_999` is dropped no matter how
+ * confidently it was proposed.
+ *
+ * Canonical prefixes are stripped before comparing, because the drafter adds
+ * them: the operator writes "184" and means `ord_184`.
+ */
+export function appearsInJob(job: string, id: string): boolean {
+  const haystack = job.toLowerCase();
+  const needle = id.toLowerCase();
+  if (haystack.includes(needle)) return true;
+
+  // `ord_184` -> `184`. Only the part after a known prefix separator, so a bare
+  // token cannot be whittled down until it matches something by accident.
+  const core = /^[a-z]+_(.+)$/.exec(needle)?.[1];
+  if (!core || core.length === 0) return false;
+  return haystack.includes(core);
+}
+
 function numberRecord(value: unknown): Record<string, number> {
   if (typeof value !== "object" || value === null) return {};
   const out: Record<string, number> = {};
@@ -93,7 +123,9 @@ export function constrainEnvelope(params: {
   if (typeof raw.named === "object" && raw.named !== null) {
     for (const [cls, value] of Object.entries(raw.named as Record<string, unknown>)) {
       if (!usedClasses.has(cls)) continue;
-      const ids = [...new Set(stringArray(value))].sort();
+      const ids = [...new Set(stringArray(value))]
+        .filter((id) => appearsInJob(job, id))
+        .sort();
       if (ids.length > 0) named[cls] = ids;
     }
   }
@@ -108,6 +140,11 @@ export function constrainEnvelope(params: {
   const maxAmountMinor: Record<string, number> = {};
   for (const [office, value] of Object.entries(numberRecord(raw.maxAmountMinor))) {
     if (!offices.includes(office)) continue;
+    // A zero ceiling is not a tight scope, it is a dead one: the evaluator
+    // refuses every positive amount against it, so the office would sit in the
+    // scope failing every call. Dropped, so the missing-ceiling check below
+    // reports it as the unusable office it is.
+    if (value <= 0) continue;
     maxAmountMinor[office] = Math.min(value, bounds.maxAmountMinorCeiling);
   }
 

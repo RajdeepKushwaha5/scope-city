@@ -40,6 +40,13 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
   },
 
   {
+    office: "charge.find_by_order",
+    district: "exchequer",
+    mutating: false,
+    args: { order_id: { kind: "resource", resourceClass: "order_ids", required: true } },
+    responseFields: ["id", "amount", "order_id"],
+  },
+  {
     office: "charge.get",
     district: "exchequer",
     mutating: false,

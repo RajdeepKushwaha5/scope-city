@@ -21,6 +21,15 @@ describe("mission lifecycle", () => {
       { type: "mission.ended", status: "done", at: NOW },
     ]);
   });
+
+  it("accepts the camelCase event shape emitted by the TrueForge SDK", () => {
+    const { events } = run([
+      { type: "turn.created", turnId: "t_live" } as never,
+      { type: "turn.done", state: { status: "done" } },
+    ]);
+
+    expect(events[0]).toEqual({ type: "mission.started", turnId: "t_live", at: NOW });
+  });
 });
 
 describe("districts come online from the harness, not from a hand-drawn map", () => {
@@ -55,6 +64,31 @@ describe("districts come online from the harness, not from a hand-drawn map", ()
       authUrl: "https://auth.example/x",
     });
   });
+
+  it("accepts camelCase MCP server and auth fields from the SDK", () => {
+    const { events } = run([
+      {
+        type: "mcp.initialize",
+        threadId: null,
+        mcpServers: [{ name: "records" }],
+      } as never,
+      {
+        type: "mcp.auth_required",
+        threadId: null,
+        mcpServers: [{ id: "m1", name: "exchequer", authUrl: "https://auth.example/live" }],
+      } as never,
+    ]);
+
+    expect(events).toEqual([
+      { type: "district.online", district: "records", at: NOW },
+      {
+        type: "district.auth_required",
+        district: "exchequer",
+        authUrl: "https://auth.example/live",
+        at: NOW,
+      },
+    ]);
+  });
 });
 
 describe("the agent moving between offices", () => {
@@ -81,6 +115,27 @@ describe("the agent moving between offices", () => {
       { type: "tool.response", thread_id: "root", tool_call_id: "unknown", content: {} },
     ]);
     expect(events).toEqual([]);
+  });
+
+  it("tracks camelCase tool calls and responses from a live SDK stream", () => {
+    const { events } = run([
+      {
+        type: "model.message",
+        id: "m-live",
+        threadId: "root",
+        content: null,
+        toolCalls: [{ toolCallId: "tc-live", name: "charge.get", arguments: {} }],
+      } as never,
+      {
+        type: "tool.response",
+        threadId: "root",
+        toolCallId: "tc-live",
+        content: {},
+      } as never,
+    ]);
+
+    expect(events.map((event) => event.type)).toEqual(["agent.arrived", "agent.finished"]);
+    expect(events[0]).toMatchObject({ office: "charge.get", threadId: "root" });
   });
 });
 
@@ -173,6 +228,72 @@ describe("the gate", () => {
     ]);
 
     expect(events.at(-1)).toMatchObject({ office: "charge.refund" });
+  });
+
+  it("raises a gate from the camelCase approval event emitted live", () => {
+    const { events } = run([
+      {
+        type: "tool.approval_required",
+        threadId: "root",
+        toolCalls: [
+          {
+            toolCallId: "tc-live",
+            name: "charge.refund",
+            arguments: { charge_id: "ch_184", amount: 4900 },
+          },
+        ],
+      } as never,
+    ]);
+
+    expect(events[0]).toMatchObject({
+      type: "gate.raised",
+      toolCallId: "tc-live",
+      office: "charge.refund",
+      args: { charge_id: "ch_184", amount: 4900 },
+    });
+  });
+
+  it("assembles streamed SDK arguments before a sparse live approval event", () => {
+    const { events } = run([
+      { type: "model.message", id: "m-live", threadId: "main" } as never,
+      {
+        type: "model.message.delta",
+        id: "m-live",
+        threadId: "main",
+        toolCalls: [
+          {
+            index: 0,
+            id: "function-call-live",
+            toolInfo: { name: "charge.refund" },
+            function: { name: "charge_refund", arguments: "" },
+          },
+        ],
+      } as never,
+      {
+        type: "model.message.delta",
+        id: "m-live",
+        threadId: "main",
+        toolCalls: [{ index: 0, function: { arguments: '{"charge_id":"ch_184",' } }],
+      } as never,
+      {
+        type: "model.message.delta",
+        id: "m-live",
+        threadId: "main",
+        toolCalls: [{ index: 0, function: { arguments: '"amount":4900}' } }],
+      } as never,
+      {
+        type: "tool.approval_required",
+        threadId: "main",
+        toolCalls: [{ id: "function-call-live", sourceEventId: "m-live" }],
+      } as never,
+    ]);
+
+    expect(events.map((event) => event.type)).toEqual(["agent.arrived", "gate.raised"]);
+    expect(events.at(-1)).toMatchObject({
+      toolCallId: "function-call-live",
+      office: "charge.refund",
+      args: { charge_id: "ch_184", amount: 4900 },
+    });
   });
 });
 

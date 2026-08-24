@@ -35,9 +35,22 @@ export interface TranslatorState {
   readonly messages: ReadonlyMap<string, string>;
   /** tool_call_id -> office name, so tool.response knows where the agent was. */
   readonly toolCalls: ReadonlyMap<string, string>;
+  /** tool_call_id -> the complete arguments shown by the streamed model call. */
+  readonly toolCallArgs: ReadonlyMap<string, unknown>;
+  /** message-id/index -> tool_call_id, because later SDK deltas carry only an index. */
+  readonly toolCallIndexes: ReadonlyMap<string, string>;
+  /** tool_call_id -> partial JSON text assembled across SDK deltas. */
+  readonly toolCallArgumentText: ReadonlyMap<string, string>;
   readonly threads: ReadonlySet<string>;
 }
 
 export function initialState(): TranslatorState {
-  return { messages: new Map(), toolCalls: new Map(), threads: new Set() };
+  return {
+    messages: new Map(),
+    toolCalls: new Map(),
+    toolCallArgs: new Map(),
+    toolCallIndexes: new Map(),
+    toolCallArgumentText: new Map(),
+    threads: new Set(),
+  };
 }

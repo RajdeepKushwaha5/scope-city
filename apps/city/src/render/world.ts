@@ -14,11 +14,17 @@ import type { Cell } from "../iso/projection.js";
  * like six objects on a lawn.
  */
 
-export const ISLAND_W = 34;
-export const ISLAND_H = 30;
+export const ISLAND_W = 40;
+export const ISLAND_H = 34;
+/** Water rendered beyond the beach, large enough to pan without finding an edge. */
+export const OCEAN_MARGIN = 10;
 
-/** Streets on every fourth cell: close enough to read as a grid at full zoom. */
-export const ROAD_EVERY = 4;
+/**
+ * Six-cell blocks leave a three-by-three buildable interior between pavement
+ * rings. Four-cell blocks only left one cell and made the city look like a
+ * sparse diagram no matter how many fillers the generator requested.
+ */
+export const ROAD_EVERY = 6;
 
 export type TileKind = "grass" | "road" | "pavement" | "sand" | "water";
 
@@ -43,12 +49,12 @@ export interface Building {
 }
 
 export const DISTRICT_PLOTS: readonly DistrictPlot[] = [
-  { id: "records", title: "Records", u0: 5, v0: 5, u1: 11, v1: 11, landmark: { u: 8, v: 8 }, landmarkHeight: 2.6 },
-  { id: "exchequer", title: "The Exchequer", u0: 13, v0: 5, u1: 19, v1: 11, landmark: { u: 16, v: 8 }, landmarkHeight: 3.6 },
-  { id: "post-house", title: "Post House", u0: 5, v0: 13, u1: 11, v1: 19, landmark: { u: 8, v: 16 }, landmarkHeight: 2.1 },
-  { id: "yard", title: "The Yard", u0: 13, v0: 13, u1: 19, v1: 19, landmark: { u: 16, v: 16 }, landmarkHeight: 1.7 },
-  { id: "archive", title: "The Archive", u0: 21, v0: 5, u1: 27, v1: 11, landmark: { u: 24, v: 8 }, landmarkHeight: 2.4 },
-  { id: "gate", title: "The Gate", u0: 21, v0: 13, u1: 27, v1: 19, landmark: { u: 24, v: 16 }, landmarkHeight: 3.0 },
+  { id: "records", title: "Records", u0: 2, v0: 2, u1: 12, v1: 14, landmark: { u: 8, v: 8 }, landmarkHeight: 2.6 },
+  { id: "exchequer", title: "The Exchequer", u0: 13, v0: 2, u1: 24, v1: 14, landmark: { u: 20, v: 8 }, landmarkHeight: 3.6 },
+  { id: "archive", title: "The Archive", u0: 25, v0: 2, u1: 38, v1: 14, landmark: { u: 32, v: 8 }, landmarkHeight: 2.4 },
+  { id: "post-house", title: "Post House", u0: 2, v0: 15, u1: 12, v1: 32, landmark: { u: 8, v: 20 }, landmarkHeight: 2.1 },
+  { id: "yard", title: "The Yard", u0: 13, v0: 15, u1: 24, v1: 32, landmark: { u: 20, v: 20 }, landmarkHeight: 1.7 },
+  { id: "gate", title: "The Gate", u0: 25, v0: 15, u1: 38, v1: 32, landmark: { u: 32, v: 20 }, landmarkHeight: 3.0 },
 ];
 
 export function plotFor(district: string): DistrictPlot | undefined {
@@ -111,6 +117,20 @@ function cellSeed(u: number, v: number): number {
   return hash(`${u}:${v}`);
 }
 
+function isLandmarkPlazaCell(u: number, v: number): boolean {
+  return DISTRICT_PLOTS.some(
+    (plot) => Math.abs(u - plot.landmark.u) + Math.abs(v - plot.landmark.v) <= 1,
+  );
+}
+
+/** Coastal destinations reserve these cells from procedural buildings and trees. */
+export function isFacilityCell(u: number, v: number): boolean {
+  const airport = u >= 3 && u <= 13 && v >= 27 && v <= 32;
+  const containerPort = u >= 27 && u <= 37 && v >= 28 && v <= 32;
+  const navalYard = u >= 35 && u <= 39 && v >= 17 && v <= 25;
+  return airport || containerPort || navalYard;
+}
+
 /**
  * Everything standing on the island.
  *
@@ -128,12 +148,11 @@ export function layOutCity(
 
   const key = (u: number, v: number) => `${u}:${v}`;
 
-  // Landmarks reserve a 3x3 so nothing crowds them.
+  // Landmarks reserve a small cross. That leaves a plaza around each civic
+  // building without cutting a nine-cell hole out of every neighbourhood.
   for (const plot of DISTRICT_PLOTS) {
-    for (let du = -1; du <= 1; du += 1) {
-      for (let dv = -1; dv <= 1; dv += 1) {
-        taken.add(key(plot.landmark.u + du, plot.landmark.v + dv));
-      }
+    for (const [du, dv] of [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]] as const) {
+      taken.add(key(plot.landmark.u + du, plot.landmark.v + dv));
     }
   }
 
@@ -152,6 +171,7 @@ export function layOutCity(
       for (let v = plot.v0; v <= plot.v1; v += 1) {
         if (tileKindAt(u, v) !== "grass") continue;
         if (taken.has(key(u, v))) continue;
+        if (isFacilityCell(u, v)) continue;
         slots.push({ u, v });
       }
     }
@@ -187,10 +207,11 @@ export function layOutCity(
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "grass") continue;
       if (taken.has(key(u, v))) continue;
+      if (isFacilityCell(u, v)) continue;
 
       const seed = cellSeed(u, v);
-      // Leave roughly a fifth of block cells open for parks and trees.
-      if (seed % 5 === 0) continue;
+      // Leave one cell in six open for pocket parks and vegetation.
+      if (seed % 6 === 0) continue;
 
       const distance = Math.hypot(u - midU, v - midV) / maxDist;
       const downtown = distance < 0.45;
@@ -219,7 +240,33 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
       const kind = tileKindAt(u, v);
       if (kind !== "grass" && kind !== "pavement") continue;
       if (built.has(`${u}:${v}`)) continue;
-      if (cellSeed(u, v) % 3 !== 0) continue;
+      if (isLandmarkPlazaCell(u, v)) continue;
+      if (isFacilityCell(u, v)) continue;
+      const seed = cellSeed(u, v);
+      // Fountains own their park cell; never place a canopy over the feature.
+      if (kind === "grass" && seed % 30 === 0) continue;
+      if (kind === "grass" ? seed % 2 !== 0 : hash(`street-tree:${u}:${v}`) % 11 !== 0) continue;
+      cells.push({ u, v });
+    }
+  }
+
+  return cells;
+}
+
+/** A few open grass cells become fountains, breaking up the larger parks. */
+export function fountainCells(buildings: readonly Building[]): Cell[] {
+  const built = new Set(buildings.map((b) => `${b.cell.u}:${b.cell.v}`));
+  const cells: Cell[] = [];
+
+  for (let u = 2; u <= ISLAND_W - 2; u += 1) {
+    for (let v = 2; v <= ISLAND_H - 2; v += 1) {
+      if (tileKindAt(u, v) !== "grass" || built.has(`${u}:${v}`)) continue;
+      if (isLandmarkPlazaCell(u, v)) continue;
+      if (isFacilityCell(u, v)) continue;
+      // Filler parks are cells whose base seed is divisible by six. A second
+      // divisor of thirty selects a stable subset without relying on a second
+      // correlated hash that can accidentally select none of them.
+      if (cellSeed(u, v) % 30 !== 0) continue;
       cells.push({ u, v });
     }
   }

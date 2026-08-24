@@ -18,14 +18,14 @@ import type { WorldEvent } from "@scope-city/harness";
  * that comes from treating "no events" and "event zero" as the same.
  */
 
-export interface LoggedEvent {
+export interface LoggedEvent<TEvent = WorldEvent> {
   readonly sequence: number;
-  readonly event: WorldEvent;
+  readonly event: TEvent;
   readonly at: number;
 }
 
-export interface Replay {
-  readonly events: readonly LoggedEvent[];
+export interface Replay<TEvent = WorldEvent> {
+  readonly events: readonly LoggedEvent<TEvent>[];
   /** The sequence a client should send next time. */
   readonly cursor: number;
   /**
@@ -35,8 +35,8 @@ export interface Replay {
   readonly truncated: boolean;
 }
 
-export class MissionEventLog {
-  readonly #events: LoggedEvent[] = [];
+export class MissionEventLog<TEvent = WorldEvent> {
+  readonly #events: LoggedEvent<TEvent>[] = [];
   readonly #capacity: number;
   #dropped = 0;
 
@@ -49,9 +49,9 @@ export class MissionEventLog {
     this.#capacity = capacity;
   }
 
-  append(event: WorldEvent, at: number = Date.now()): LoggedEvent {
+  append(event: TEvent, at: number = Date.now()): LoggedEvent<TEvent> {
     const sequence = this.#dropped + this.#events.length + 1;
-    const logged: LoggedEvent = { sequence, event, at };
+    const logged: LoggedEvent<TEvent> = { sequence, event, at };
     this.#events.push(logged);
 
     if (this.#events.length > this.#capacity) {
@@ -68,7 +68,7 @@ export class MissionEventLog {
    * A client that has nothing passes 0 and gets the whole log. A client that
    * has seen up to N passes N and gets N+1 onward.
    */
-  since(cursor: number): Replay {
+  since(cursor: number): Replay<TEvent> {
     const oldest = this.#dropped + 1;
     const truncated = this.#dropped > 0 && cursor + 1 < oldest;
 

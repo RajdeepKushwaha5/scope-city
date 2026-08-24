@@ -74,20 +74,17 @@ packages/
   scope/     scope schema, request evaluator, response projector  (pure)
   ledger/    atomic quota claims, idempotency, replay protection  (pure)
   proxy/     the enforcing MCP proxy — decide → claim → countersign → execute → project
-  harness/   TrueForge session driver and event translation
-  protocol/  shared zod schemas for world state and events
-  layout/    district and building layout
-  worldgen/  live tools/list → world snapshot
+  harness/   TrueForge SDK driver, event translation, model rotation
+  mission/   countersign binding, mission brief, replayable event log
 apps/
-  server/    Fastify + WebSocket: drives the session, normalises events
-  web/       React + Phaser isometric city and HUD
-  cli/       boots server and web together
+  demo/      live control API, SSE replay, fixture mission, TrueForge setup
+  city/      clean-room React + Canvas isometric city and operator HUD
 mcp/         the demo MCP servers (ticket, payments, mail)
 docs/
   TRUEFORGE.md   verified notes on the harness API — read before integrating
 ```
 
-The three `packages/` at the top are the security substrate and have no I/O:
+The scope and ledger packages are the security substrate and have no I/O:
 `now` and `consumed` are arguments rather than ambient state, which is what makes
 every branch reachable from a test.
 
@@ -104,33 +101,43 @@ every branch reachable from a test.
   sudo apt-get install -y bubblewrap socat ripgrep
   ```
 
-### Quick start
+### Quick start — live mission
 
 ```bash
 pnpm install
+cp .env.example .env                 # add at least one Gemini key
 
-# 1. the harness
-npx @truefoundry/trueforge          # http://localhost:8790
+# 1. TrueForge (run in Linux/macOS; on Windows run this inside WSL)
+npx @truefoundry/trueforge           # http://127.0.0.1:8790
 
-# 2. the demo systems and the scope proxy
-pnpm mcp:dev
+# 2. register the configured models in that TrueForge instance
+pnpm demo:models
 
-# 3. Scope City
-pnpm dev                            # http://localhost:5173
+# 3. start the mission control plane, scope proxy, and city
+pnpm dev                             # http://127.0.0.1:5173
 ```
 
-### No credentials required
+On Windows, if an existing TrueForge database predates the installed version,
+do not delete it. Start the hackathon instance with an isolated database:
 
-`SCOPE_FIXTURES=true` runs the demo systems against local test doubles, so the
-whole thing works with no Stripe key and no accounts. That is the mode to use
-when evaluating the project.
+```bash
+SQLITE_PATH=/tmp/scope-city-trueforge.sqlite npx @truefoundry/trueforge
+```
+
+### Fixture systems and offline replay
+
+The ticket, payment, and mail systems are local deterministic fixtures. No
+Stripe, helpdesk, or email credentials are needed, and no real refund or email
+is sent. A live mission still needs one configured model key. The clearly
+labelled **Offline security replays** in the UI and the full test suite need no
+network or credentials.
 
 ## Verifying the claim
 
 The safety claim is not rhetorical; it is a test suite.
 
 ```bash
-pnpm test        # no network, under five seconds
+pnpm test        # no network
 ```
 
 The tests that matter most:

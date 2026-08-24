@@ -61,33 +61,39 @@ The stream **always** opens with `turn.created` and closes with `turn.done`.
 
 ## Events
 
-Every event has `id`, `thread_id` and a sequence number, so a stream can be
-resumed after a disconnect.
+The SDK surface is camelCase even though the OpenAPI wire schema is snake_case.
+Scope City accepts both, but the live events verified on 2026-08-24 used the SDK
+shapes below. TrueForge's SDK stream does not expose a reconnect cursor; Scope
+City therefore assigns its own monotonic sequence when it republishes events to
+the browser.
 
 | Event | Payload we care about | What Scope City does with it |
 |---|---|---|
-| `turn.created` | `turn_id`, `previous_turn_id`, `state` | Mission starts |
-| `model.message` | `id`, `thread_id`, `content`, `tool_calls[]` | Transmissions log |
-| `model.message.delta` | same `id`, streamed `content` | Merge into the base event and re-render |
-| `tool.response` | `thread_id`, `tool_call_id`, `content` | Agent arrives at an office |
-| `tool.approval_required` | `thread_id`, `tool_calls[]` with `tool_call_id`, `source_event_id` | **The Gate** — klaxon, countersign UI |
-| `tool.response_required` | `thread_id`, `tool_calls[]` | Client-side tool execution |
-| `thread.created` | `thread_id`, `title`, `parent`, `agent_info` | **A second figure appears in the field** (subagent) |
-| `thread.done` | `thread_id`, `state` | That figure leaves |
-| `mcp.initialize` | `thread_id`, `mcp_servers[]` (name, session_id) | Districts come online |
-| `mcp.auth_required` | `mcp_servers[]` (id, name, auth_url) | District needs OAuth |
-| `sandbox.created` | `sandbox_id` | The Yard lights up |
+| `turn.created` | `turnId`, `previousTurnId`, `state` | Mission starts |
+| `model.message` | `id`, `threadId`; content may be absent | Seeds a streamed message |
+| `model.message.delta` | same `id`; streamed `content` and/or `toolCalls[]` | Merge text and reconstruct tool ID, office, and argument fragments |
+| `tool.response` | `threadId`, `toolCallId`, `content` | Agent finishes at an office |
+| `tool.approval_required` | `threadId`, sparse `toolCalls[]` containing `id`, `sourceEventId` | **The Gate** — look up the exact reconstructed call and pause |
+| `tool.response_required` | `threadId`, `toolCalls[]` | Client-side tool execution |
+| `thread.created` | `threadId`, `title`, `parent`, `agentInfo` | **A second figure appears in the field** (subagent) |
+| `thread.done` | `threadId`, `state` | That figure leaves |
+| `mcp.initialize` | `threadId`, `mcpServers[]` | Districts come online |
+| `mcp.auth_required` | `mcpServers[]` with `authUrl` | District needs OAuth |
+| `sandbox.created` | `sandboxId` | The Yard lights up |
 | `turn.done` | `state.status` (done / cancelled / error) | Mission ends |
 
-**Deltas:** `model.message` arrives first with empty content, then
-`model.message.delta` fragments share the same event `id`. Merge deltas into the
-base event; do not treat them as separate messages.
+**Deltas:** `model.message` arrives first, then `model.message.delta` fragments
+share its `id`. Tool calls are also fragmented: the first delta carries an
+`id`, index and `toolInfo.name`; later deltas may carry only the index and the
+next JSON-argument fragment. The approval event does not repeat the name or
+arguments. `packages/harness/src/translate.ts` reconstructs and tests this
+binding; do not approve from the sparse event alone.
 
 ## Approvals — this is a new turn, not a callback
 
 When a tool needs approval the harness emits `tool.approval_required` **and
 pauses the turn**. You do not answer it inline. You resume by creating a *new
-turn* whose input is one `UserToolApprovalEvent` per pending `tool_call_id`.
+turn* whose input is one `UserToolApprovalEvent` per pending `toolCallId`.
 
 Same shape for `tool.response_required` (`UserToolResponseEvent`) and
 `mcp.auth_required` (create a turn with no input once OAuth is done).
@@ -122,8 +128,7 @@ URL, which is how our proxy gets connected.
 
 Auth options:
 
-1. **No auth** — "for public or network-trusted servers". This is what our local
-   proxy uses.
+1. **No auth** — for public or network-trusted servers.
 2. **Header auth** — static headers carrying an API key or bearer token.
 3. **OAuth (Dynamic Client Registration)** — TrueForge acts as the OAuth client.
    Requires `PUBLIC_BASE_URL` to be set so it can redirect back.
@@ -146,14 +151,21 @@ Dynamic and parallel, **one level deep**, sharing the root's tools and sandbox.
 our own turns server-side, and animate `thread.created` / `thread.done` where the
 harness genuinely spawns something.
 
+## Verified live for Scope City
+
+- [x] TrueForge reaches the local authenticated MCP proxy.
+- [x] A returned `turn.done` error rotates the model pool (observed 429 → next provider).
+- [x] Approval ends a turn and a new approval-input turn resumes the exact call.
+- [x] Two sequential gates (refund, then mail) complete one mission.
+- [x] Browser-facing SSE replay resumes from the last Scope City sequence.
+
 ## Still unverified
 
 Kept honest so nothing unproven reaches the demo:
 
-- [ ] Whether TrueForge reaches a `localhost` MCP server, or needs a public URL
-      (tunnel fallback: Cloudflare).
 - [ ] Whether a turn paused on `tool.approval_required` survives a **full server
       restart** (browser refresh is expected to be fine).
 - [ ] Whether `tools/list` is re-requested between turns, so a scope granted
       mid-session changes the visible tool set.
-- [ ] Whether the sandbox can reach the network for `pip install`.
+- [ ] Sandbox execution on the demo machine; `bwrap` and `ripgrep` are present,
+      but `socat` still needs to be installed with WSL sudo.

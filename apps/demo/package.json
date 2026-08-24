@@ -5,6 +5,9 @@
   "type": "module",
   "scripts": {
     "headless": "tsx src/headless.ts",
+    "dev": "tsx watch src/live-server.ts",
+    "serve": "tsx src/live-server.ts",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "models": "tsx src/setup-models.ts"
   },
@@ -20,6 +23,7 @@
   "devDependencies": {
     "@types/node": "^24.0.0",
     "tsx": "^4.20.0",
-    "typescript": "^5.9.0"
+    "typescript": "^5.9.0",
+    "vitest": "^3.2.0"
   }
 }

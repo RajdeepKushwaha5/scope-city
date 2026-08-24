@@ -1,4 +1,5 @@
 import { Stat, Window } from "./Window.js";
+import { plotFor } from "../render/world.js";
 
 /**
  * What the harness has actually connected.
@@ -11,10 +12,12 @@ export function DistrictScan(props: {
   online: readonly string[];
   granted: readonly string[];
   offices: readonly { office: string; district: string }[];
+  structureCount: number;
   dispositions: readonly { office: string; disposition: "allowed" | "gated" | "blocked" }[];
   inspecting: string | null;
 }): React.JSX.Element {
   const counts = new Map<string, number>();
+  const inspectedPlot = props.inspecting ? plotFor(props.inspecting) : undefined;
   const reachable = new Set(
     props.dispositions
       .filter((entry) => entry.disposition !== "blocked")
@@ -25,12 +28,12 @@ export function DistrictScan(props: {
   }
 
   return (
-    <Window title="DISTRICT SCAN" right={<span>{props.online.length} ONLINE</span>}>
-      <div className="big">{props.offices.length}</div>
-      <div style={{ color: "var(--ink-dim)", marginBottom: 8 }}>offices mapped</div>
+    <Window title="DISTRICT SCAN" right={<span>{props.online.length ? `${props.online.length} ONLINE` : "CITY READY"}</span>}>
+      <div className="big">{props.structureCount}</div>
+      <div style={{ color: "var(--ink-dim)", marginBottom: 8 }}>structures mapped</div>
 
       {props.online.length === 0 ? (
-        <div className="empty">Waiting for MCP servers.</div>
+        <div className="empty">City fabric ready. Dispatch a mission to bring systems online.</div>
       ) : (
         props.online.map((district) => (
           <Stat key={district} label={district}>
@@ -46,7 +49,10 @@ export function DistrictScan(props: {
       )}
 
       {props.inspecting ? (
-        <div style={{ marginTop: 8, color: "var(--accent)" }}>▸ {props.inspecting}</div>
+        <div className="district-selection">
+          <strong>{inspectedPlot?.title ?? props.inspecting}</strong>
+          <span>Selected district · inspect its live authority and traffic in the console.</span>
+        </div>
       ) : null}
     </Window>
   );

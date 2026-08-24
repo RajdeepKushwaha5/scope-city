@@ -40,6 +40,7 @@ export interface MissionRunOptions {
 
 export interface MissionResult {
   readonly status: string;
+  readonly message?: string;
   readonly turns: number;
   readonly gates: number;
 }
@@ -51,6 +52,7 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
   let translator = initialState();
   let pending: GateRequest[] = [];
   let status = "unknown";
+  let message: string | undefined;
   let turns = 0;
   let gates = 0;
 
@@ -61,7 +63,9 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
       onRaw?.(event);
 
       if (event.type === "turn.done") {
-        status = (event as { state?: { status?: string } }).state?.status ?? "unknown";
+        const turnState = (event as { state?: { status?: string; message?: string } }).state;
+        status = turnState?.status ?? "unknown";
+        message = turnState?.message;
       }
 
       const result = translate(event, translator, Date.now());
@@ -131,7 +135,7 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
     turns += 1;
   }
 
-  return { status, turns, gates };
+  return { status, ...(message ? { message } : {}), turns, gates };
 }
 
 /**

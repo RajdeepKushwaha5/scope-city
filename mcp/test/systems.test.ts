@@ -46,6 +46,13 @@ describe("Records", () => {
 });
 
 describe("The Exchequer", () => {
+  it("finds a charge through the one order resource the mission knows", async () => {
+    const result = (await office(exchequerSystem(), "charge.find_by_order").call({
+      order_id: "ord_184",
+    })) as { id: string; amount: number; order_id: string };
+    expect(result).toEqual({ id: "ch_184", amount: 4900, order_id: "ord_184" });
+  });
+
   it("returns far more than a sensible scope should allow", async () => {
     const result = (await office(exchequerSystem(), "charge.get").call({
       charge_id: "ch_184",

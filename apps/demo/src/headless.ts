@@ -12,6 +12,7 @@
  *   pnpm demo:headless
  */
 
+import "./load-env.js";
 import {
   HarnessDriver,
   ModelPool,
@@ -49,7 +50,7 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
  * works everywhere, and conflating the two is the failure that looks like
  * "the agent has no tools" with nothing in the logs to explain it.
  */
-const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "0.0.0.0";
+const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
   .split(",")
@@ -271,7 +272,7 @@ async function main(): Promise<void> {
         console.log(c.dim("  ── the mission ─────────────────────────────────────"));
         console.log();
 
-        completed = await runMission({
+        const attempt = await runMission({
           driver,
           sessionId: attemptSessionId,
           scope,
@@ -303,12 +304,19 @@ async function main(): Promise<void> {
             }
           },
         });
+        if (!["done", "completed", "success"].includes(attempt.status)) {
+          throw new Error(
+            attempt.message ?? `TrueForge ended the turn with status ${attempt.status}`,
+          );
+        }
+        completed = attempt;
         pool.restore(model);
         break;
       } catch (error) {
         lastError = error;
-        // Every rotation abandons a real server-side session unless it is
-        // explicitly cancelled. Preserve the provider error if cleanup fails.
+        // A failed provider attempt owns a real TrueForge session. End it
+        // before rotating; cancellation failure must not hide the provider
+        // error that explains why rotation happened.
         if (attemptSessionId) await driver.cancel(attemptSessionId).catch(() => undefined);
         const kind = classifyFailure(error);
         if (!isWorthRotating(kind)) throw error;

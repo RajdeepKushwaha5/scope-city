@@ -17,7 +17,12 @@ export interface PoolEntry {
   readonly priority: number;
 }
 
-export type FailureKind = "rate_limited" | "quota_exhausted" | "unavailable" | "other";
+export type FailureKind =
+  | "rate_limited"
+  | "quota_exhausted"
+  | "credential_rejected"
+  | "unavailable"
+  | "other";
 
 interface Cooling {
   readonly until: number;
@@ -31,6 +36,9 @@ const COOLDOWN_MS: Record<FailureKind, number> = {
   rate_limited: 60_000,
   // A daily quota will not come back within a demo, so effectively retire it.
   quota_exhausted: 6 * 60 * 60 * 1000,
+  // Credentials belong to one pool entry, not to the request. Retire the bad
+  // entry for the demo but keep trying independently configured providers.
+  credential_rejected: 6 * 60 * 60 * 1000,
   unavailable: 120_000,
   other: 30_000,
 };
@@ -113,6 +121,9 @@ export function classifyFailure(error: unknown): FailureKind {
   }
   if (status === 429 || /rate.?limit|too many requests|resource_exhausted/.test(text)) {
     return "rate_limited";
+  }
+  if (status === 401 || status === 403 || /\((401|403)\).*\b(unauthorized|forbidden)\b/.test(text)) {
+    return "credential_rejected";
   }
   if (status === 503 || status === 502 || /overloaded|unavailable|capacity/.test(text)) {
     return "unavailable";

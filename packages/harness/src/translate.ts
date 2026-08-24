@@ -19,6 +19,48 @@ function id(event: TurnEvent, field: string): string | undefined {
   return typeof value === "string" && value.length > 0 ? value : undefined;
 }
 
+function eitherId(event: TurnEvent, snake: string, camel: string): string | undefined {
+  return id(event, snake) ?? id(event, camel);
+}
+
+interface NormalisedToolCall {
+  readonly toolCallId: string;
+  readonly name?: string;
+  readonly arguments?: unknown;
+}
+
+function toolCalls(event: TurnEvent): readonly NormalisedToolCall[] {
+  const record = event as Record<string, unknown>;
+  const raw = record.tool_calls ?? record.toolCalls;
+  if (!Array.isArray(raw)) return [];
+  return raw.flatMap((value) => {
+    if (!value || typeof value !== "object") return [];
+    const call = value as Record<string, unknown>;
+    // Approval events emitted by the SDK use `id`; the OpenAPI wire schema
+    // calls the same value `tool_call_id`.
+    const toolCallId = call.tool_call_id ?? call.toolCallId ?? call.id;
+    if (typeof toolCallId !== "string" || toolCallId.length === 0) return [];
+    const toolInfo = call.toolInfo as Record<string, unknown> | undefined;
+    const fn = call.function as Record<string, unknown> | undefined;
+    const name = call.name ?? toolInfo?.name ?? fn?.name;
+    const args = call.arguments ?? fn?.arguments;
+    return [{
+      toolCallId,
+      ...(typeof name === "string" ? { name } : {}),
+      ...(args !== undefined ? { arguments: args } : {}),
+    }];
+  });
+}
+
+function parsedArguments(text: string): unknown | undefined {
+  if (!text) return undefined;
+  try {
+    return JSON.parse(text);
+  } catch {
+    return undefined;
+  }
+}
+
 /**
  * Turns one harness event into zero or more things the city can show.
  *
@@ -37,7 +79,11 @@ export function translate(
 
   switch (event.type) {
     case "turn.created": {
-      events.push({ type: "mission.started", turnId: id(event, "turn_id") ?? "", at: now });
+      events.push({
+        type: "mission.started",
+        turnId: eitherId(event, "turn_id", "turnId") ?? "",
+        at: now,
+      });
       break;
     }
 
@@ -48,7 +94,11 @@ export function translate(
     }
 
     case "mcp.initialize": {
-      const servers = (event as { mcp_servers?: readonly { name: string }[] }).mcp_servers ?? [];
+      const eventRecord = event as unknown as {
+        mcp_servers?: readonly { name: string }[];
+        mcpServers?: readonly { name: string }[];
+      };
+      const servers = eventRecord.mcp_servers ?? eventRecord.mcpServers ?? [];
       for (const server of servers) {
         events.push({ type: "district.online", district: server.name, at: now });
       }
@@ -56,13 +106,16 @@ export function translate(
     }
 
     case "mcp.auth_required": {
-      const servers =
-        (event as { mcp_servers?: readonly { name: string; auth_url: string }[] }).mcp_servers ?? [];
+      const eventRecord = event as unknown as {
+        mcp_servers?: readonly { name: string; auth_url?: string; authUrl?: string }[];
+        mcpServers?: readonly { name: string; auth_url?: string; authUrl?: string }[];
+      };
+      const servers = eventRecord.mcp_servers ?? eventRecord.mcpServers ?? [];
       for (const server of servers) {
         events.push({
           type: "district.auth_required",
           district: server.name,
-          authUrl: server.auth_url,
+          authUrl: server.auth_url ?? server.authUrl ?? "",
           at: now,
         });
       }
@@ -70,13 +123,13 @@ export function translate(
     }
 
     case "sandbox.created": {
-      const sandboxId = id(event, "sandbox_id");
+      const sandboxId = eitherId(event, "sandbox_id", "sandboxId");
       if (sandboxId) events.push({ type: "yard.opened", sandboxId, at: now });
       break;
     }
 
     case "thread.created": {
-      const threadId = id(event, "thread_id");
+      const threadId = eitherId(event, "thread_id", "threadId");
       // The root thread is the agent itself; only additional threads are extra
       // figures in the field. A parent is what distinguishes them.
       const parent = (event as { parent?: unknown }).parent;
@@ -89,7 +142,7 @@ export function translate(
     }
 
     case "thread.done": {
-      const threadId = id(event, "thread_id");
+      const threadId = eitherId(event, "thread_id", "threadId");
       if (threadId && next.threads.has(threadId)) {
         events.push({ type: "field.left", threadId, at: now });
         const threads = new Set(next.threads);
@@ -100,13 +153,15 @@ export function translate(
     }
 
     case "model.message": {
-      const e = event as {
+      const e = event as unknown as {
         id?: string;
         thread_id?: string;
+        threadId?: string;
         content?: string | null;
         tool_calls?: readonly PendingToolCall[];
+        toolCalls?: readonly PendingToolCall[];
       };
-      const threadId = e.thread_id ?? "";
+      const threadId = e.thread_id ?? e.threadId ?? "";
 
       // A model.message arrives with empty content and is filled in by deltas
       // sharing its id. Seed the buffer so those deltas have somewhere to go.
@@ -132,20 +187,28 @@ export function translate(
       // when it is present meant a nameless call never produced agent.finished
       // and the agent appeared to stand in that office forever, so the id is
       // used as its own label when nothing better exists.
-      if (e.tool_calls?.length) {
+      const pendingCalls = toolCalls(event);
+      if (pendingCalls.length) {
         const toolCalls = new Map(next.toolCalls);
-        for (const call of e.tool_calls) {
-          const office = call.name ?? call.tool_call_id;
-          toolCalls.set(call.tool_call_id, office);
+        const toolCallArgs = new Map(next.toolCallArgs);
+        for (const call of pendingCalls) {
+          const office = call.name ?? call.toolCallId;
+          toolCalls.set(call.toolCallId, office);
+          if (call.arguments !== undefined) toolCallArgs.set(call.toolCallId, call.arguments);
           events.push({ type: "agent.arrived", threadId, office, at: now });
         }
-        next = { ...next, toolCalls };
+        next = { ...next, toolCalls, toolCallArgs };
       }
       break;
     }
 
     case "model.message.delta": {
-      const e = event as { id?: string; thread_id?: string; content?: string | null };
+      const e = event as unknown as {
+        id?: string;
+        thread_id?: string;
+        threadId?: string;
+        content?: string | null;
+      };
       // Without a trustworthy id there is no buffer this delta belongs to.
       // Dropping it loses a fragment; guessing merges two conversations.
       const messageId = id(event, "id");
@@ -154,38 +217,87 @@ export function translate(
         messages.set(messageId, (messages.get(messageId) ?? "") + e.content);
         next = { ...next, messages };
       }
+      // TrueForge's SDK does not put completed tool calls on model.message.
+      // It streams them here: the first delta has id/name/index and later ones
+      // often have only index plus another arguments fragment. Assemble that
+      // exact call so the sparse approval event can be bound to what the human
+      // actually saw.
+      const rawCalls = (event as Record<string, unknown>).toolCalls;
+      if (messageId && Array.isArray(rawCalls)) {
+        const toolCalls = new Map(next.toolCalls);
+        const toolCallArgs = new Map(next.toolCallArgs);
+        const toolCallIndexes = new Map(next.toolCallIndexes);
+        const toolCallArgumentText = new Map(next.toolCallArgumentText);
+        const threadId = e.thread_id ?? e.threadId ?? "";
+
+        for (const raw of rawCalls) {
+          if (!raw || typeof raw !== "object") continue;
+          const call = raw as Record<string, unknown>;
+          const index = typeof call.index === "number" ? call.index : 0;
+          const indexKey = `${messageId}:${index}`;
+          const directId = call.id ?? call.toolCallId ?? call.tool_call_id;
+          const toolCallId =
+            typeof directId === "string" && directId.length > 0
+              ? directId
+              : toolCallIndexes.get(indexKey);
+          if (!toolCallId) continue;
+
+          toolCallIndexes.set(indexKey, toolCallId);
+          const toolInfo = call.toolInfo as Record<string, unknown> | undefined;
+          const fn = call.function as Record<string, unknown> | undefined;
+          const rawName = call.name ?? toolInfo?.name ?? fn?.name;
+          const office = typeof rawName === "string" ? rawName : toolCalls.get(toolCallId);
+          if (office && !toolCalls.has(toolCallId)) {
+            toolCalls.set(toolCallId, office);
+            events.push({ type: "agent.arrived", threadId, office, at: now });
+          }
+
+          const fragment = fn?.arguments;
+          if (typeof fragment === "string") {
+            const text = (toolCallArgumentText.get(toolCallId) ?? "") + fragment;
+            toolCallArgumentText.set(toolCallId, text);
+            const args = parsedArguments(text);
+            if (args !== undefined) toolCallArgs.set(toolCallId, args);
+          }
+        }
+        next = { ...next, toolCalls, toolCallArgs, toolCallIndexes, toolCallArgumentText };
+      }
       // Deltas are not emitted as transmissions -- the accumulated text is read
       // from state, otherwise the log would show one entry per token.
       break;
     }
 
     case "tool.response": {
-      const e = event as { thread_id?: string; tool_call_id?: string };
-      const toolCallId = id(event, "tool_call_id");
+      const e = event as unknown as { thread_id?: string; threadId?: string };
+      const toolCallId = eitherId(event, "tool_call_id", "toolCallId");
       const office = toolCallId ? next.toolCalls.get(toolCallId) : undefined;
       if (toolCallId && office) {
         events.push({
           type: "agent.finished",
-          threadId: e.thread_id ?? "",
+          threadId: e.thread_id ?? e.threadId ?? "",
           office,
           at: now,
         });
         const toolCalls = new Map(next.toolCalls);
         toolCalls.delete(toolCallId);
-        next = { ...next, toolCalls };
+        const toolCallArgs = new Map(next.toolCallArgs);
+        toolCallArgs.delete(toolCallId);
+        const toolCallArgumentText = new Map(next.toolCallArgumentText);
+        toolCallArgumentText.delete(toolCallId);
+        next = { ...next, toolCalls, toolCallArgs, toolCallArgumentText };
       }
       break;
     }
 
     case "tool.approval_required": {
-      const e = event as { thread_id?: string; tool_calls?: readonly PendingToolCall[] };
-      for (const call of e.tool_calls ?? []) {
+      const e = event as unknown as { thread_id?: string; threadId?: string };
+      for (const call of toolCalls(event)) {
         events.push({
           type: "gate.raised",
-          threadId: e.thread_id ?? "",
-          toolCallId: call.tool_call_id,
-          office: call.name ?? next.toolCalls.get(call.tool_call_id) ?? null,
-          args: call.arguments ?? null,
+          threadId: e.thread_id ?? e.threadId ?? "",
+          toolCallId: call.toolCallId,
+          office: call.name ?? next.toolCalls.get(call.toolCallId) ?? null,
+          args: call.arguments ?? next.toolCallArgs.get(call.toolCallId) ?? null,
           at: now,
         });
       }

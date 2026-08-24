@@ -3,21 +3,31 @@ import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/
 import { createMissionMcpServer, missionFromPath } from "./server.js";
 import type { MissionRegistry } from "./mission.js";
 
-
 /**
  * Serves the scope proxy over HTTP so TrueForge can connect to it.
  *
  * The route carries the mission id: /mission/{id}/mcp. That is what makes
  * isolation structural rather than a check -- there is no endpoint that serves
- * "the current mission", so two missions cannot be confused for one another by
- * a bug in session handling. An unknown id is a 404, which is also what a
- * forgotten mission looks like, and the two should be indistinguishable.
+ * "the current mission", so two missions cannot be confused by a bug in session
+ * handling. An unknown id is a 404, which is also what a forgotten mission
+ * looks like, and the two should be indistinguishable.
+ *
+ * A fresh server and transport are built for every request. That is the
+ * documented stateless pattern, and holding one transport open across requests
+ * does not work: initialize succeeds and every later call returns 500, because
+ * a stateless transport does not expect to be reused.
+ *
+ * It also happens to be the right shape here. All the state that matters --
+ * the scope, the quota ledger, the pending countersigns -- lives on the
+ * Mission, which outlives any request. The transport is genuinely disposable.
  */
 
 export interface ProxyHttpOptions {
   readonly registry: MissionRegistry;
   readonly port: number;
   readonly host?: string;
+  /** Somewhere to report faults. Defaults to stderr. */
+  readonly onError?: (error: unknown, context: string) => void;
 }
 
 export interface ProxyHttp {
@@ -28,14 +38,24 @@ export interface ProxyHttp {
 
 export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHttp> {
   const host = options.host ?? "127.0.0.1";
+  const report =
+    options.onError ??
+    ((error: unknown, context: string) => {
+      const detail = error instanceof Error ? (error.stack ?? error.message) : String(error);
+      console.error(`[scope-proxy] ${context}\n${detail}`);
+    });
 
-  // One transport per mission, kept alive across requests: MCP is a session
-  // protocol, and tearing the transport down between calls would lose the
-  // initialize handshake.
-  const transports = new Map<string, StreamableHTTPServerTransport>();
-
-  const server = createServer((req: IncomingMessage, res: ServerResponse) => {
-    void handle(req, res);
+  const server = createServer((req, res) => {
+    handle(req, res).catch((error: unknown) => {
+      // A transport fault must not be silent. The harness reports a failed
+      // connection as "Error POSTing to endpoint" with no body, so if this end
+      // does not say what went wrong, nothing does.
+      report(error, `${req.method} ${req.url}`);
+      if (!res.headersSent) {
+        res.writeHead(500, { "content-type": "application/json" });
+        res.end(JSON.stringify({ error: "proxy fault" }));
+      }
+    });
   });
 
   async function handle(req: IncomingMessage, res: ServerResponse): Promise<void> {
@@ -55,19 +75,22 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
       return;
     }
 
-    let transport = transports.get(mission.id);
-    if (!transport) {
-      transport = new StreamableHTTPServerTransport({
-        // Stateless from the transport's point of view: the mission id in the
-        // path is already the session, so a second identifier would only add a
-        // way for the two to disagree.
-        sessionIdGenerator: undefined,
-      });
-      const mcp = createMissionMcpServer(mission);
-      await mcp.connect(transport);
-      transports.set(mission.id, transport);
-    }
+    const transport = new StreamableHTTPServerTransport({
+      // Stateless: the mission id in the path is already the session, and a
+      // second identifier would only be somewhere for the two to disagree.
+      sessionIdGenerator: undefined,
+    });
 
+    const mcp = createMissionMcpServer(mission);
+
+    // Tie their lifetimes to the response. Without this every request leaks a
+    // server and a transport, which a long-lived demo would notice.
+    res.on("close", () => {
+      void transport.close();
+      void mcp.close();
+    });
+
+    await mcp.connect(transport);
     await transport.handleRequest(req, res);
   }
 
@@ -78,8 +101,6 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
     url: (missionId: string) => `http://${host}:${options.port}/mission/${missionId}/mcp`,
     close: () =>
       new Promise<void>((resolve, reject) => {
-        for (const transport of transports.values()) void transport.close();
-        transports.clear();
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };

@@ -43,7 +43,17 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
  */
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "0.0.0.0";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
-const MODEL = process.env.SCOPE_MODEL ?? "anthropic/claude-sonnet-4-6";
+const MODEL = process.env.SCOPE_MODEL ?? (process.env.SCOPE_MODELS ?? "flash-a").split(",")[0]!.trim();
+
+/**
+ * Whether to give the agent a sandbox.
+ *
+ * Off by default so the mission runs on a bare TrueForge install. Turning it on
+ * requires a configured sandbox provider: either Daytona with a key, or the
+ * local provider, which needs bwrap, socat and ripgrep on the host and is
+ * Linux/macOS only.
+ */
+const SANDBOX = process.env.SCOPE_SANDBOX === "true";
 
 const c = {
   dim: (s: string) => `\x1b[2m${s}\x1b[0m`,
@@ -110,7 +120,14 @@ async function main(): Promise<void> {
       maxResponseBytes: 64_000,
     },
     projection: {
-      "ticket.get": ["id", "subject", "body", "order_id"],
+      // customer_email is granted here because the job legitimately needs it:
+      // the agent has to know who to write to. An earlier run withheld it and
+      // the agent, unable to resolve the charge, guessed at ids -- charge_184,
+      // ord_184, 184 -- and was refused each time. The boundary held and the
+      // mission failed, which is the honest tension this product is about: a
+      // scope narrow enough to be safe and wide enough to be useful is a
+      // decision, not a default.
+      "ticket.get": ["id", "subject", "body", "order_id", "customer_email"],
       "charge.get": ["id", "amount", "customer.email"],
       "charge.refund": ["id", "charge_id", "amount", "status"],
       "mail.send": ["id", "to"],
@@ -174,6 +191,7 @@ async function main(): Promise<void> {
 
   registry.register(mission);
   line(c.green("scope"), `${scope.offices.length} offices, ${scope.countersignRequired.length} gated`);
+  line(SANDBOX ? c.green("sandbox") : c.dim("sandbox"), SANDBOX ? "enabled" : "off (SCOPE_SANDBOX=true to enable)");
 
   /* 4. serve the proxy and register it ----------------------------------- */
 
@@ -197,7 +215,7 @@ async function main(): Promise<void> {
       model: MODEL,
       proxyName,
       gatedTools: [...IRREVERSIBLE_OFFICES],
-      sandbox: true,
+      sandbox: SANDBOX,
       instructions: [
         "You are a support agent resolving one ticket.",
         "Read ticket tkt_184, find the charge behind it, and refund it.",
@@ -219,6 +237,20 @@ async function main(): Promise<void> {
   for await (const event of driver.runTurn(sessionId, [
     { type: "user.message", content: "Resolve ticket tkt_184." },
   ])) {
+    if (process.env.SCOPE_TRACE === "true") {
+      console.log(c.dim(`  [${event.type}] ${JSON.stringify(event).slice(0, 400)}`));
+    }
+
+    // A failed turn carries its reason in the terminal state. Printing only
+    // "error" sends you to the server logs for something that was already in
+    // your hand.
+    if (event.type === "turn.done") {
+      const state = (event as { state?: Record<string, unknown> }).state ?? {};
+      if (state.status !== "done") {
+        console.log(c.red(`  turn ${String(state.status)}: ${JSON.stringify(state).slice(0, 500)}`));
+      }
+    }
+
     const { state, events } = translate(event, translator, Date.now());
     translator = state;
 

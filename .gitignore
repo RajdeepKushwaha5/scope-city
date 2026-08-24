@@ -18,3 +18,6 @@ apps/web/src/dev/
 
 # credential-manager diagnostics, never ours to commit
 gcm-diagnose.log
+
+# local keys, never committed
+.env

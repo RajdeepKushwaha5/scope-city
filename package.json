@@ -12,7 +12,8 @@
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "demo:headless": "pnpm --filter @scope-city/demo headless",
-    "city": "pnpm --filter @scope-city/city dev"
+    "city": "pnpm --filter @scope-city/city dev",
+    "demo:models": "pnpm --filter @scope-city/demo models"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

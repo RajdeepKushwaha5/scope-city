@@ -110,8 +110,8 @@ export class HarnessDriver {
   ): AsyncGenerator<TurnEvent, void, undefined> {
     const input: TurnInput[] = approvals.map((approval) => ({
       type: "user.tool_approval",
-      thread_id: approval.threadId,
-      tool_call_id: approval.toolCallId,
+      threadId: approval.threadId,
+      toolCallId: approval.toolCallId,
       approval: approval.approved
         ? { status: "allow" }
         : { status: "deny", ...(approval.reason ? { reason: approval.reason } : {}) },
@@ -178,25 +178,33 @@ export function missionAgentSpec(params: {
   gatedTools: readonly string[];
   sandbox: boolean;
 }): AgentSpec {
+  // Every key here is camelCase, and that is not a style choice.
+  //
+  // The SDK's TypeScript surface is camelCase and converts to snake_case on the
+  // wire; the OpenAPI document shows the wire format, so reading the spec and
+  // writing what it says produces an object the SDK accepts and then silently
+  // drops. An agent spec whose `mcpServers` was spelled `mcp_servers` starts a
+  // perfectly healthy session with no tools at all, and nothing anywhere says
+  // why. Do not "fix" these to match the OpenAPI document.
   return {
     model: { name: params.model },
     instructions: params.instructions,
-    mcp_servers: [
+    mcpServers: [
       {
         name: params.proxyName,
         // No enable/disable list. The proxy already returns only what the scope
         // allows, and duplicating that here would create a second place for the
         // truth to live.
-        require_approval_for_tools: params.gatedTools,
+        requireApprovalForTools: params.gatedTools,
         preload: true,
       },
     ],
     config: {
-      sandbox: { enabled: params.sandbox, file_downloads: false },
-      dynamic_sub_agents: { enabled: true },
-      generative_ui: { enabled: false },
-      ask_user_questions: { enabled: false },
-      iteration_limit: 24,
+      sandbox: { enabled: params.sandbox, fileDownloads: false },
+      dynamicSubAgents: { enabled: true },
+      generativeUi: { enabled: false },
+      askUserQuestions: { enabled: false },
+      iterationLimit: 24,
     },
   };
 }

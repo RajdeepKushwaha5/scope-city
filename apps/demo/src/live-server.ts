@@ -50,14 +50,45 @@ interface LiveMission extends ManagedLiveMission {
 async function main(): Promise<void> {
   const driver = new HarnessDriver();
 
-  // Discovered once at boot rather than per mission: a model registered while
-  // the server is running is rare, and re-asking on every launch would add a
-  // round trip to the one path that has to feel instant.
-  const discovered = PINNED_MODELS.length > 0 ? PINNED_MODELS : await driver.listModels();
-  const models = discovered.length > 0 ? discovered : ["gemini-a/flash-a"];
-  console.log(
-    `Models: ${models.join(", ")}${PINNED_MODELS.length > 0 ? " (pinned)" : " (discovered)"}`,
-  );
+  // Discovered once at boot rather than per mission.
+  //
+  // Per-mission discovery would put a round trip on the one path that has to
+  // feel instant -- the operator presses Launch and the city should move. It
+  // also fails in a worse place: a harness that goes unreachable mid-demo would
+  // turn every launch into a hang before the first frame, instead of a mission
+  // that starts and reports the problem through the feed.
+  //
+  // The cost is that a model registered after boot is invisible until restart,
+  // which is the right trade for a control plane whose model set is fixed by
+  // .env at startup anyway.
+  //
+  // Discovery is allowed to fail. Booting is not: the previous behaviour was a
+  // server that came up and reported harness trouble through /api/health, and
+  // an unhandled rejection here would replace that with a process that exits
+  // before it can tell anyone why.
+  let source: "pinned" | "discovered" | "fallback default" = "pinned";
+  let found: readonly string[] = PINNED_MODELS;
+
+  if (PINNED_MODELS.length === 0) {
+    source = "discovered";
+    try {
+      found = await driver.listModels();
+    } catch (error) {
+      found = [];
+      console.warn(
+        `Model discovery failed (${error instanceof Error ? error.message : String(error)}); ` +
+          `starting anyway -- see /api/health`,
+      );
+    }
+  }
+
+  // Never silently claim discovery when the hard-coded default was used: a
+  // startup line reading "(discovered)" next to a single model is what made the
+  // original single-entry pool take so long to spot.
+  const models = found.length > 0 ? found : ["gemini-a/flash-a"];
+  if (found.length === 0) source = "fallback default";
+
+  console.log(`Models: ${models.join(", ")} (${source})`);
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();

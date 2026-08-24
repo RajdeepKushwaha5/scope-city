@@ -1,6 +1,7 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import type { AgentSpec, McpServerManifest, TurnEvent, TurnInput } from "./types.js";
 import { MCP_SERVER_NAME_PATTERN } from "./types.js";
+import { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
 
 /**
  * Drives a real TrueForge session.
@@ -69,10 +70,8 @@ export class HarnessDriver {
    */
   async listModels(): Promise<readonly string[]> {
     const response = await this.#client.models.list();
-    const data = (response as { data?: { name?: string }[] }).data ?? [];
-    return data
-      .map((model) => model.name)
-      .filter((name): name is string => typeof name === "string" && name.includes("/"));
+    const data = (response as { data?: ModelListEntry[] }).data ?? [];
+    return qualifiedModelNames(data);
   }
 
   async listMcpServers(): Promise<readonly { name: string }[]> {

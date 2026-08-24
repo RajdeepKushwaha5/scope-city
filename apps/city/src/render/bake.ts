@@ -15,6 +15,8 @@
 
 export interface Baked {
   readonly canvas: HTMLCanvasElement;
+  /** Pixel ratio used while this sprite was baked. */
+  readonly dpr: number;
   /**
    * Where the sprite's origin sits inside its own canvas. Blitting subtracts
    * this, so callers position by the world anchor and never think in texture
@@ -59,7 +61,7 @@ export function bake(
   ctx.translate(originX, originY);
   paint(ctx);
 
-  const baked: Baked = { canvas, originX: originX * dpr, originY: originY * dpr };
+  const baked: Baked = { canvas, dpr, originX: originX * dpr, originY: originY * dpr };
   cache.set(key, baked);
   return baked;
 }
@@ -71,7 +73,7 @@ export function blit(
   x: number,
   y: number,
 ): void {
-  const dpr = Math.min(globalThis.devicePixelRatio || 1, 2);
+  const { dpr } = baked;
   ctx.drawImage(
     baked.canvas,
     x - baked.originX / dpr,

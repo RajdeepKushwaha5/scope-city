@@ -1,11 +1,13 @@
 import { UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
 import {
   AGENT,
+  COAST,
   CONCRETE,
   FOGGED,
   GROUND,
   HOUSE,
   UI,
+  TRAFFIC_COLOURS,
   landmarkStyle,
   type BuildingStyleSet,
 } from "./palette.js";
@@ -222,7 +224,7 @@ function groundItems(state: SceneState): Drawable[] {
           drawDitheredTile(ctx, cu, cv, material, blend, amount, variant);
           if (kind === "water" && hash(`wave:${cu}:${cv}`) % 13 === 0) {
             const p = toScreen(cu, cv, 0.01);
-            ctx.fillStyle = "rgba(205, 237, 250, 0.24)";
+            ctx.fillStyle = COAST.wave;
             ctx.fillRect(p.x - 7, p.y, 12, 1);
           }
         },
@@ -256,7 +258,7 @@ function facilityItems(time: number): Drawable[] {
     });
   }
   items.push(
-    { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, "#bce8eb") },
+    { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport) },
     { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
     { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
     { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
@@ -288,11 +290,11 @@ function facilityItems(time: number): Drawable[] {
 }
 
 const BOAT_ROUTES = [
-  { axis: "u", fixed: -5, min: -7, max: 35, speed: 0.11, offset: 0.15, colour: "#e7aa3c", sail: true },
-  { axis: "v", fixed: 45, min: -4, max: 39, speed: 0.08, offset: 0.62, colour: "#d9654f", sail: true },
-  { axis: "u", fixed: 40, min: 4, max: 47, speed: 0.13, offset: 0.41, colour: "#f1e8d2", sail: false },
-  { axis: "v", fixed: -6, min: 0, max: 34, speed: 0.09, offset: 0.82, colour: "#e0a33c", sail: true },
-  { axis: "u", fixed: 44, min: 8, max: 45, speed: 0.07, offset: 0.05, colour: "#5d91b4", sail: false },
+  { axis: "u", fixed: -5, min: -7, max: 35, speed: 0.11, offset: 0.15, colour: TRAFFIC_COLOURS.amber, sail: true },
+  { axis: "v", fixed: 45, min: -4, max: 39, speed: 0.08, offset: 0.62, colour: TRAFFIC_COLOURS.red, sail: true },
+  { axis: "u", fixed: 40, min: 4, max: 47, speed: 0.13, offset: 0.41, colour: TRAFFIC_COLOURS.ivory, sail: false },
+  { axis: "v", fixed: -6, min: 0, max: 34, speed: 0.09, offset: 0.82, colour: TRAFFIC_COLOURS.gold, sail: true },
+  { axis: "u", fixed: 44, min: 8, max: 45, speed: 0.07, offset: 0.05, colour: TRAFFIC_COLOURS.sky, sail: false },
 ] as const;
 
 function maritimeItems(time: number): Drawable[] {
@@ -427,17 +429,17 @@ function landmarkItems(state: SceneState): Drawable[] {
 }
 
 const TRAFFIC = [
-  { axis: "u", road: 6, lane: -0.16, speed: 1.2, offset: 0.04, colour: "#d8584d" },
-  { axis: "u", road: 12, lane: 0.16, speed: 0.86, offset: 0.43, colour: "#f1b33b" },
-  { axis: "u", road: 18, lane: -0.16, speed: 1.05, offset: 0.71, colour: "#377fc1" },
-  { axis: "u", road: 24, lane: 0.16, speed: 0.95, offset: 0.21, colour: "#efe9dc" },
-  { axis: "u", road: 30, lane: -0.16, speed: 1.15, offset: 0.58, colour: "#5ba36b" },
-  { axis: "v", road: 6, lane: 0.16, speed: 0.92, offset: 0.14, colour: "#eee8da" },
-  { axis: "v", road: 12, lane: -0.16, speed: 1.08, offset: 0.52, colour: "#cf5f50" },
-  { axis: "v", road: 18, lane: 0.16, speed: 0.82, offset: 0.82, colour: "#e4aa38" },
-  { axis: "v", road: 24, lane: -0.16, speed: 1.18, offset: 0.32, colour: "#5f91c8" },
-  { axis: "v", road: 30, lane: 0.16, speed: 0.98, offset: 0.64, colour: "#72a76a" },
-  { axis: "v", road: 36, lane: -0.16, speed: 0.76, offset: 0.08, colour: "#f0e8d8" },
+  { axis: "u", road: 6, lane: -0.16, speed: 1.2, offset: 0.04, colour: TRAFFIC_COLOURS.red },
+  { axis: "u", road: 12, lane: 0.16, speed: 0.86, offset: 0.43, colour: TRAFFIC_COLOURS.amber },
+  { axis: "u", road: 18, lane: -0.16, speed: 1.05, offset: 0.71, colour: TRAFFIC_COLOURS.blue },
+  { axis: "u", road: 24, lane: 0.16, speed: 0.95, offset: 0.21, colour: TRAFFIC_COLOURS.ivory },
+  { axis: "u", road: 30, lane: -0.16, speed: 1.15, offset: 0.58, colour: TRAFFIC_COLOURS.green },
+  { axis: "v", road: 6, lane: 0.16, speed: 0.92, offset: 0.14, colour: TRAFFIC_COLOURS.pale },
+  { axis: "v", road: 12, lane: -0.16, speed: 1.08, offset: 0.52, colour: TRAFFIC_COLOURS.brick },
+  { axis: "v", road: 18, lane: 0.16, speed: 0.82, offset: 0.82, colour: TRAFFIC_COLOURS.gold },
+  { axis: "v", road: 24, lane: -0.16, speed: 1.18, offset: 0.32, colour: TRAFFIC_COLOURS.sky },
+  { axis: "v", road: 30, lane: 0.16, speed: 0.98, offset: 0.64, colour: TRAFFIC_COLOURS.leaf },
+  { axis: "v", road: 36, lane: -0.16, speed: 0.76, offset: 0.08, colour: TRAFFIC_COLOURS.cream },
 ] as const;
 
 function trafficItems(state: SceneState, time: number): Drawable[] {

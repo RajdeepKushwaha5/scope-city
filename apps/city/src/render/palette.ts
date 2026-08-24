@@ -135,6 +135,47 @@ export const UI = {
   fountainStone: "#d8dee4",
   fountainShade: "#aeb8c2",
   fountainWater: "#72c7e8",
+  fountainFogStone: "#4b555f",
+  fountainFogWater: "#34434b",
+  fountainFogShade: "#67717a",
+  fountainFogJet: "#65747c",
+  vehicleShadow: "rgba(0, 0, 0, 0.24)",
+  vehicleWheel: "#222a31",
+  vehicleFogBody: "#59636d",
+  vehicleGlass: "#c8e5f4",
+  vehicleFogGlass: "#414b55",
+  vehicleFogLight: "#77818a",
+  vehicleHeadlight: "#fff1a6",
+  civicDomeFogBase: "#4b555f",
+  civicDomeBase: "#eee9d9",
+  civicDomeFog: "#59636c",
+  civicDome: "#fffaf0",
+  civicDomeFogMast: "#68727b",
+  civicDomeMast: "#d7caa8",
+} as const;
+
+export const TRAFFIC_COLOURS = {
+  red: "#d8584d", amber: "#f1b33b", blue: "#377fc1", ivory: "#efe9dc",
+  green: "#5ba36b", pale: "#eee8da", brick: "#cf5f50", gold: "#e4aa38",
+  sky: "#5f91c8", leaf: "#72a76a", cream: "#f0e8d8",
+} as const;
+
+/** Original shared palette for the airport, harbour, vessels, and wayfinding. */
+export const COAST = {
+  shadow: "rgba(0, 0, 0, 0.25)", runway: "#202a31", runwayMark: "#e7e5d8",
+  hangarWall: "#68889b", hangarRoof: "#d7e5e7", hangarRoofAirport: "#bce8eb",
+  hangarDoor: "#27465b", safety: "#f0a830", tower: "#778b95",
+  towerCab: "#173247", towerGlass: "#9fd7e6", towerTrim: "#e8e0c9",
+  plane: "#f2eee2", planeStripe: "#c94f46", billboardPost: "#493925",
+  billboardFace: "#09151f", billboardText: "#a9bbca", pier: "#303b40",
+  bollard: "#d39b43", containers: ["#c65d3d", "#d9a735", "#3e7894", "#648258"] as const,
+  containerEdge: "rgba(8, 18, 25, 0.55)", crane: "#e0a33c",
+  lighthouse: "#efe8d5", lighthouseStripe: "#c75045", lighthouseRoof: "#223745",
+  lighthouseLamp: "#ffe58c", lighthouseBeam: "#fff3a8", wake: "rgba(220, 246, 255, 0.55)",
+  shipWake: "rgba(224, 246, 255, 0.32)", boatHull: "#3a2a22", sail: "#f6f0df",
+  cargoHull: "#172632", navyHull: "#28343b", cargoCab: "#dbe2df", navyCab: "#718087",
+  cargoContainers: ["#bf5b3d", "#d5a13b", "#3f7890", "#6d8356"] as const,
+  navyDeck: "#18262f", navyMark: "#d8b454", wave: "rgba(205, 237, 250, 0.24)",
 } as const;
 
 export const AGENT = {

@@ -78,7 +78,7 @@ export function CityConsole(props: {
         <div className="console__permit">
           <div className="console__permit-title">
             <span>⚠ Permit · {props.gate.office}</span>
-            <span>HELD{props.pendingGateCount ? ` · ${props.pendingGateCount + 1} QUEUED` : ""}</span>
+            <span>HELD{props.pendingGateCount ? ` · ${props.pendingGateCount} QUEUED` : ""}</span>
           </div>
           <pre className="gate__call">
 {props.gate.office}({Object.entries(props.gate.args)

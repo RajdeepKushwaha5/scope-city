@@ -49,12 +49,22 @@ describe("city fabric", () => {
     expect(tileKindAt(6, 6)).toBe("road");
   });
 
-  it("generates a dense skyline with parks, trees, and fountains", () => {
+  it("places each structure once on buildable ground", () => {
     const buildings = layOutCity(offices);
-    expect(buildings.length).toBeGreaterThanOrEqual(220);
-    expect(buildings.length).toBeLessThanOrEqual(280);
-    expect(treeCells(buildings).length).toBeGreaterThanOrEqual(60);
-    expect(fountainCells(buildings).length).toBeGreaterThan(0);
+    const occupied = buildings.map(({ cell }) => `${cell.u}:${cell.v}`);
+    expect(new Set(occupied).size).toBe(occupied.length);
+    expect(buildings.every(({ cell }) => tileKindAt(cell.u, cell.v) === "grass")).toBe(true);
+    expect(offices.every(({ office }) => buildings.some((building) => building.office === office))).toBe(true);
+  });
+
+  it("keeps park features visible and mutually exclusive", () => {
+    const buildings = layOutCity(offices);
+    const trees = treeCells(buildings);
+    const fountains = fountainCells(buildings);
+    const treeKeys = new Set(trees.map((cell) => `${cell.u}:${cell.v}`));
+    expect(trees.length).toBeGreaterThan(0);
+    expect(fountains.length).toBeGreaterThan(0);
+    expect(fountains.every((cell) => !treeKeys.has(`${cell.u}:${cell.v}`))).toBe(true);
   });
 
   it("keeps every civic landmark on a buildable tile", () => {

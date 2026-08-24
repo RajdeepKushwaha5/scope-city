@@ -1,6 +1,6 @@
 import { TILE_H, TILE_W, UNIT_H, toScreen, type Point } from "../iso/projection.js";
 import type { Material } from "./palette.js";
-import { UI } from "./palette.js";
+import { COAST, UI } from "./palette.js";
 import type { PerimeterEdge } from "./world.js";
 
 /**
@@ -391,11 +391,11 @@ export function drawTree(
 export function drawFountain(ctx: CanvasRenderingContext2D, u: number, v: number, muted = false): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  drawDiamond(ctx, u, v, 0.02, muted ? "#4b555f" : UI.fountainStone, 0.68);
-  drawDiamond(ctx, u, v, 0.04, muted ? "#34434b" : UI.fountainWater, 0.48);
-  ctx.fillStyle = muted ? "#67717a" : UI.fountainShade;
+  drawDiamond(ctx, u, v, 0.02, muted ? UI.fountainFogStone : UI.fountainStone, 0.68);
+  drawDiamond(ctx, u, v, 0.04, muted ? UI.fountainFogWater : UI.fountainWater, 0.48);
+  ctx.fillStyle = muted ? UI.fountainFogShade : UI.fountainShade;
   ctx.fillRect(c.x - 2, c.y - 13, 4, 13);
-  ctx.fillStyle = muted ? "#65747c" : UI.fountainWater;
+  ctx.fillStyle = muted ? UI.fountainFogJet : UI.fountainWater;
   ctx.fillRect(c.x - 1, c.y - 18, 2, 8);
   ctx.fillRect(c.x - 5, c.y - 14, 3, 2);
   ctx.fillRect(c.x + 2, c.y - 14, 3, 2);
@@ -421,16 +421,16 @@ export function drawVehicle(
   ctx.translate(c.x, c.y - 3);
   ctx.rotate(angle);
 
-  ctx.fillStyle = "rgba(0, 0, 0, 0.24)";
+  ctx.fillStyle = UI.vehicleShadow;
   ctx.fillRect(-11, -2, 22, 7);
-  ctx.fillStyle = "#222a31";
+  ctx.fillStyle = UI.vehicleWheel;
   ctx.fillRect(-8, -6, 4, 3);
   ctx.fillRect(5, -6, 4, 3);
-  ctx.fillStyle = muted ? "#59636d" : colour;
+  ctx.fillStyle = muted ? UI.vehicleFogBody : colour;
   ctx.fillRect(-11, -8, 22, 8);
-  ctx.fillStyle = muted ? "#414b55" : "#c8e5f4";
+  ctx.fillStyle = muted ? UI.vehicleFogGlass : UI.vehicleGlass;
   ctx.fillRect(-4, -11, 10, 5);
-  ctx.fillStyle = muted ? "#77818a" : "#fff1a6";
+  ctx.fillStyle = muted ? UI.vehicleFogLight : UI.vehicleHeadlight;
   ctx.fillRect(9, -6, 3, 3);
   ctx.strokeStyle = UI.outline;
   ctx.lineWidth = 1;
@@ -448,13 +448,13 @@ export function drawCivicDome(
 ): void {
   const p = toScreen(u, v, base);
   ctx.save();
-  ctx.fillStyle = muted ? "#4b555f" : "#eee9d9";
+  ctx.fillStyle = muted ? UI.civicDomeFogBase : UI.civicDomeBase;
   ctx.fillRect(p.x - 10, p.y - 7, 20, 9);
-  ctx.fillStyle = muted ? "#59636c" : "#fffaf0";
+  ctx.fillStyle = muted ? UI.civicDomeFog : UI.civicDome;
   ctx.beginPath();
   ctx.ellipse(p.x, p.y - 8, 13, 10, 0, Math.PI, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = muted ? "#68727b" : "#d7caa8";
+  ctx.fillStyle = muted ? UI.civicDomeFogMast : UI.civicDomeMast;
   ctx.fillRect(p.x - 2, p.y - 24, 4, 7);
   ctx.fillRect(p.x - 1, p.y - 29, 2, 5);
   ctx.restore();
@@ -538,13 +538,13 @@ export function drawRunway(
   axis: "u" | "v",
   end = false,
 ): void {
-  drawDiamond(ctx, u, v, 0.035, "#202a31", 0.94);
+  drawDiamond(ctx, u, v, 0.035, COAST.runway, 0.94);
   const c = toScreen(u, v, 0.04);
   const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
   ctx.save();
   ctx.translate(c.x, c.y);
   ctx.rotate(angle);
-  ctx.fillStyle = "#e7e5d8";
+  ctx.fillStyle = COAST.runwayMark;
   if (end) {
     for (let x = -18; x <= 12; x += 6) ctx.fillRect(x, -5, 3, 10);
   } else {
@@ -558,24 +558,24 @@ export function drawHangar(
   ctx: CanvasRenderingContext2D,
   u: number,
   v: number,
-  colour = "#d7e5e7",
+  colour: string = COAST.hangarRoof,
 ): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.fillStyle = COAST.shadow;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y + 5, 31, 11, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = "#68889b";
+  ctx.fillStyle = COAST.hangarWall;
   ctx.fillRect(c.x - 28, c.y - 24, 56, 28);
   ctx.fillStyle = colour;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y - 23, 28, 14, 0, Math.PI, Math.PI * 2);
   ctx.fill();
   ctx.fillRect(c.x - 28, c.y - 23, 56, 25);
-  ctx.fillStyle = "#27465b";
+  ctx.fillStyle = COAST.hangarDoor;
   ctx.fillRect(c.x - 22, c.y - 17, 44, 19);
-  ctx.fillStyle = "#f0a830";
+  ctx.fillStyle = COAST.safety;
   ctx.fillRect(c.x - 27, c.y - 6, 54, 3);
   ctx.restore();
 }
@@ -583,13 +583,13 @@ export function drawHangar(
 export function drawControlTower(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "#778b95";
+  ctx.fillStyle = COAST.tower;
   ctx.fillRect(c.x - 6, c.y - 48, 12, 48);
-  ctx.fillStyle = "#173247";
+  ctx.fillStyle = COAST.towerCab;
   ctx.fillRect(c.x - 13, c.y - 55, 26, 11);
-  ctx.fillStyle = "#9fd7e6";
+  ctx.fillStyle = COAST.towerGlass;
   ctx.fillRect(c.x - 9, c.y - 52, 18, 5);
-  ctx.fillStyle = "#e8e0c9";
+  ctx.fillStyle = COAST.towerTrim;
   ctx.fillRect(c.x - 10, c.y - 43, 20, 4);
   ctx.restore();
 }
@@ -600,9 +600,9 @@ export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): 
   ctx.save();
   ctx.translate(c.x, c.y - 5);
   ctx.rotate(angle);
-  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.fillStyle = UI.shadow;
   ctx.fillRect(-18, 4, 36, 4);
-  ctx.fillStyle = "#f2eee2";
+  ctx.fillStyle = COAST.plane;
   ctx.beginPath();
   ctx.moveTo(24, 0);
   ctx.lineTo(-20, -4);
@@ -611,7 +611,7 @@ export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): 
   ctx.closePath();
   ctx.fill();
   ctx.fillRect(-5, -15, 8, 30);
-  ctx.fillStyle = "#c94f46";
+  ctx.fillStyle = COAST.planeStripe;
   ctx.fillRect(-24, -4, 8, 8);
   ctx.fillRect(-3, -15, 4, 30);
   ctx.restore();
@@ -626,41 +626,41 @@ export function drawBillboard(
 ): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "#493925";
+  ctx.fillStyle = COAST.billboardPost;
   ctx.fillRect(c.x - 27, c.y - 2, 4, 33);
   ctx.fillRect(c.x + 23, c.y - 2, 4, 33);
-  ctx.fillStyle = "#09151f";
+  ctx.fillStyle = COAST.billboardFace;
   ctx.fillRect(c.x - 42, c.y - 48, 84, 48);
-  ctx.strokeStyle = "#d9a63e";
+  ctx.strokeStyle = COAST.bollard;
   ctx.lineWidth = 2;
   ctx.strokeRect(c.x - 42, c.y - 48, 84, 48);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.font = "700 9px monospace";
-  ctx.fillStyle = "#f0a830";
+  ctx.fillStyle = COAST.safety;
   ctx.fillText(title.toUpperCase(), c.x, c.y - 26);
   ctx.font = "7px monospace";
-  ctx.fillStyle = "#a9bbca";
+  ctx.fillStyle = COAST.billboardText;
   ctx.fillText(subtitle.toUpperCase(), c.x, c.y - 13);
   ctx.restore();
 }
 
 export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  drawDiamond(ctx, u, v, 0.06, "#303b40", 0.96);
+  drawDiamond(ctx, u, v, 0.06, COAST.pier, 0.96);
   const c = toScreen(u, v, 0);
-  ctx.fillStyle = "#d39b43";
+  ctx.fillStyle = COAST.bollard;
   ctx.fillRect(c.x - 20, c.y - 2, 5, 6);
   ctx.fillRect(c.x + 15, c.y - 2, 5, 6);
 }
 
 export function drawContainerStack(ctx: CanvasRenderingContext2D, u: number, v: number, seed: number): void {
   const c = toScreen(u, v, 0);
-  const colours = ["#c65d3d", "#d9a735", "#3e7894", "#648258"] as const;
+  const colours = COAST.containers;
   ctx.save();
   for (let level = 0; level < 2; level += 1) {
     ctx.fillStyle = colours[(seed + level) % colours.length] ?? colours[0];
     ctx.fillRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
-    ctx.strokeStyle = "rgba(8,18,25,.55)";
+    ctx.strokeStyle = COAST.containerEdge;
     ctx.strokeRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
   }
   ctx.restore();
@@ -669,7 +669,7 @@ export function drawContainerStack(ctx: CanvasRenderingContext2D, u: number, v: 
 export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.strokeStyle = "#e0a33c";
+  ctx.strokeStyle = COAST.crane;
   ctx.lineWidth = 3;
   ctx.beginPath();
   ctx.moveTo(c.x - 13, c.y);
@@ -687,17 +687,17 @@ export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): 
 export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "#efe8d5";
+  ctx.fillStyle = COAST.lighthouse;
   ctx.fillRect(c.x - 7, c.y - 46, 14, 46);
-  ctx.fillStyle = "#c75045";
+  ctx.fillStyle = COAST.lighthouseStripe;
   ctx.fillRect(c.x - 7, c.y - 13, 14, 8);
   ctx.fillRect(c.x - 7, c.y - 31, 14, 8);
-  ctx.fillStyle = "#223745";
+  ctx.fillStyle = COAST.lighthouseRoof;
   ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
-  ctx.fillStyle = "#ffe58c";
+  ctx.fillStyle = COAST.lighthouseLamp;
   ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
   ctx.globalAlpha = 0.12 + (Math.sin(time / 650) + 1) * 0.06;
-  ctx.fillStyle = "#fff3a8";
+  ctx.fillStyle = COAST.lighthouseBeam;
   ctx.beginPath();
   ctx.moveTo(c.x, c.y - 54);
   ctx.lineTo(c.x + 110, c.y - 72);
@@ -721,7 +721,7 @@ export function drawBoat(
   ctx.save();
   ctx.translate(c.x, c.y - 3);
   ctx.rotate(angle);
-  ctx.strokeStyle = "rgba(220,246,255,.55)";
+  ctx.strokeStyle = COAST.wake;
   ctx.lineWidth = 2;
   ctx.beginPath();
   ctx.moveTo(-12, 4);
@@ -729,7 +729,7 @@ export function drawBoat(
   ctx.moveTo(-12, 1);
   ctx.lineTo(-26, -2);
   ctx.stroke();
-  ctx.fillStyle = "#3a2a22";
+  ctx.fillStyle = COAST.boatHull;
   ctx.beginPath();
   ctx.moveTo(-12, -5);
   ctx.lineTo(15, 0);
@@ -739,7 +739,7 @@ export function drawBoat(
   ctx.fillStyle = colour;
   ctx.fillRect(-7, -7, 13, 7);
   if (sail) {
-    ctx.fillStyle = "#f6f0df";
+    ctx.fillStyle = COAST.sail;
     ctx.fillRect(0, -25, 2, 22);
     ctx.beginPath();
     ctx.moveTo(1, -24);
@@ -763,9 +763,9 @@ export function drawShip(
   ctx.save();
   ctx.translate(c.x, c.y - 8);
   ctx.rotate(angle);
-  ctx.fillStyle = "rgba(224,246,255,.32)";
+  ctx.fillStyle = COAST.shipWake;
   ctx.fillRect(-73, 10, 54, 3);
-  ctx.fillStyle = kind === "cargo" ? "#172632" : "#28343b";
+  ctx.fillStyle = kind === "cargo" ? COAST.cargoHull : COAST.navyHull;
   ctx.beginPath();
   ctx.moveTo(-62, -13);
   ctx.lineTo(68, -13);
@@ -774,19 +774,19 @@ export function drawShip(
   ctx.lineTo(-62, 13);
   ctx.closePath();
   ctx.fill();
-  ctx.fillStyle = kind === "cargo" ? "#dbe2df" : "#718087";
+  ctx.fillStyle = kind === "cargo" ? COAST.cargoCab : COAST.navyCab;
   ctx.fillRect(-50, -19, 25, 14);
   if (kind === "cargo") {
-    const colours = ["#bf5b3d", "#d5a13b", "#3f7890", "#6d8356"] as const;
+    const colours = COAST.cargoContainers;
     for (let i = 0; i < 5; i += 1) {
       ctx.fillStyle = colours[i % colours.length] ?? colours[0];
       ctx.fillRect(-16 + i * 15, -10, 13, 17);
     }
   } else {
-    ctx.fillStyle = "#18262f";
+    ctx.fillStyle = COAST.navyDeck;
     ctx.fillRect(-4, -25, 35, 17);
     ctx.fillRect(12, -34, 5, 12);
-    ctx.fillStyle = "#d8b454";
+    ctx.fillStyle = COAST.navyMark;
     ctx.fillRect(45, -17, 18, 4);
   }
   ctx.restore();

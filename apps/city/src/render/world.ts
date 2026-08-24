@@ -243,6 +243,8 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
       if (isLandmarkPlazaCell(u, v)) continue;
       if (isFacilityCell(u, v)) continue;
       const seed = cellSeed(u, v);
+      // Fountains own their park cell; never place a canopy over the feature.
+      if (kind === "grass" && seed % 30 === 0) continue;
       if (kind === "grass" ? seed % 2 !== 0 : hash(`street-tree:${u}:${v}`) % 11 !== 0) continue;
       cells.push({ u, v });
     }

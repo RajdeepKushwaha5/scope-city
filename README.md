@@ -1,168 +1,147 @@
 # Scope City
 
-Turn a codebase into an isometric city, then run it as the mayor: type a
-command, a Claude agent crew picks it up, and the city reacts live — cranes
-rise over files being edited, buildings grow with the code, and a quest log
-tracks what the crew is doing.
+**See where your agents can act.**
 
-As agents take on more of the actual building, the bottleneck shifts from
-writing code to keeping track of what an agent is doing — which files it's
-touching, where the work is concentrating, when to step in. A terminal
-transcript or a PR diff doesn't show that at a glance. Scope City turns the
-repo into a spatial map instead, so watching a Claude agent build or review
-code feels like watching a construction site, not scrolling a log.
+An isometric city where your connected systems are districts, an AI agent works
+in the field, and its authority is drawn on the map as city limits. Watch an
+attack go out of scope and stop at the line.
 
-- **Districts** are directories, sized by a treemap over lines of code.
-- **Buildings** are files, colored by language.
-- **Streets and traffic** are derived from import edges between files.
-- **The crew** is one or more Claude Agent SDK sessions, driven by mayor
-  commands typed in the HUD.
+Built on [TrueForge](https://github.com/truefoundry/trueforge), the open-source
+agent harness.
 
-![The city, with the mayor console, city scan and mayor's order floating over it](docs/screenshots/city.png)
+---
 
-## In the city
+## The problem
 
-The world fills the viewport and every panel is a floating HUD window you can
-collapse; the layout is remembered between sessions.
+Every agent integration today makes the same mistake: the user has broad access,
+so the agent inherits broad access. A support agent that needs to refund one $49
+charge is handed an API key that can refund every charge, list every customer,
+and email anyone.
 
-- **Mayor's order** — type what the crew should build, then `DISPATCH` (or
-  `HALT` to interrupt). Permissions are per order: `ASK MAYOR` pauses on every
-  tool call for your approval, `DON'T DISTURB` lets the crew work unattended.
-  Buildings can be dragged into the order as context paths.
-- **Mayor console** — the crew on duty, a context stamina meter, the treasury
-  against the session budget, permits waiting for a `STAMP` or `DENY`, and the
-  transmissions log of the crew's transcript.
-- **City scan** — how many structures are mapped, broken down by language.
-- **Command palette** (`⌘K` / `Ctrl+K`) — fuzzy-search files; picking one flies
-  the camera to its building.
-- **Inspector** — click a building for the file behind it: path, line count and
-  type.
+The industry's two answers are both weak. **Prompt guardrails** ask the model
+nicely and hope; prompt injection defeats them routinely. **Static tool
+allowlists** are configured once and forever — too tight and the agent is
+useless, too loose and one poisoned support ticket reaches everything.
 
-While the crew works, construction sites raise cranes over the files being
-edited and the crew sprite stands on site; the camera flies to the work.
+And when something does go wrong, nobody can answer the simplest question:
+*what was it actually able to touch?* Authority lives in JSON blobs, OAuth scope
+strings and IAM consoles. It is invisible until it is a postmortem.
 
-### Choosing a crew
+## What Scope City does
 
-Pick a specialist and how hard they should think before dispatching. Each of the
-three has its own portrait per thinking level.
+You state a job. The agent proposes the minimum reach it needs. That proposal is
+probed, then shown to you as a **scope** — one order, one charge, one amount, one
+recipient, ten minutes. You grant it. From that moment the agent cannot exceed it,
+because the tools outside it are not denied to the agent, they are **absent**.
 
-![The crew picker, with Architect, Worker and Runner and a thinking level selector](docs/screenshots/crew-picker.png)
+Then the whole thing is drawn as a city, so you can watch it hold.
 
-| Crew | Model | Good for |
-| --- | --- | --- |
-| Architect | Opus | Complex refactors, architecture, long-horizon builds. |
-| Worker | Sonnet | Everyday edits, fixes, steady construction. |
-| Runner | Haiku | Small edits, renames, errands around the city. |
-
-Thinking level runs `LOW` → `MEDIUM` → `HIGH` → `EXTRA HIGH` → `MAX`.
-
-### Inspecting a building
-
-![A building selected up close, with the inspector showing its path, line count and type](docs/screenshots/inspector.png)
-
-### PR cities
-
-Every open GitHub pull request (via `gh`) gets its own port city, `pr-<number>`,
-alongside `main`. Ship travel takes you between them:
-
-- Each PR city is a lazily-built `git worktree` at the PR's head — checked out
-  and scanned only the first time you sail there.
-- Changed files render as a diff overlay on top of the map: new buildings for
-  additions, highlighted plots for edits, ghost plots for deletions.
-- The crew dispatched in a PR city is read-only — `Write`, `Edit`, and
-  `NotebookEdit` are disabled at the tool level, not just gated behind a
-  permit — so it can read and search the diff but never patch it in place.
-- To publish a verdict it runs `gh pr review --approve|--request-changes|--comment`
-  through `Bash`, which still raises a mayor permit before it executes —
-  nothing ships without a `STAMP`.
+> We don't tell the agent no. We make the thing unreachable.
 
 ## How it works
 
-| Package | Responsibility |
-| --- | --- |
-| `packages/worldgen` | Scans a repository (files, imports, external deps, git churn) into a `WorldMap`. |
-| `packages/layout` | Turns a `WorldMap` into a laid-out `WorldSnapshot` (treemap districts, plots, streets). |
-| `packages/world` | Persists world state to SQLite (`.scopecity/world.db` in the target repo). |
-| `packages/agent` | Wraps `@anthropic-ai/claude-agent-sdk` sessions and turns SDK messages into `GameEvent`s. |
-| `packages/cities` | Lists open PRs and manages the `git worktree` + diff overlay behind each PR city. |
-| `packages/protocol` | Shared zod schemas/types for world state, game events, and mayor commands. |
-| `apps/server` | Fastify + WebSocket server: scans the repo, serves world snapshots per city, relays mayor commands to the agent, streams events. |
-| `apps/web` | Vite + React + Phaser client: renders the isometric city and the mayor HUD (chat, quest log, HUD stats). |
-| `apps/cli` | `scope-city <path>` — boots the server and web app together against a target repository and opens the browser. |
+TrueForge talks to the **scope proxy**, never to Stripe or your mail server. The
+agent therefore holds no credential at all, and every call is policed on four
+surfaces:
 
-## Requirements
+| Surface | Enforcement |
+|---|---|
+| `tools/list` | Only offices inside the scope are listed. The rest are absent. |
+| `tools/call` request | Resource ids, amount ceilings in integer minor units, call budgets, expiry, exact-call fingerprint. |
+| `tools/call` response | Projected and redacted to the fields the scope allows, size-capped, scanned for instruction-shaped text. |
+| Quota ledger | Atomic compare-and-consume, idempotency keys, replay protection. |
 
-- Node.js >= 22.5.0
-- pnpm 11.10.0 (see `packageManager` in `package.json`)
-- Claude access: either `ANTHROPIC_API_KEY` in your environment (or a `.env`
-  file in the repository you point scope-city at) or an existing local Claude
-  Code login, which the agent falls back to.
-- [`gh`](https://cli.github.com) authenticated against the target repo, for PR
-  cities (listing open PRs and posting reviews). Optional if you're only
-  visiting `main`.
+The response surface matters as much as the request surface. An allowed
+`charge.get` can legitimately return a customer's entire payment history —
+filtering *what you may call* without filtering *what comes back* leaks exactly
+the data you thought you had fenced off.
 
-## Getting started
+### Two refusals, deliberately different
+
+| | The Gate | The city limits |
+|---|---|---|
+| Mechanism | TrueForge `tool.approval_required` | The scope proxy |
+| Asks a human? | Yes — klaxon, countersign | **Never** |
+| Fires when | The action is irreversible | The call falls outside the scope |
+| On the map | A gate rises, ceremony, a stamp | The agent stops dead at the line |
+
+That contrast is the whole thesis, rendered.
+
+## Repository layout
+
+```
+packages/
+  scope/     scope schema, request evaluator, response projector  (pure)
+  ledger/    atomic quota claims, idempotency, replay protection  (pure)
+  proxy/     the enforcing MCP proxy — decide → claim → countersign → execute → project
+  harness/   TrueForge session driver and event translation
+  protocol/  shared zod schemas for world state and events
+  layout/    district and building layout
+  worldgen/  live tools/list → world snapshot
+apps/
+  server/    Fastify + WebSocket: drives the session, normalises events
+  web/       React + Phaser isometric city and HUD
+  cli/       boots server and web together
+mcp/         the demo MCP servers (ticket, payments, mail)
+docs/
+  TRUEFORGE.md   verified notes on the harness API — read before integrating
+```
+
+The three `packages/` at the top are the security substrate and have no I/O:
+`now` and `consumed` are arguments rather than ambient state, which is what makes
+every branch reachable from a test.
+
+## Running it
+
+### Requirements
+
+- **Linux or macOS** for the TrueForge server. On Windows use WSL2 — the
+  standalone server segfaults on `win32` and its sandbox provider is
+  Linux/macOS only.
+- Node.js >= 22.13, pnpm 11.10
+- For the sandbox: `bwrap`, `socat`, `ripgrep`
+  ```bash
+  sudo apt-get install -y bubblewrap socat ripgrep
+  ```
+
+### Quick start
 
 ```bash
 pnpm install
 
-# run the server + web app against the current repo
-pnpm dev
+# 1. the harness
+npx @truefoundry/trueforge          # http://localhost:8790
 
-# or point it at any repository via the CLI
-pnpm --filter @scope-city/cli start -- ../some-other-repo
+# 2. the demo systems and the scope proxy
+pnpm mcp:dev
+
+# 3. Scope City
+pnpm dev                            # http://localhost:5173
 ```
 
-The web app defaults to `http://127.0.0.1:5173` and connects to the server's
-WebSocket at `ws://127.0.0.1:4100/ws` (override with `VITE_WS_URL`).
+### No credentials required
 
-| Env var | Default | What it does |
-| --- | --- | --- |
-| `HOST` / `PORT` | `127.0.0.1` / `4100` | Server bind address. |
-| `SCOPE_CITY_REPO` | current working directory | Repository to turn into the demo city. |
-| `SCOPE_CITY_MAX_BUDGET_USD` | `1` | Spend ceiling shared across every open city/workspace. |
-| `SCOPE_CITY_USER_MAX_BUDGET_USD` | `10` | Lifetime spend allowed per signed-in user, tracked in Postgres. |
-| `SCOPE_CITY_PUBLIC_DEPLOYMENT` | unset | Set on a public server: disables the Opus crew, the `xhigh`/`max` thinking levels, and orders in the demo city. |
-| `SCOPE_CITY_CLONE_ROOT` | `<tmpdir>/scopecity` | Where per-user repo clones are cached. |
-| `ANTHROPIC_API_KEY` | — | Falls back to a local Claude Code login if unset. |
-| `VITE_WS_URL` | `ws://127.0.0.1:4100/ws` | WebSocket the web app connects to. |
-| `VITE_API_URL` | `http://127.0.0.1:4100` | REST base URL for login/repos. |
+`SCOPE_FIXTURES=true` runs the demo systems against local test doubles, so the
+whole thing works with no Stripe key and no accounts. That is the mode to use
+when evaluating the project.
 
-World state is persisted to `.scopecity/world.db` inside each repo's working
-copy (the demo checkout, or a per-user clone under `SCOPE_CITY_CLONE_ROOT`).
+## Verifying the claim
 
-## GitHub login
-
-Visiting the site with no sign-in shows a **SEE THE DEMO CITY** button that
-renders Scope City's own repo. Signing in with **LOGIN WITH GITHUB** lets a
-visitor import their own repositories and see them rendered as a city too.
-
-## Development
+The safety claim is not rhetorical; it is a test suite.
 
 ```bash
-pnpm build       # build all workspace packages/apps
-pnpm typecheck   # typecheck all workspace packages/apps
-pnpm test        # run vitest in every package that has tests
+pnpm test        # no network, under five seconds
 ```
 
-Each package/app also exposes its own `build`, `dev`, `test`, and
-`typecheck` scripts if you want to run one in isolation, e.g.
-`pnpm --filter @scope-city/web test`.
+The tests that matter most:
 
-## Project layout
+- `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
+- `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
+- `packages/proxy` — the poisoned ticket refused end to end, and the countersign
+  that is void because it belongs to a different call
 
-```
-apps/
-  cli/      scope-city CLI: boots server + web, opens the browser
-  server/   Fastify/WebSocket server: scan, snapshot, agent relay
-  web/      Vite/React/Phaser isometric city client
-packages/
-  agent/    Claude Agent SDK session wrapper
-  cities/   PR listing, git worktrees, and diff overlays for PR cities
-  layout/   Treemap/plot layout for the world map
-  protocol/ Shared zod schemas and types
-  world/    SQLite-backed world state persistence
-  worldgen/ Repository scanner (files, imports, deps, churn)
-fixtures/
-  repos/    Sample repositories used for local testing
-```
+## Licence
+
+MIT — see [LICENSE](LICENSE).
+
+Asset and font licences are recorded in [ATTRIBUTION.md](ATTRIBUTION.md).

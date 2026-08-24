@@ -1,0 +1,43 @@
+# Qodo review configuration for Scope City.
+#
+# This repository is a security product: the whole claim is that an agent
+# cannot exceed a granted scope. Reviews should be weighted accordingly --
+# a missed enforcement gap matters far more than a naming preference.
+
+[config]
+model = "claude-sonnet-4-6"
+
+[pr_reviewer]
+# We want findings on the PR itself so the review trail is readable in one
+# place rather than scattered across inline threads.
+require_score_review = true
+require_tests_review = true
+require_security_review = true
+enable_review_labels_security = true
+enable_review_labels_effort = true
+persistent_comment = true
+final_update_message = true
+
+[pr_description]
+publish_labels = true
+add_original_user_description = true
+generate_ai_title = false
+
+[pr_code_suggestions]
+num_code_suggestions = 6
+# Prefer fewer, higher-confidence suggestions over a long list of nits.
+rank_suggestions = true
+suggestions_score_threshold = 6
+
+[github_app]
+# Review every pull request automatically, and refresh on new pushes so the
+# trail shows the fix as well as the finding.
+pr_commands = [
+  "/describe",
+  "/review",
+  "/improve",
+]
+handle_push_trigger = true
+push_commands = [
+  "/review",
+]

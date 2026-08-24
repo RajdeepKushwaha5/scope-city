@@ -16,7 +16,7 @@ import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
 
 const CONTROL_PORT = Number(process.env.SCOPE_CONTROL_PORT ?? 8787);
 const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
-const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "0.0.0.0";
+const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
 const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")

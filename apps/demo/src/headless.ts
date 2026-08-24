@@ -50,7 +50,7 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
  * works everywhere, and conflating the two is the failure that looks like
  * "the agent has no tools" with nothing in the logs to explain it.
  */
-const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "0.0.0.0";
+const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
   .split(",")

@@ -1,16 +1,37 @@
 {
+  // Compiler settings shared by every workspace.
+  //
+  // The strictness here is load-bearing rather than stylistic. Scope City's job
+  // is to decide whether an agent may perform an irreversible action, and the
+  // decision functions are pure, which means the compiler is the first place a
+  // wrong answer can be caught. Two flags earn their place specifically:
+  //
+  //   noUncheckedIndexedAccess  -- a scope lookup that misses returns undefined,
+  //     and an undefined limit that reads as "no limit" is exactly the bug this
+  //     project exists to prevent. Forcing the check at every index makes that
+  //     failure impossible to write by accident.
+  //
+  //   verbatimModuleSyntax -- type-only imports are erased exactly as written,
+  //     so a value accidentally imported for its type cannot pull a module (and
+  //     its side effects) into the proxy at runtime.
   "compilerOptions": {
-    "allowJs": false,
-    "esModuleInterop": true,
-    "forceConsistentCasingInFileNames": true,
-    "isolatedModules": true,
+    "target": "ES2023",
     "module": "ESNext",
     "moduleResolution": "Bundler",
-    "noFallthroughCasesInSwitch": true,
-    "noUncheckedIndexedAccess": true,
-    "resolveJsonModule": true,
-    "skipLibCheck": true,
+    "lib": ["ES2023"],
+
     "strict": true,
-    "target": "ES2023"
+    "noUncheckedIndexedAccess": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitOverride": true,
+    "noImplicitReturns": true,
+
+    "allowJs": false,
+    "isolatedModules": true,
+    "verbatimModuleSyntax": true,
+    "esModuleInterop": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true
   }
 }

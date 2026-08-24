@@ -1,38 +1,37 @@
-name: PR Checks
+name: checks
 
 on:
   pull_request:
-    branches:
-      - main
+    branches: [main]
+  push:
+    branches: [main]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: checks-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
   contents: read
 
 jobs:
-  test:
-    name: Run tests and typechecks
+  verify:
+    name: typecheck, build, test
     runs-on: ubuntu-latest
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
+    timeout-minutes: 15
 
-      - name: Setup pnpm
-        uses: pnpm/action-setup@v4
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
         with:
           version: 11.10.0
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: 'pnpm'
+          cache: pnpm
 
-      - name: Install dependencies
-        run: pnpm install --frozen-lockfile
+      - run: pnpm install --frozen-lockfile
 
       - name: Typecheck
         run: pnpm typecheck
@@ -40,5 +39,9 @@ jobs:
       - name: Build
         run: pnpm build
 
-      - name: Run tests
+      # The enforcement packages are pure functions with no network and no
+      # clock of their own -- `now` and `consumed` are arguments -- so the whole
+      # suite runs here with nothing stubbed. A failure in this step is a
+      # failure in the safety boundary itself, not in a test harness.
+      - name: Test
         run: pnpm test

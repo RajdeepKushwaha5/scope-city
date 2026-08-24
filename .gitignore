@@ -14,10 +14,6 @@ test-results/
 .gstack/
 supabase/.temp/
 
-# Dev-only harnesses for eyeballing baked props. Handy locally, not shipped.
-apps/web/navy-preview.html
-apps/web/src/dev/
-
 # credential-manager diagnostics, never ours to commit
 gcm-diagnose.log
 

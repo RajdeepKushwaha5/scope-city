@@ -12,6 +12,7 @@ set -uo pipefail
 
 BIN="$HOME/.local/bin"
 mkdir -p "$BIN"
+export PATH="${BIN}:${PATH}"
 
 have() { command -v "$1" >/dev/null 2>&1; }
 
@@ -24,19 +25,34 @@ for tool in bwrap socat rg; do
   fi
 done
 
-# --- ripgrep: an official static musl build ------------------------------
+# --- ripgrep: select the official artifact for this host -----------------
 if ! have rg; then
   echo
   echo "== installing ripgrep =="
   RG_VER="14.1.1"
-  RG_TGZ="ripgrep-${RG_VER}-x86_64-unknown-linux-musl.tar.gz"
-  if curl -fsSL -o "/tmp/${RG_TGZ}" \
-      "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VER}/${RG_TGZ}"; then
-    tar -xzf "/tmp/${RG_TGZ}" -C /tmp
-    install -m 0755 "/tmp/ripgrep-${RG_VER}-x86_64-unknown-linux-musl/rg" "${BIN}/rg"
-    echo "  installed ${BIN}/rg"
+  OS="$(uname -s)"
+  ARCH="$(uname -m)"
+  TARGET=""
+  case "${OS}/${ARCH}" in
+    Linux/x86_64) TARGET="x86_64-unknown-linux-musl" ;;
+    Linux/aarch64|Linux/arm64) TARGET="aarch64-unknown-linux-gnu" ;;
+    Darwin/x86_64) TARGET="x86_64-apple-darwin" ;;
+    Darwin/arm64) TARGET="aarch64-apple-darwin" ;;
+  esac
+
+  if [ -z "${TARGET}" ]; then
+    echo "  unsupported host ${OS}/${ARCH}; install ripgrep with your package manager"
   else
-    echo "  download failed — falling back to: sudo apt-get install -y ripgrep"
+    RG_TGZ="ripgrep-${RG_VER}-${TARGET}.tar.gz"
+    TEMP_ROOT="${TMPDIR:-/tmp}"
+    if curl -fsSL -o "${TEMP_ROOT}/${RG_TGZ}" \
+      "https://github.com/BurntSushi/ripgrep/releases/download/${RG_VER}/${RG_TGZ}"; then
+      tar -xzf "${TEMP_ROOT}/${RG_TGZ}" -C "${TEMP_ROOT}"
+      install -m 0755 "${TEMP_ROOT}/ripgrep-${RG_VER}-${TARGET}/rg" "${BIN}/rg"
+      echo "  installed ${BIN}/rg"
+    else
+      echo "  download failed; install ripgrep with apt, brew, or your package manager"
+    fi
   fi
 fi
 
@@ -45,20 +61,19 @@ if ! have socat; then
   echo
   echo "== socat =="
   # -n so this never blocks waiting for a password.
-  if sudo -n apt-get install -y socat >/dev/null 2>&1; then
+  if command -v apt-get >/dev/null 2>&1 && sudo -n apt-get install -y socat >/dev/null 2>&1; then
     echo "  installed via apt"
   else
-    echo "  socat has no official static build and apt needs a password."
-    echo "  Run this once, interactively:"
+    echo "  socat needs a system package. Run one of these interactively:"
     echo
-    echo "      sudo apt-get install -y socat"
+    echo "      sudo apt-get install -y socat  # Debian/Ubuntu"
+    echo "      brew install socat             # macOS"
     echo
   fi
 fi
 
 echo
 echo "== result =="
-export PATH="${BIN}:${PATH}"
 missing=0
 for tool in bwrap socat rg; do
   if have "$tool"; then
@@ -71,9 +86,9 @@ done
 
 if [ "${missing}" -eq 0 ]; then
   echo
-  echo "  All present. Restart TrueForge and the local sandbox provider appears."
-  echo "  Add to your shell profile so it survives a new terminal:"
-  echo "      export PATH=\"\$HOME/.local/bin:\$PATH\""
+  echo "  All present. Launch TrueForge through the repository wrapper so its"
+  echo "  process inherits this user-local PATH:"
+  echo "      ./scripts/trueforge.sh"
 fi
 
 exit "${missing}"

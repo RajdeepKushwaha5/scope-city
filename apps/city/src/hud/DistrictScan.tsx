@@ -11,10 +11,16 @@ export function DistrictScan(props: {
   online: readonly string[];
   granted: readonly string[];
   offices: readonly { office: string; district: string }[];
+  dispositions: readonly { office: string; disposition: "allowed" | "gated" | "blocked" }[];
   inspecting: string | null;
 }): React.JSX.Element {
   const counts = new Map<string, number>();
-  for (const entry of props.offices) {
+  const reachable = new Set(
+    props.dispositions
+      .filter((entry) => entry.disposition !== "blocked")
+      .map((entry) => entry.office),
+  );
+  for (const entry of props.offices.filter((office) => reachable.has(office.office))) {
     counts.set(entry.district, (counts.get(entry.district) ?? 0) + 1);
   }
 

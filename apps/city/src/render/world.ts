@@ -234,31 +234,36 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
  * operator grants reach into a system, and drawing the boundary at that level
  * matches how the authority was described to them.
  */
-export function perimeterOf(districts: readonly string[]): Cell[] {
+export interface PerimeterEdge {
+  readonly from: Cell;
+  readonly to: Cell;
+}
+
+export function perimeterOf(districts: readonly string[]): PerimeterEdge[] {
   const plots = districts.map(plotFor).filter((p): p is DistrictPlot => p !== undefined);
-  if (plots.length === 0) return [];
-
-  const u0 = Math.min(...plots.map((p) => p.u0)) - 1;
-  const v0 = Math.min(...plots.map((p) => p.v0)) - 1;
-  const u1 = Math.max(...plots.map((p) => p.u1)) + 1;
-  const v1 = Math.max(...plots.map((p) => p.v1)) + 1;
-
-  return [
-    { u: u0, v: v0 },
-    { u: u1, v: v0 },
-    { u: u1, v: v1 },
-    { u: u0, v: v1 },
-  ];
+  return plots.flatMap((plot) => {
+    const u0 = plot.u0 - 1;
+    const v0 = plot.v0 - 1;
+    const u1 = plot.u1 + 1;
+    const v1 = plot.v1 + 1;
+    return [
+      { from: { u: u0, v: v0 }, to: { u: u1, v: v0 } },
+      { from: { u: u1, v: v0 }, to: { u: u1, v: v1 } },
+      { from: { u: u1, v: v1 }, to: { u: u0, v: v1 } },
+      { from: { u: u0, v: v1 }, to: { u: u0, v: v0 } },
+    ];
+  });
 }
 
 export function isInScope(cell: Cell, districts: readonly string[]): boolean {
   const plots = districts.map(plotFor).filter((p): p is DistrictPlot => p !== undefined);
   if (plots.length === 0) return false;
 
-  const u0 = Math.min(...plots.map((p) => p.u0)) - 1;
-  const v0 = Math.min(...plots.map((p) => p.v0)) - 1;
-  const u1 = Math.max(...plots.map((p) => p.u1)) + 1;
-  const v1 = Math.max(...plots.map((p) => p.v1)) + 1;
-
-  return cell.u >= u0 && cell.u <= u1 && cell.v >= v0 && cell.v <= v1;
+  return plots.some(
+    (plot) =>
+      cell.u >= plot.u0 - 1 &&
+      cell.u <= plot.u1 + 1 &&
+      cell.v >= plot.v0 - 1 &&
+      cell.v <= plot.v1 + 1,
+  );
 }

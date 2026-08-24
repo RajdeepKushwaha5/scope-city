@@ -111,6 +111,7 @@ export const LANDMARKS: Record<string, BuildingStyleSet> = {
 
 /** HUD chrome. One accent colour; a second turns an instrument into a toy. */
 export const UI = {
+  sky: "#22597f",
   panel: "#0e1622",
   panelEdge: "#1d2a3d",
   ink: "#c8d4e3",
@@ -119,6 +120,16 @@ export const UI = {
   danger: "#e05a4a",
   good: "#4fbf7a",
   wall: "#ffc247",
+  mast: "#3a424c",
+  outline: "rgba(12, 18, 26, 0.8)",
+  roadMarking: "rgba(236, 240, 245, 0.55)",
+  shadow: "rgba(0, 0, 0, 0.22)",
+  treeShadow: "rgba(0, 0, 0, 0.18)",
+  treeTrunk: "#5a4230",
+  treeShade: "#2f6b34",
+  treeLight: "#3f8a41",
+  lamp: "#39424d",
+  lampLight: "#f0d890",
 } as const;
 
 export const AGENT = {

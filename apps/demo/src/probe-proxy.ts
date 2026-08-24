@@ -107,6 +107,11 @@ async function main(): Promise<void> {
     })) as { result?: unknown };
     console.log(`     ${JSON.stringify(init?.result ?? init).slice(0, 200)}\n`);
 
+    await rpc(url, {
+      jsonrpc: "2.0",
+      method: "notifications/initialized",
+    });
+
     console.log("  2. tools/list");
     const list = (await rpc(url, { jsonrpc: "2.0", id: 2, method: "tools/list" })) as {
       result?: { tools?: { name: string }[] };

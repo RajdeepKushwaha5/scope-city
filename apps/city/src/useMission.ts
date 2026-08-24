@@ -54,6 +54,7 @@ interface StepApi {
   sandbox: (open: boolean) => void;
   phase: (phase: Phase) => void;
   spend: (usd: number) => void;
+  grantScope: () => void;
 }
 
 const ALL_DISTRICTS = ["records", "exchequer", "post-house", "yard", "gate"] as const;
@@ -106,6 +107,15 @@ export function useMission() {
 
   const timers = useRef<number[]>([]);
 
+  const schedule = useCallback((run: () => void, after: number) => {
+    const timer = window.setTimeout(() => {
+      timers.current = timers.current.filter((candidate) => candidate !== timer);
+      run();
+    }, after);
+    timers.current.push(timer);
+    return timer;
+  }, []);
+
   const clearTimers = useCallback(() => {
     for (const t of timers.current) window.clearTimeout(t);
     timers.current = [];
@@ -121,7 +131,24 @@ export function useMission() {
       return;
     }
     const tick = window.setInterval(() => {
-      setExpiresIn(Math.max(0, expiresAt - Date.now()));
+      const remaining = expiresAt - Date.now();
+      if (remaining <= 0) {
+        setExpiresAt(null);
+        setExpiresIn(0);
+        setScopeState("none");
+        setGate(null);
+        setPhase("done");
+        setLog((lines) => [
+          ...lines,
+          {
+            at: new Date().toLocaleTimeString(undefined, { hour12: false }),
+            what: "Scope expired. Every office is unreachable again.",
+            kind: "refused",
+          },
+        ]);
+        return;
+      }
+      setExpiresIn(remaining);
     }, 250);
     return () => window.clearInterval(tick);
   }, [expiresAt]);
@@ -153,7 +180,7 @@ export function useMission() {
       api.log(why, "refused");
       // The flash is brief on purpose: a permanent marker would read as damage
       // rather than as something that was prevented.
-      window.setTimeout(() => setRefusedAt(null), 1600);
+      schedule(() => setRefusedAt(null), 1600);
     },
     online: setOnline,
     team: (count) =>
@@ -171,16 +198,21 @@ export function useMission() {
     sandbox: setSandboxOpen,
     phase: setPhase,
     spend: (usd) => setTreasury((t) => Number((t + usd).toFixed(4))),
+    grantScope: () => {
+      setScope(NARROW_SCOPE);
+      setScopeState("granted");
+      setExpiresAt(Date.now() + NARROW_SCOPE.expiresInMs);
+    },
   };
 
   const play = useCallback(
     (steps: readonly Step[]) => {
       clearTimers();
       for (const step of steps) {
-        timers.current.push(window.setTimeout(() => step.run(api), step.after));
+        schedule(() => step.run(api), step.after);
       }
     },
-    [clearTimers],
+    [clearTimers, schedule],
   );
 
   const reset = useCallback(() => {
@@ -218,6 +250,8 @@ export function useMission() {
     setScopeState("none");
     setScope(null);
     setPhase("drafting");
+    setGate(null);
+    setExpiresAt(null);
     api.log("Scope refused. Nothing was granted.", "refused");
   }, []);
 
@@ -225,13 +259,18 @@ export function useMission() {
     setScopeState("none");
     setExpiresAt(null);
     setPhase("done");
+    setGate(null);
     api.log("Scope revoked. Every office is unreachable again.", "refused");
   }, []);
 
   const countersign = useCallback(
     (approved: boolean) => {
       const request = gate;
-      if (!request) return;
+      if (!request || scopeState !== "granted") {
+        if (request) api.log(`Stale countersign rejected — ${request.office}`, "refused");
+        setGate(null);
+        return;
+      }
       setGate(null);
       setPhase("running");
 
@@ -241,12 +280,12 @@ export function useMission() {
       }
 
       api.log(`Countersigned ${request.office}`, "allowed");
-      window.setTimeout(() => {
+      schedule(() => {
         api.log("$49.00 refunded on ch_184", "allowed");
         api.spend(0.014);
       }, 500);
     },
-    [gate],
+    [gate, schedule, scopeState],
   );
 
   /* ------------------------------------------------------------ scenarios */
@@ -282,7 +321,8 @@ export function useMission() {
     inspecting,
     expiresIn,
     job: scope?.job ?? "No mission",
-    granted: scopeState === "none" ? [] : ["records", "exchequer", "post-house"],
+    granted: scopeState === "granted" ? ["records", "exchequer", "post-house"] : [],
+    proposed: scopeState === "proposed" ? ["records", "exchequer", "post-house"] : [],
     inspect: setInspecting,
     propose,
     grant,
@@ -299,6 +339,7 @@ export function useMission() {
 
 /** The headline: an injected instruction breaks against the boundary. */
 const POISONED_TICKET: readonly Step[] = [
+  { after: 50, run: (a) => a.grantScope() },
   { after: 100, run: (a) => a.log("Mission opened — resolve ticket #184") },
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
   { after: 700, run: (a) => a.log("5 districts online via MCP") },
@@ -331,6 +372,7 @@ const POISONED_TICKET: readonly Step[] = [
 
 /** Everything inside the scope. Proves the boundary has no false positives. */
 const CLEAN_JOB: readonly Step[] = [
+  { after: 50, run: (a) => a.grantScope() },
   { after: 100, run: (a) => a.log("Mission opened — clean job") },
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
   { after: 900, run: (a) => a.phase("running") },

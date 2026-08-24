@@ -59,6 +59,7 @@ export interface Figure {
 export interface SceneState {
   readonly online: readonly string[];
   readonly granted: readonly string[];
+  readonly proposed: readonly string[];
   readonly offices: readonly { office: string; district: string }[];
   readonly figures: readonly Figure[];
   readonly gates: readonly string[];
@@ -97,7 +98,7 @@ export function drawScene(
   time: number,
 ): void {
   ctx.save();
-  ctx.fillStyle = "#22597f";
+  ctx.fillStyle = UI.sky;
   ctx.fillRect(0, 0, size.width, size.height);
 
   ctx.translate(size.width / 2 + camera.x, size.height / 2 + camera.y);
@@ -145,8 +146,7 @@ const ROAD_DROP = 0.09;
 
 function groundItems(state: SceneState): Drawable[] {
   const items: Drawable[] = [];
-  const granted = state.granted.length > 0;
-  const scoped = (u: number, v: number) => !granted || isInScope({ u, v }, state.granted);
+  const scoped = (u: number, v: number) => isInScope({ u, v }, state.granted);
 
   const isGrass = (u: number, v: number) => tileKindAt(u, v) === "grass";
   const isSand = (u: number, v: number) => tileKindAt(u, v) === "sand";
@@ -211,10 +211,8 @@ function treeItems(
   trees: readonly { u: number; v: number }[],
   state: SceneState,
 ): Drawable[] {
-  const granted = state.granted.length > 0;
-
   return trees
-    .filter((cell) => !granted || isInScope(cell, state.granted))
+    .filter((cell) => isInScope(cell, state.granted))
     .map((cell) => ({
       z: depth(cell.u, cell.v, 1),
       draw: (ctx: CanvasRenderingContext2D) =>
@@ -223,11 +221,9 @@ function treeItems(
 }
 
 function buildingItems(buildings: readonly Building[], state: SceneState): Drawable[] {
-  const granted = state.granted.length > 0;
-
   return buildings.map((building) => {
     const { u, v } = building.cell;
-    const inScope = !granted || isInScope(building.cell, state.granted);
+    const inScope = isInScope(building.cell, state.granted);
 
     let style: BuildingStyleSet = building.kind === "house" ? HOUSE : CONCRETE;
     if (!inScope) style = FOGGED;
@@ -248,13 +244,11 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
 /** Each connected district's landmark: taller, its own colour, a plinth. */
 function landmarkItems(state: SceneState): Drawable[] {
   const items: Drawable[] = [];
-  const granted = state.granted.length > 0;
-
   for (const plot of DISTRICT_PLOTS) {
     if (!state.online.includes(plot.id)) continue;
 
     const { u, v } = plot.landmark;
-    const inScope = !granted || isInScope(plot.landmark, state.granted);
+    const inScope = isInScope(plot.landmark, state.granted);
     const style = inScope ? landmarkStyle(plot.id) : FOGGED;
     const height = plot.landmarkHeight;
     const gated = state.gates.includes(plot.id);
@@ -269,7 +263,7 @@ function landmarkItems(state: SceneState): Drawable[] {
         if (gated) {
           // A mast on the roof while this district is holding a gate.
           const top = toScreen(u, v, height);
-          ctx.fillStyle = "#3a424c";
+          ctx.fillStyle = UI.mast;
           ctx.fillRect(top.x - 1, top.y - 30, 2, 30);
           ctx.fillStyle = UI.danger;
           ctx.fillRect(top.x - 7, top.y - 32, 14, 9);
@@ -302,7 +296,7 @@ function figureItems(state: SceneState): Drawable[] {
         ctx.fillStyle = AGENT.mark;
         ctx.fillRect(p.x - 4, p.y - 18, 5, 5);
 
-        ctx.strokeStyle = "rgba(12,18,26,0.8)";
+        ctx.strokeStyle = UI.outline;
         ctx.lineWidth = 1;
         ctx.strokeRect(p.x - 6.5, p.y - 22.5, 13, 23);
       },
@@ -311,7 +305,8 @@ function figureItems(state: SceneState): Drawable[] {
 }
 
 function drawScopeWall(ctx: CanvasRenderingContext2D, state: SceneState, time: number): void {
-  if (state.scopeState === "none" || state.granted.length === 0) return;
+  const districts = state.scopeState === "proposed" ? state.proposed : state.granted;
+  if (state.scopeState === "none" || districts.length === 0) return;
 
   // A slow breath on the glow only, so the boundary feels live without the
   // line itself moving.
@@ -319,7 +314,7 @@ function drawScopeWall(ctx: CanvasRenderingContext2D, state: SceneState, time: n
 
   drawPerimeter(
     ctx,
-    perimeterOf(state.granted),
+    perimeterOf(districts),
     UI.wall,
     `rgba(255, 194, 71, ${pulse.toFixed(3)})`,
     state.scopeState === "proposed",

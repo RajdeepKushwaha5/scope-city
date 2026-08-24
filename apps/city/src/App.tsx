@@ -23,7 +23,8 @@ export function App(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
-  const dragRef = useRef<{ x: number; y: number } | null>(null);
+  const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
+  const suppressClickRef = useRef(false);
 
   const mission = useMission();
 
@@ -48,6 +49,7 @@ export function App(): React.JSX.Element {
     () => ({
       online: mission.online,
       granted: mission.granted,
+      proposed: mission.proposed,
       offices: mission.offices,
       figures: mission.figures,
       gates: mission.gateDistricts,
@@ -84,7 +86,7 @@ export function App(): React.JSX.Element {
   // --- camera controls --------------------------------------------------
 
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
-    dragRef.current = { x: e.clientX - 0, y: e.clientY - 0 };
+    dragRef.current = { x: e.clientX, y: e.clientY, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
   }, []);
 
@@ -93,12 +95,25 @@ export function App(): React.JSX.Element {
     if (!start) return;
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
-    dragRef.current = { x: e.clientX, y: e.clientY };
+    dragRef.current = {
+      x: e.clientX,
+      y: e.clientY,
+      moved: start.moved || Math.abs(dx) + Math.abs(dy) > 3,
+    };
     setCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
   }, []);
 
-  const onPointerUp = useCallback(() => {
+  const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
+    suppressClickRef.current = dragRef.current?.moved ?? false;
     dragRef.current = null;
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+  }, []);
+
+  const onPointerCancel = useCallback(() => {
+    dragRef.current = null;
+    suppressClickRef.current = false;
   }, []);
 
   const onWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -110,7 +125,10 @@ export function App(): React.JSX.Element {
 
   const onClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
-      if (dragRef.current) return;
+      if (suppressClickRef.current) {
+        suppressClickRef.current = false;
+        return;
+      }
       const cell = pickCell(
         (e.clientX - size.width / 2 - camera.x) / camera.zoom,
         (e.clientY - size.height / 2 - camera.y) / camera.zoom,
@@ -132,6 +150,7 @@ export function App(): React.JSX.Element {
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
+        onPointerCancel={onPointerCancel}
         onWheel={onWheel}
         onClick={onClick}
       />
@@ -142,6 +161,7 @@ export function App(): React.JSX.Element {
             online={mission.online}
             granted={mission.granted}
             offices={mission.offices}
+            dispositions={mission.scope?.offices ?? []}
             inspecting={mission.inspecting}
           />
           <ScopePanel

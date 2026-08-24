@@ -17,8 +17,6 @@
 import { readFileSync } from "node:fs";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 
-const BASE_URL = process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790";
-
 /**
  * The upstream Gemini model every slot points at.
  *
@@ -28,8 +26,6 @@ const BASE_URL = process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790";
  * availability moves, and hard-coding a model here would mean editing source
  * to react to that.
  */
-const MODEL_ID = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
-
 /** Load .env without a dependency: this runs once, by hand, before anything else. */
 function loadEnv(): void {
   try {
@@ -100,7 +96,10 @@ const SLOTS: readonly Slot[] = [
 async function main(): Promise<void> {
   loadEnv();
 
-  const client = new TrueForge({ baseUrl: BASE_URL, timeoutInSeconds: 60 });
+  const baseUrl = process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790";
+  const modelId = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+
+  const client = new TrueForge({ baseUrl, timeoutInSeconds: 60 });
   const configured: string[] = [];
   const skipped: string[] = [];
 
@@ -123,7 +122,7 @@ async function main(): Promise<void> {
         auth: { apiKey },
         models: [
           {
-            modelId: MODEL_ID,
+            modelId,
             name: slot.model,
             properties: {
               contextLength: slot.contextLength,
@@ -160,6 +159,8 @@ main().catch((error: unknown) => {
   const body = (error as { body?: unknown })?.body;
   console.error(`\n  Failed: ${message}`);
   if (body) console.error(`  ${JSON.stringify(body).slice(0, 300)}`);
-  console.error(`\n  Is TrueForge running at ${BASE_URL}?\n`);
+  console.error(
+    `\n  Is TrueForge running at ${process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790"}?\n`,
+  );
   process.exitCode = 1;
 });

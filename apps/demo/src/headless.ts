@@ -12,7 +12,13 @@
  *   pnpm demo:headless
  */
 
-import { HarnessDriver, missionAgentSpec, translate, initialState } from "@scope-city/harness";
+import {
+  HarnessDriver,
+  ModelPool,
+  classifyFailure,
+  isWorthRotating,
+  missionAgentSpec,
+} from "@scope-city/harness";
 import { QuotaLedger } from "@scope-city/ledger";
 import { fingerprintCall } from "@scope-city/proxy";
 import {
@@ -22,7 +28,7 @@ import {
   type Mission,
 } from "@scope-city/proxy";
 import { CountersignBook, MissionEventLog, missionBrief } from "@scope-city/mission";
-import { newProxyToken, runMission } from "./mission-run.js";
+import { newProxyToken, runMission, type MissionResult } from "./mission-run.js";
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
@@ -45,7 +51,10 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
  */
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "0.0.0.0";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
-const MODEL = process.env.SCOPE_MODEL ?? (process.env.SCOPE_MODELS ?? "flash-a").split(",")[0]!.trim();
+const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
+  .split(",")
+  .map((model) => model.trim())
+  .filter(Boolean);
 
 /**
  * Whether to give the agent a sandbox.
@@ -216,73 +225,98 @@ async function main(): Promise<void> {
   const proxyUrl = `http://${PROXY_PUBLIC_HOST}:${PROXY_PORT}/mission/${missionId}/mcp`;
   line(c.green("proxy"), proxyUrl);
 
-  const proxyName = `scope-city-${missionId.slice(2, 12)}`;
-  await driver.registerMcpServer({
-    type: "remote",
-    name: proxyName,
-    url: proxyUrl,
-    description: "Scope City — mission-bound tools, enforced against a granted scope.",
-    // The harness is the only client that gets the token, so a mission URL
-    // leaking into a log is not enough to reach the tools behind it.
-    auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
-  });
-  line(c.green("registered"), proxyName);
-
-  /* 5. run the mission --------------------------------------------------- */
-
-  const sessionId = await driver.createSession(
-    missionAgentSpec({
-      model: MODEL,
-      proxyName,
-      gatedTools: [...IRREVERSIBLE_OFFICES],
-      sandbox: SANDBOX,
-      instructions: missionBrief({ ticketId: "tkt_184", sandbox: SANDBOX }),
-    }),
-  );
-  line(c.green("session"), sessionId);
-
-  console.log();
-  console.log(c.dim("  ── the mission ─────────────────────────────────────"));
-  console.log();
-
+  // TrueForge currently exposes create-or-update but not deletion for settings
+  // MCP servers. Reusing one deterministic name prevents every local run from
+  // leaving another dead registration behind; the next run atomically replaces
+  // its mission URL and bearer token.
+  const proxyName = "scope-city-demo";
   const log = new MissionEventLog();
+  let result: MissionResult;
 
-  // A mission is a loop, not one turn. TrueForge ends the stream when it gates
-  // a tool, so consuming a single runTurn stops one step before the refund.
-  const result = await runMission({
-    driver,
-    sessionId,
-    scope,
-    book,
-    prompt: "Resolve ticket tkt_184.",
-    maxTurns: 6,
-    decide: async (gate) => {
-      console.log(
-        `${c.amber("  ⌐ GATE".padEnd(22))} ${gate.office} ${JSON.stringify(gate.args)}`,
-      );
-      // Scripted here; the city puts a dialog in front of a person. Either way
-      // the decision is recorded against the call TrueForge displayed.
-      return { approved: true };
-    },
-    onRaw: (event) => {
-      if (process.env.SCOPE_TRACE === "true") {
-        console.log(c.dim(`  [${event.type}] ${JSON.stringify(event).slice(0, 300)}`));
-      }
-    },
-    onEvent: (worldEvent) => {
-      log.append(worldEvent, Date.now());
+  try {
+    await driver.registerMcpServer({
+      type: "remote",
+      name: proxyName,
+      url: proxyUrl,
+      description: "Scope City — mission-bound tools, enforced against a granted scope.",
+      auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
+    });
+    line(c.green("registered"), proxyName);
 
-      if (worldEvent.type === "district.online") {
-        line(c.dim("  district"), worldEvent.district);
-      } else if (worldEvent.type === "yard.opened") {
-        line(c.blue("  ▣ the yard"), `sandbox ${worldEvent.sandboxId}`);
-      } else if (worldEvent.type === "field.joined") {
-        line(c.blue("  + field team"), worldEvent.title ?? worldEvent.threadId);
-      } else if (worldEvent.type === "transmission") {
-        console.log(c.dim(`  ${worldEvent.text.slice(0, 140)}`));
+    /* 5. run the mission ------------------------------------------------- */
+
+    const pool = new ModelPool(MODELS.map((model, priority) => ({ model, priority })));
+    let lastError: unknown;
+    let completed: MissionResult | undefined;
+
+    for (const model of pool.available(Date.now())) {
+      try {
+        line(c.green("model"), model);
+        const sessionId = await driver.createSession(
+          missionAgentSpec({
+            model,
+            proxyName,
+            gatedTools: [...IRREVERSIBLE_OFFICES],
+            sandbox: SANDBOX,
+            instructions: missionBrief({ ticketId: "tkt_184", sandbox: SANDBOX }),
+          }),
+        );
+        line(c.green("session"), sessionId);
+
+        console.log();
+        console.log(c.dim("  ── the mission ─────────────────────────────────────"));
+        console.log();
+
+        completed = await runMission({
+          driver,
+          sessionId,
+          scope,
+          book,
+          prompt: "Resolve ticket tkt_184.",
+          maxTurns: 6,
+          decide: async (gate) => {
+            console.log(
+              `${c.amber("  ⌐ GATE".padEnd(22))} ${gate.office} ${JSON.stringify(gate.args)}`,
+            );
+            return { approved: true };
+          },
+          onRaw: (event) => {
+            if (process.env.SCOPE_TRACE === "true") {
+              console.log(c.dim(`  [${event.type}] ${JSON.stringify(event).slice(0, 300)}`));
+            }
+          },
+          onEvent: (worldEvent) => {
+            log.append(worldEvent, Date.now());
+
+            if (worldEvent.type === "district.online") {
+              line(c.dim("  district"), worldEvent.district);
+            } else if (worldEvent.type === "yard.opened") {
+              line(c.blue("  ▣ the yard"), `sandbox ${worldEvent.sandboxId}`);
+            } else if (worldEvent.type === "field.joined") {
+              line(c.blue("  + field team"), worldEvent.title ?? worldEvent.threadId);
+            } else if (worldEvent.type === "transmission") {
+              console.log(c.dim(`  ${worldEvent.text.slice(0, 140)}`));
+            }
+          },
+        });
+        pool.restore(model);
+        break;
+      } catch (error) {
+        lastError = error;
+        const kind = classifyFailure(error);
+        if (!isWorthRotating(kind)) throw error;
+        pool.penalise(model, kind, Date.now());
+        line(c.amber("model rotated"), `${model} — ${kind}`);
       }
-    },
-  });
+    }
+
+    if (!completed) throw lastError ?? new Error("no configured model was available");
+    result = completed;
+  } finally {
+    // Closing belongs to every path after the listener starts: registration,
+    // session creation and streaming can all fail.
+    await http.close();
+  }
 
   console.log();
   line(c.bold("  mission"), `${result.status} — ${result.turns} turn(s), ${result.gates} gate(s)`);
@@ -303,7 +337,6 @@ async function main(): Promise<void> {
   console.log(c.bold("  It had one charge, one amount, one recipient, ten minutes."));
   console.log();
 
-  await http.close();
 }
 
 main().catch((error: unknown) => {

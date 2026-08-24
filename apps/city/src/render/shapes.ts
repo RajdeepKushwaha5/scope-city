@@ -1,5 +1,7 @@
 import { TILE_H, TILE_W, UNIT_H, toScreen, type Point } from "../iso/projection.js";
 import type { Material } from "./palette.js";
+import { UI } from "./palette.js";
+import type { PerimeterEdge } from "./world.js";
 
 /**
  * Drawing primitives.
@@ -141,7 +143,7 @@ export function drawRoad(
   ctx.fill();
 
   ctx.save();
-  ctx.strokeStyle = "rgba(236, 240, 245, 0.55)";
+  ctx.strokeStyle = UI.roadMarking;
   ctx.lineWidth = 1.5;
   ctx.setLineDash([5, 5]);
 
@@ -363,20 +365,20 @@ export function drawTree(
 
   ctx.save();
 
-  ctx.fillStyle = "rgba(0,0,0,0.18)";
+  ctx.fillStyle = UI.treeShadow;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y + 1, 9 * scale, 4.5 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#5a4230";
+  ctx.fillStyle = UI.treeTrunk;
   ctx.fillRect(c.x - 2, c.y - 12 * scale, 4, 12 * scale);
 
-  ctx.fillStyle = "#2f6b34";
+  ctx.fillStyle = UI.treeShade;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y - 18 * scale, 11 * scale, 10 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = "#3f8a41";
+  ctx.fillStyle = UI.treeLight;
   ctx.beginPath();
   ctx.ellipse(c.x - 3 * scale, c.y - 22 * scale, 8 * scale, 7 * scale, 0, 0, Math.PI * 2);
   ctx.fill();
@@ -388,9 +390,9 @@ export function drawTree(
 export function drawLamp(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "#39424d";
+  ctx.fillStyle = UI.lamp;
   ctx.fillRect(c.x - 1, c.y - 26, 2, 26);
-  ctx.fillStyle = "#f0d890";
+  ctx.fillStyle = UI.lampLight;
   ctx.fillRect(c.x - 3, c.y - 30, 6, 4);
   ctx.restore();
 }
@@ -405,20 +407,20 @@ export function drawLamp(ctx: CanvasRenderingContext2D, u: number, v: number): v
  */
 export function drawPerimeter(
   ctx: CanvasRenderingContext2D,
-  cells: readonly { u: number; v: number }[],
+  edges: readonly PerimeterEdge[],
   colour: string,
   glow: string,
   dashed = false,
 ): void {
-  if (cells.length === 0) return;
+  if (edges.length === 0) return;
 
   const path = new Path2D();
-  for (const [i, cell] of cells.entries()) {
-    const p = toScreen(cell.u, cell.v, 0);
-    if (i === 0) path.moveTo(p.x, p.y);
-    else path.lineTo(p.x, p.y);
+  for (const edge of edges) {
+    const from = toScreen(edge.from.u, edge.from.v, 0);
+    const to = toScreen(edge.to.u, edge.to.v, 0);
+    path.moveTo(from.x, from.y);
+    path.lineTo(to.x, to.y);
   }
-  path.closePath();
 
   ctx.save();
 
@@ -445,7 +447,7 @@ export function drawShadow(
 ): void {
   const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = "rgba(0, 0, 0, 0.22)";
+  ctx.fillStyle = UI.shadow;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y, (TILE_W / 2) * radius, (TILE_H / 2) * radius, 0, 0, Math.PI * 2);
   ctx.fill();

@@ -21,6 +21,7 @@ export function CityConsole(props: {
   connection: "offline" | "connecting" | "live" | "reconnecting";
   lines: readonly LogLine[];
   gate: GateRequest | null;
+  pendingGateCount: number;
   onApprove: () => void;
   onDeny: () => void;
 }): React.JSX.Element {
@@ -77,7 +78,7 @@ export function CityConsole(props: {
         <div className="console__permit">
           <div className="console__permit-title">
             <span>⚠ Permit · {props.gate.office}</span>
-            <span>HELD</span>
+            <span>HELD{props.pendingGateCount ? ` · ${props.pendingGateCount + 1} QUEUED` : ""}</span>
           </div>
           <pre className="gate__call">
 {props.gate.office}({Object.entries(props.gate.args)

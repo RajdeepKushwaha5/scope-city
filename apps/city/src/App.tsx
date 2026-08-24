@@ -209,6 +209,7 @@ export function App(): React.JSX.Element {
             connection={live.connection}
             lines={mission.log}
             gate={mission.gate}
+            pendingGateCount={live.active ? live.pendingGateCount : 0}
             onApprove={() => mission.countersign(true)}
             onDeny={() => mission.countersign(false)}
           />

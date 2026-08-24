@@ -30,6 +30,27 @@ describe("live city event fold", () => {
     expect(cleared.gate).toBeNull();
   });
 
+  it("queues concurrent gates so each remains visible and decidable", () => {
+    const first = reduceLiveCity(initialLiveCityState, {
+      type: "world",
+      event: { type: "gate.raised", threadId: "main", toolCallId: "tc_1", office: "charge.refund", args: {}, at: 1 },
+    });
+    const second = reduceLiveCity(first, {
+      type: "world",
+      event: { type: "gate.raised", threadId: "worker", toolCallId: "tc_2", office: "email.send", args: {}, at: 2 },
+    });
+
+    expect(second.gate?.toolCallId).toBe("tc_1");
+    expect(second.pendingGates.map((gate) => gate.toolCallId)).toEqual(["tc_2"]);
+
+    const advanced = reduceLiveCity(second, {
+      type: "world",
+      event: { type: "gate.cleared", toolCallId: "tc_1", approved: true, at: 3 },
+    });
+    expect(advanced.gate?.toolCallId).toBe("tc_2");
+    expect(advanced.phase).toBe("awaiting_countersign");
+  });
+
   it("renders proxy refusals as boundary events", () => {
     const state = reduceLiveCity(initialLiveCityState, {
       type: "proxy",

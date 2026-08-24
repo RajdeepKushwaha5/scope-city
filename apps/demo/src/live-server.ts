@@ -13,6 +13,13 @@ import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy
 import { createFixtureMission } from "./fixture-mission.js";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
 import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
+import {
+  expireLiveMission,
+  isTerminalMissionStatus,
+  retireMission,
+  type LiveMissionStatus,
+  type ManagedLiveMission,
+} from "./live-lifecycle.js";
 
 const CONTROL_PORT = Number(process.env.SCOPE_CONTROL_PORT ?? 8787);
 const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
@@ -24,17 +31,13 @@ const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a
   .map((model) => model.trim())
   .filter(Boolean);
 
-type MissionStatus = "starting" | "running" | "completed" | "failed" | "cancelled";
-
-interface LiveMission {
+interface LiveMission extends ManagedLiveMission {
   readonly id: string;
   readonly order: string;
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly scope: ReturnType<typeof createFixtureMission>["scope"];
-  status: MissionStatus;
   sessionId?: string;
-  expiryTimer?: NodeJS.Timeout;
 }
 
 async function main(): Promise<void> {
@@ -113,12 +116,11 @@ async function main(): Promise<void> {
         status: "starting",
       };
       missions.set(id, live);
-      live.expiryTimer = setTimeout(() => {
-        const expired = { ...live.scope, state: "expired" as const };
-        registry.updateScope(live.id, expired);
-        live.gates.cancelAll("scope expired");
-        live.feed.append({ type: "scope.expired", at: Date.now() });
-      }, Math.max(0, live.scope.expiresAt - Date.now()));
+      live.expiryTimer = setTimeout(() => void expireMission(live), Math.max(0, live.scope.expiresAt - Date.now()));
+
+      async function expireMission(expiring: LiveMission): Promise<void> {
+        await expireLiveMission(expiring, registry, (sessionId) => driver.cancel(sessionId));
+      }
       feed.append({ type: "mission.status", status: "starting" });
       void runLiveMission(live, book).catch(() => undefined);
 
@@ -170,11 +172,9 @@ async function main(): Promise<void> {
     }
 
     if (req.method === "POST" && match[2] === "cancel") {
-      mission.gates.cancelAll();
-      if (mission.expiryTimer) clearTimeout(mission.expiryTimer);
-      if (mission.sessionId) await driver.cancel(mission.sessionId);
-      setStatus(mission, "cancelled");
-      registry.forget(mission.id);
+      const sessionId = mission.sessionId;
+      retireMission(mission, registry, "cancelled", "mission cancelled");
+      if (sessionId) await driver.cancel(sessionId).catch(() => undefined);
       json(res, 200, { cancelled: true });
       return;
     }
@@ -209,6 +209,10 @@ async function main(): Promise<void> {
             }),
           );
           live.sessionId = attemptSessionId;
+          if (isTerminalMissionStatus(live.status)) {
+            await driver.cancel(attemptSessionId).catch(() => undefined);
+            return;
+          }
           setStatus(live, "running", model);
           const result = await runMission({
             driver,
@@ -243,7 +247,7 @@ async function main(): Promise<void> {
             );
           }
           pool.restore(model);
-          setStatus(live, "completed");
+          retireMission(live, registry, "completed");
           return;
         } catch (error) {
           lastError = error;
@@ -251,6 +255,7 @@ async function main(): Promise<void> {
             await driver.cancel(attemptSessionId).catch(() => undefined);
             if (live.sessionId === attemptSessionId) live.sessionId = undefined;
           }
+          if (isTerminalMissionStatus(live.status)) return;
           const kind = classifyFailure(error);
           if (!isWorthRotating(kind)) throw error;
           pool.penalise(model, kind, Date.now());
@@ -263,8 +268,9 @@ async function main(): Promise<void> {
       }
       throw lastError ?? new Error("no configured model was available");
     } catch (error) {
-      live.gates.cancelAll("mission failed");
-      setStatus(live, "failed", error instanceof Error ? error.message : String(error));
+      if (!isTerminalMissionStatus(live.status)) {
+        retireMission(live, registry, "failed", error instanceof Error ? error.message : String(error));
+      }
     }
   }
 
@@ -272,11 +278,14 @@ async function main(): Promise<void> {
   console.log(`Scope City control plane: http://127.0.0.1:${CONTROL_PORT}`);
 
   const close = async () => {
+    const cancellations: Promise<unknown>[] = [];
     for (const mission of missions.values()) {
-      mission.gates.cancelAll("server stopped");
-      if (mission.expiryTimer) clearTimeout(mission.expiryTimer);
+      const sessionId = mission.sessionId;
+      retireMission(mission, registry, "cancelled", "server stopped");
+      if (sessionId) cancellations.push(driver.cancel(sessionId).catch(() => undefined));
     }
     await Promise.all([
+      ...cancellations,
       new Promise<void>((resolve, reject) =>
         server.close((error) => (error ? reject(error) : resolve())),
       ),
@@ -287,8 +296,8 @@ async function main(): Promise<void> {
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
 }
 
-function setStatus(mission: LiveMission, status: MissionStatus, detail?: string): void {
-  if (mission.status === "cancelled" && status !== "cancelled") return;
+function setStatus(mission: LiveMission, status: LiveMissionStatus, detail?: string): void {
+  if (isTerminalMissionStatus(mission.status)) return;
   mission.status = status;
   mission.feed.append({ type: "mission.status", status, ...(detail ? { detail } : {}) });
 }
@@ -309,7 +318,10 @@ function streamEvents(
   });
   res.flushHeaders();
 
-  const replay = mission.feed.since(cursor);
+  const { replay, unsubscribe } = mission.feed.subscribeFrom(
+    cursor,
+    (entry) => writeSse(res, entry.sequence, entry.event),
+  );
   if (replay.truncated) {
     writeSse(res, replay.cursor, {
       type: "mission.status",
@@ -318,7 +330,6 @@ function streamEvents(
     });
   }
   for (const entry of replay.events) writeSse(res, entry.sequence, entry.event);
-  const unsubscribe = mission.feed.subscribe((entry) => writeSse(res, entry.sequence, entry.event));
   const heartbeat = setInterval(() => res.write(": keep-alive\n\n"), 15_000);
   req.once("close", () => {
     clearInterval(heartbeat);

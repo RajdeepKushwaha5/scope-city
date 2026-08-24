@@ -10,6 +10,7 @@ export interface LiveCityState {
   readonly online: readonly string[];
   readonly figures: readonly Figure[];
   readonly gate: GateRequest | null;
+  readonly pendingGates: readonly GateRequest[];
   readonly log: readonly LogLine[];
   readonly refusedAt: { readonly u: number; readonly v: number } | null;
   readonly sandboxOpen: boolean;
@@ -23,6 +24,7 @@ export const initialLiveCityState: LiveCityState = {
   online: [],
   figures: [],
   gate: null,
+  pendingGates: [],
   log: [],
   refusedAt: null,
   sandboxOpen: false,
@@ -63,7 +65,7 @@ function moveAgent(state: LiveCityState, office: string): LiveCityState {
 export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveCityState {
   if (feed.type === "scope.expired") {
     return addLog(
-      { ...state, scopeExpired: true, gate: null, phase: "done" },
+      { ...state, scopeExpired: true, gate: null, pendingGates: [], phase: "done" },
       "Scope expired. Every office is unreachable again.",
       "refused",
       feed.at,
@@ -83,7 +85,9 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       status: feed.status,
       phase,
       detail: feed.detail ?? null,
-      ...(feed.status === "cancelled" || feed.status === "failed" ? { gate: null } : {}),
+      ...(feed.status === "cancelled" || feed.status === "failed" || feed.status === "completed"
+        ? { gate: null, pendingGates: [] }
+        : {}),
     };
   }
 
@@ -155,21 +159,37 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       return { ...state, figures: state.figures.filter((figure) => figure.id !== event.threadId) };
     case "gate.raised": {
       const district = districtForOffice(event.office) ?? "gate";
+      const gate = {
+        toolCallId: event.toolCallId,
+        office: event.office ?? "unknown tool",
+        district,
+        args: (event.args ?? {}) as Record<string, unknown>,
+      };
+      if (state.gate?.toolCallId === gate.toolCallId || state.pendingGates.some(
+        (pending) => pending.toolCallId === gate.toolCallId,
+      )) return state;
       return {
         ...state,
         phase: "awaiting_countersign",
-        gate: {
-          toolCallId: event.toolCallId,
-          office: event.office ?? "unknown tool",
-          district,
-          args: (event.args ?? {}) as Record<string, unknown>,
-        },
+        gate: state.gate ?? gate,
+        pendingGates: state.gate ? [...state.pendingGates, gate] : state.pendingGates,
       };
     }
-    case "gate.cleared":
-      return event.toolCallId === state.gate?.toolCallId
-        ? { ...state, gate: null, phase: "running" }
-        : state;
+    case "gate.cleared": {
+      if (event.toolCallId === state.gate?.toolCallId) {
+        const [next, ...remaining] = state.pendingGates;
+        return {
+          ...state,
+          gate: next ?? null,
+          pendingGates: remaining,
+          phase: next ? "awaiting_countersign" : "running",
+        };
+      }
+      return {
+        ...state,
+        pendingGates: state.pendingGates.filter((gate) => gate.toolCallId !== event.toolCallId),
+      };
+    }
     case "yard.opened":
       return {
         ...state,

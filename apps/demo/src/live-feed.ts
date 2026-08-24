@@ -31,6 +31,19 @@ export class MissionFeed {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);
   }
+
+  /**
+   * Atomically joins the live fan-out before taking the replay snapshot.
+   * JavaScript cannot interleave an append between these synchronous steps,
+   * so the caller receives every event either in `replay` or via `listener`.
+   */
+  subscribeFrom(cursor: number, listener: FeedListener): {
+    readonly replay: Replay<CityFeedEvent>;
+    readonly unsubscribe: () => void;
+  } {
+    const unsubscribe = this.subscribe(listener);
+    return { replay: this.since(cursor), unsubscribe };
+  }
 }
 
 export interface GateDecision {

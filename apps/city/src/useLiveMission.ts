@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CityFeedEvent } from "@scope-city/mission";
 import { initialLiveCityState, reduceLiveCity, scopeViewFromWire } from "./live-state.js";
 import { OFFICES, type ScopeView } from "./useMission.js";
+import { LaunchGuard } from "./launch-guard.js";
 
 interface LaunchResponse {
   readonly missionId: string;
@@ -19,16 +20,20 @@ export function useLiveMission() {
   const [inspecting, setInspecting] = useState<string | null>(null);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
   const sourceRef = useRef<EventSource | null>(null);
+  const launchGuardRef = useRef(new LaunchGuard());
 
   const closeSource = useCallback(() => {
     sourceRef.current?.close();
     sourceRef.current = null;
   }, []);
 
-  useEffect(() => closeSource, [closeSource]);
+  useEffect(() => () => {
+    launchGuardRef.current.cancel();
+    closeSource();
+  }, [closeSource]);
 
   useEffect(() => {
-    if (!scope || state.status === "cancelled" || state.status === "failed") {
+    if (!scope || state.status === "cancelled" || state.status === "failed" || state.status === "completed") {
       setExpiresIn(null);
       return;
     }
@@ -72,6 +77,7 @@ export function useLiveMission() {
   );
 
   const launch = useCallback(async (order: string) => {
+    const launchVersion = launchGuardRef.current.begin();
     closeSource();
     setActive(true);
     setMissionId(null);
@@ -87,11 +93,18 @@ export function useLiveMission() {
         body: JSON.stringify({ order }),
       });
       const body = (await response.json()) as LaunchResponse & { error?: string; detail?: string };
+      if (!launchGuardRef.current.isCurrent(launchVersion)) {
+        if (response.ok && body.missionId) {
+          await fetch(`/api/missions/${body.missionId}/cancel`, { method: "POST" }).catch(() => undefined);
+        }
+        return;
+      }
       if (!response.ok) throw new Error(body.detail ?? body.error ?? `launch failed (${response.status})`);
       setMissionId(body.missionId);
       setScope(scopeViewFromWire(body.scope));
       connect(body.eventUrl);
     } catch (cause) {
+      if (!launchGuardRef.current.isCurrent(launchVersion)) return;
       setActive(false);
       setConnection("offline");
       setError(cause instanceof Error ? cause.message : String(cause));
@@ -115,6 +128,7 @@ export function useLiveMission() {
   );
 
   const leave = useCallback(async () => {
+    launchGuardRef.current.cancel();
     closeSource();
     if (missionId && (state.status === "starting" || state.status === "running")) {
       await fetch(`/api/missions/${missionId}/cancel`, { method: "POST" }).catch(() => undefined);
@@ -127,7 +141,12 @@ export function useLiveMission() {
   }, [closeSource, missionId, state.status]);
 
   const scopeEffective = Boolean(
-    scope && !state.scopeExpired && state.status !== "cancelled" && state.status !== "failed" && expiresIn !== 0,
+    scope &&
+      !state.scopeExpired &&
+      state.status !== "cancelled" &&
+      state.status !== "failed" &&
+      state.status !== "completed" &&
+      expiresIn !== 0,
   );
   const granted = useMemo(
     () => (scopeEffective
@@ -149,6 +168,7 @@ export function useLiveMission() {
     offices: OFFICES,
     figures: state.figures,
     gate: state.gate,
+    pendingGateCount: state.pendingGates.length,
     gateDistricts: state.gate ? [state.gate.district] : [],
     log: state.log,
     refusedAt: state.refusedAt,

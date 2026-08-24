@@ -23,6 +23,19 @@ describe("MissionFeed", () => {
     feed.append({ type: "mission.status", status: "running" }, 2);
     expect(feed.since(0).truncated).toBe(true);
   });
+
+  it("subscribes before taking the replay snapshot", () => {
+    const feed = new MissionFeed();
+    feed.append({ type: "mission.status", status: "starting" }, 1);
+    const listener = vi.fn();
+
+    const joined = feed.subscribeFrom(0, listener);
+    feed.append({ type: "mission.status", status: "running" }, 2);
+    joined.unsubscribe();
+
+    expect(joined.replay.events.map((entry) => entry.sequence)).toEqual([1]);
+    expect(listener.mock.calls.map((call) => call[0].sequence)).toEqual([2]);
+  });
 });
 
 describe("OperatorGateQueue", () => {

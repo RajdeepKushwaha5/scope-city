@@ -26,7 +26,14 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
-const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
+/**
+ * Models to rotate across, pinned by configuration if anyone asked.
+ *
+ * Empty means "use whatever the harness has", which is the better default:
+ * three keys were registered, this fell back to one hard-coded model, and a
+ * rate limit ended the mission with two untouched keys sitting right there.
+ */
+const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);
@@ -42,6 +49,15 @@ interface LiveMission extends ManagedLiveMission {
 
 async function main(): Promise<void> {
   const driver = new HarnessDriver();
+
+  // Discovered once at boot rather than per mission: a model registered while
+  // the server is running is rare, and re-asking on every launch would add a
+  // round trip to the one path that has to feel instant.
+  const discovered = PINNED_MODELS.length > 0 ? PINNED_MODELS : await driver.listModels();
+  const models = discovered.length > 0 ? discovered : ["gemini-a/flash-a"];
+  console.log(
+    `Models: ${models.join(", ")}${PINNED_MODELS.length > 0 ? " (pinned)" : " (discovered)"}`,
+  );
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();
@@ -194,7 +210,7 @@ async function main(): Promise<void> {
         auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
-      const pool = new ModelPool(MODELS.map((model, priority) => ({ model, priority })));
+      const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
       for (const model of pool.available(Date.now())) {
         let attemptSessionId: string | undefined;

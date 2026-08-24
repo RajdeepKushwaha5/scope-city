@@ -56,6 +56,25 @@ export class HarnessDriver {
     });
   }
 
+  /**
+   * Every model configured on this harness, as fully-qualified `provider/model`.
+   *
+   * Rotation is worthless if the pool has one entry, and the surest way to end
+   * up with one entry is to depend on an environment variable somebody forgot
+   * to set -- which is exactly what happened: three keys were registered, the
+   * default was a single model, and a rate limit ended the mission with two
+   * untouched keys sitting right there.
+   *
+   * Asking the harness what it has removes that failure entirely.
+   */
+  async listModels(): Promise<readonly string[]> {
+    const response = await this.#client.models.list();
+    const data = (response as { data?: { name?: string }[] }).data ?? [];
+    return data
+      .map((model) => model.name)
+      .filter((name): name is string => typeof name === "string" && name.includes("/"));
+  }
+
   async listMcpServers(): Promise<readonly { name: string }[]> {
     const response = await this.#client.settings.mcpServers.list();
     return ((response as { data?: { name: string }[] }).data ?? []) as { name: string }[];

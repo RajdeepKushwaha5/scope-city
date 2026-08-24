@@ -10,7 +10,9 @@
     "build": "pnpm -r build",
     "dev": "pnpm --parallel --filter @scope-city/server --filter @scope-city/web dev",
     "test": "pnpm -r --if-present test",
-    "typecheck": "pnpm -r --if-present typecheck"
+    "typecheck": "pnpm -r --if-present typecheck",
+    "demo:headless": "pnpm --filter @scope-city/demo headless",
+    "city": "pnpm --filter @scope-city/city dev"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

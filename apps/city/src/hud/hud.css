@@ -1,0 +1,322 @@
+/*
+ * HUD chrome.
+ *
+ * Almost all of this interface's character is here rather than in the city. A
+ * dark instrument panel, one amber accent, a pixel face, and hairline rules --
+ * the same handful of decisions applied consistently to every window.
+ *
+ * The rules that matter:
+ *   - One accent colour. A second one turns an instrument into a toy.
+ *   - Hairlines, never shadows. Depth comes from the border, not a blur.
+ *   - Nothing animates except state changes. A panel that breathes is noise.
+ */
+
+@import url("https://fonts.googleapis.com/css2?family=Silkscreen:wght@400;700&family=VT323&display=swap");
+
+:root {
+  --panel: #0e1622;
+  --panel-edge: #1d2a3d;
+  --panel-edge-lit: #2b3d57;
+  --ink: #c8d4e3;
+  --ink-dim: #6f8199;
+  --accent: #f0a830;
+  --accent-dim: #8a6420;
+  --danger: #e05a4a;
+  --good: #4fbf7a;
+
+  --font-ui: "Silkscreen", ui-monospace, monospace;
+  --font-body: "VT323", ui-monospace, monospace;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background: #0a121c;
+  color: var(--ink);
+  font-family: var(--font-body);
+  font-size: 18px;
+  overflow: hidden;
+  /* Pixel art must never be smoothed on scale. */
+  image-rendering: pixelated;
+  -webkit-font-smoothing: none;
+}
+
+.world {
+  position: fixed;
+  inset: 0;
+  display: block;
+  cursor: grab;
+}
+
+.world:active {
+  cursor: grabbing;
+}
+
+/* --- windows ------------------------------------------------------------ */
+
+.hud {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  padding: 16px;
+  display: grid;
+  grid-template-columns: 340px 1fr 360px;
+  grid-template-rows: auto 1fr auto;
+  gap: 12px;
+}
+
+.hud > * {
+  pointer-events: auto;
+}
+
+.window {
+  background: var(--panel);
+  border: 1px solid var(--panel-edge);
+  /* The amber spine down the left edge is the single strongest cue that this
+     is one system rather than a set of unrelated cards. */
+  border-left: 3px solid var(--accent);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  max-height: 100%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.window__bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 10px;
+  border-bottom: 1px solid var(--panel-edge);
+  text-transform: uppercase;
+  font-size: 10px;
+  white-space: nowrap;
+}
+
+/* The dotted run that fills the bar to its right edge. Cheap, and it does more
+   for the "instrument" feel than any other single rule here. */
+.window__rule {
+  flex: 1;
+  height: 1px;
+  border-top: 1px dotted var(--panel-edge-lit);
+  min-width: 12px;
+}
+
+.window__body {
+  padding: 10px;
+  overflow-y: auto;
+  min-height: 0;
+  font-family: var(--font-body);
+  font-size: 17px;
+  line-height: 1.35;
+}
+
+.window--collapsed .window__body {
+  display: none;
+}
+
+/* --- controls ----------------------------------------------------------- */
+
+.btn {
+  background: transparent;
+  border: 1px solid var(--panel-edge-lit);
+  color: var(--ink-dim);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 5px 9px;
+  cursor: pointer;
+}
+
+.btn:hover {
+  color: var(--ink);
+  border-color: var(--accent-dim);
+}
+
+.btn--primary {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #17202c;
+}
+
+.btn--primary:hover {
+  background: #ffbe4d;
+  color: #17202c;
+}
+
+.btn--danger:hover {
+  color: var(--danger);
+  border-color: var(--danger);
+}
+
+/* --- readouts ----------------------------------------------------------- */
+
+.stat {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  padding: 3px 0;
+}
+
+.stat__label {
+  font-family: var(--font-ui);
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-dim);
+}
+
+.stat__value {
+  font-family: var(--font-body);
+  font-size: 18px;
+}
+
+.big {
+  font-family: var(--font-ui);
+  font-size: 26px;
+  line-height: 1.1;
+}
+
+.meter {
+  height: 8px;
+  border: 1px solid var(--panel-edge-lit);
+  display: flex;
+  gap: 2px;
+  padding: 1px;
+}
+
+/* Segments rather than a smooth bar: a continuous gradient reads as a web
+   progress bar, and segments read as a gauge. */
+.meter__seg {
+  flex: 1;
+  background: var(--panel-edge);
+}
+
+.meter__seg--on {
+  background: var(--good);
+}
+
+.meter__seg--warn {
+  background: var(--accent);
+}
+
+.meter__seg--bad {
+  background: var(--danger);
+}
+
+.tag {
+  display: inline-block;
+  border: 1px solid var(--panel-edge-lit);
+  padding: 1px 5px;
+  margin: 0 3px 3px 0;
+  font-family: var(--font-ui);
+  font-size: 9px;
+  color: var(--ink-dim);
+}
+
+.tag--allowed {
+  border-color: var(--good);
+  color: var(--good);
+}
+
+.tag--gated {
+  border-color: var(--accent);
+  color: var(--accent);
+}
+
+.tag--blocked {
+  border-color: var(--danger);
+  color: var(--danger);
+  text-decoration: line-through;
+}
+
+/* --- the log ------------------------------------------------------------ */
+
+.log {
+  display: flex;
+  flex-direction: column-reverse;
+  gap: 2px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.log__line {
+  display: flex;
+  gap: 8px;
+  padding: 2px 0;
+  border-bottom: 1px solid rgba(29, 42, 61, 0.5);
+}
+
+.log__at {
+  color: var(--ink-dim);
+  font-size: 14px;
+  min-width: 58px;
+}
+
+.log__line--refused .log__what {
+  color: var(--danger);
+}
+
+.log__line--gate .log__what {
+  color: var(--accent);
+}
+
+.log__line--allowed .log__what {
+  color: var(--good);
+}
+
+.empty {
+  color: var(--ink-dim);
+  text-align: center;
+  padding: 18px 0;
+}
+
+/* --- the gate ----------------------------------------------------------- */
+
+/* The one moment the interface raises its voice. Everything else is quiet so
+   that this reads immediately as different in kind. */
+.gate {
+  border-left-color: var(--danger);
+  animation: gate-pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes gate-pulse {
+  0%,
+  100% {
+    border-left-color: var(--danger);
+  }
+  50% {
+    border-left-color: var(--accent);
+  }
+}
+
+.gate__call {
+  font-family: ui-monospace, monospace;
+  font-size: 14px;
+  background: #060b12;
+  border: 1px solid var(--panel-edge);
+  padding: 8px;
+  margin: 6px 0;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.gate__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gate {
+    animation: none;
+  }
+}

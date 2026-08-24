@@ -1,0 +1,264 @@
+import type { Cell } from "../iso/projection.js";
+
+/**
+ * The city's layout.
+ *
+ * Hand-composed rather than generated, because there are six districts and not
+ * two hundred. Six distinct silhouettes are legible at a glance and on video
+ * where a field of identical towers is not.
+ *
+ * The island is a street grid: avenues every ROAD_EVERY cells in both axes,
+ * with blocks between them. A district owns a rectangle of blocks; its
+ * landmark takes the middle, and the offices it exposes fill the rest. Filler
+ * buildings occupy whatever is left so the city looks inhabited rather than
+ * like six objects on a lawn.
+ */
+
+export const ISLAND_W = 34;
+export const ISLAND_H = 30;
+
+/** Streets on every fourth cell: close enough to read as a grid at full zoom. */
+export const ROAD_EVERY = 4;
+
+export type TileKind = "grass" | "road" | "pavement" | "sand" | "water";
+
+export interface DistrictPlot {
+  readonly id: string;
+  readonly title: string;
+  readonly u0: number;
+  readonly v0: number;
+  readonly u1: number;
+  readonly v1: number;
+  readonly landmark: Cell;
+  readonly landmarkHeight: number;
+}
+
+export interface Building {
+  readonly cell: Cell;
+  readonly height: number;
+  readonly seed: number;
+  readonly kind: "office" | "filler" | "house";
+  readonly district: string | null;
+  readonly office: string | null;
+}
+
+export const DISTRICT_PLOTS: readonly DistrictPlot[] = [
+  { id: "records", title: "Records", u0: 5, v0: 5, u1: 11, v1: 11, landmark: { u: 8, v: 8 }, landmarkHeight: 2.6 },
+  { id: "exchequer", title: "The Exchequer", u0: 13, v0: 5, u1: 19, v1: 11, landmark: { u: 16, v: 8 }, landmarkHeight: 3.6 },
+  { id: "post-house", title: "Post House", u0: 5, v0: 13, u1: 11, v1: 19, landmark: { u: 8, v: 16 }, landmarkHeight: 2.1 },
+  { id: "yard", title: "The Yard", u0: 13, v0: 13, u1: 19, v1: 19, landmark: { u: 16, v: 16 }, landmarkHeight: 1.7 },
+  { id: "archive", title: "The Archive", u0: 21, v0: 5, u1: 27, v1: 11, landmark: { u: 24, v: 8 }, landmarkHeight: 2.4 },
+  { id: "gate", title: "The Gate", u0: 21, v0: 13, u1: 27, v1: 19, landmark: { u: 24, v: 16 }, landmarkHeight: 3.0 },
+];
+
+export function plotFor(district: string): DistrictPlot | undefined {
+  return DISTRICT_PLOTS.find((p) => p.id === district);
+}
+
+/** Streets run along every ROAD_EVERY-th row and column. */
+export function isRoad(u: number, v: number): boolean {
+  return u % ROAD_EVERY === 0 || v % ROAD_EVERY === 0;
+}
+
+/** A cell touching a street becomes pavement, which gives blocks a kerb. */
+export function isPavement(u: number, v: number): boolean {
+  if (isRoad(u, v)) return false;
+  return isRoad(u + 1, v) || isRoad(u - 1, v) || isRoad(u, v + 1) || isRoad(u, v - 1);
+}
+
+export function tileKindAt(u: number, v: number): TileKind {
+  if (u < 0 || v < 0 || u > ISLAND_W || v > ISLAND_H) return "water";
+  if (u < 2 || v < 2 || u > ISLAND_W - 2 || v > ISLAND_H - 2) return "sand";
+  if (isRoad(u, v)) return "road";
+  if (isPavement(u, v)) return "pavement";
+  return "grass";
+}
+
+/**
+ * Which of a road tile's four neighbours are also road.
+ *
+ * Bit order is north-east, south-east, south-west, north-west. Markings are
+ * painted only along axes that continue, so a junction does not end up with a
+ * centre line running into a kerb.
+ */
+export function roadConnections(u: number, v: number): number {
+  let mask = 0;
+  if (tileKindAt(u + 1, v) === "road") mask |= 0b0001;
+  if (tileKindAt(u, v + 1) === "road") mask |= 0b0010;
+  if (tileKindAt(u - 1, v) === "road") mask |= 0b0100;
+  if (tileKindAt(u, v - 1) === "road") mask |= 0b1000;
+  return mask;
+}
+
+export function districtAt(u: number, v: number): string | null {
+  const plot = DISTRICT_PLOTS.find(
+    (p) => u >= p.u0 && u <= p.u1 && v >= p.v0 && v <= p.v1,
+  );
+  return plot?.id ?? null;
+}
+
+/** Small deterministic hash, so the same cell always yields the same building. */
+export function hash(text: string): number {
+  let h = 2166136261;
+  for (let i = 0; i < text.length; i += 1) {
+    h ^= text.charCodeAt(i);
+    h = Math.imul(h, 16777619);
+  }
+  return Math.abs(h);
+}
+
+function cellSeed(u: number, v: number): number {
+  return hash(`${u}:${v}`);
+}
+
+/**
+ * Everything standing on the island.
+ *
+ * Offices are placed first, on the block cells nearest their district's
+ * landmark, so a server's tools cluster around the building that represents it.
+ * Every remaining buildable cell gets filler: a tower downtown, a house near
+ * the shore. Heights come from the cell hash, which keeps the skyline varied
+ * and stable across frames.
+ */
+export function layOutCity(
+  offices: readonly { office: string; district: string }[],
+): Building[] {
+  const taken = new Set<string>();
+  const buildings: Building[] = [];
+
+  const key = (u: number, v: number) => `${u}:${v}`;
+
+  // Landmarks reserve a 3x3 so nothing crowds them.
+  for (const plot of DISTRICT_PLOTS) {
+    for (let du = -1; du <= 1; du += 1) {
+      for (let dv = -1; dv <= 1; dv += 1) {
+        taken.add(key(plot.landmark.u + du, plot.landmark.v + dv));
+      }
+    }
+  }
+
+  // Offices, nearest their landmark first.
+  const byDistrict = new Map<string, string[]>();
+  for (const entry of offices) {
+    byDistrict.set(entry.district, [...(byDistrict.get(entry.district) ?? []), entry.office]);
+  }
+
+  for (const [district, list] of byDistrict) {
+    const plot = plotFor(district);
+    if (!plot) continue;
+
+    const slots: Cell[] = [];
+    for (let u = plot.u0; u <= plot.u1; u += 1) {
+      for (let v = plot.v0; v <= plot.v1; v += 1) {
+        if (tileKindAt(u, v) !== "grass") continue;
+        if (taken.has(key(u, v))) continue;
+        slots.push({ u, v });
+      }
+    }
+
+    slots.sort(
+      (a, b) =>
+        Math.hypot(a.u - plot.landmark.u, a.v - plot.landmark.v) -
+        Math.hypot(b.u - plot.landmark.u, b.v - plot.landmark.v),
+    );
+
+    for (const [index, office] of list.entries()) {
+      const slot = slots[index];
+      if (!slot) break;
+      taken.add(key(slot.u, slot.v));
+      buildings.push({
+        cell: slot,
+        height: 1.4 + (hash(office) % 5) * 0.35,
+        seed: hash(office),
+        kind: "office",
+        district,
+        office,
+      });
+    }
+  }
+
+  // Filler. Towers in the middle of the island, houses toward the shore, so
+  // the skyline has a centre rather than being uniformly tall.
+  const midU = ISLAND_W / 2;
+  const midV = ISLAND_H / 2;
+  const maxDist = Math.hypot(midU, midV);
+
+  for (let u = 2; u <= ISLAND_W - 2; u += 1) {
+    for (let v = 2; v <= ISLAND_H - 2; v += 1) {
+      if (tileKindAt(u, v) !== "grass") continue;
+      if (taken.has(key(u, v))) continue;
+
+      const seed = cellSeed(u, v);
+      // Leave roughly a fifth of block cells open for parks and trees.
+      if (seed % 5 === 0) continue;
+
+      const distance = Math.hypot(u - midU, v - midV) / maxDist;
+      const downtown = distance < 0.45;
+
+      buildings.push({
+        cell: { u, v },
+        height: downtown ? 1.8 + (seed % 7) * 0.5 : 0.7 + (seed % 3) * 0.3,
+        seed,
+        kind: downtown ? "filler" : "house",
+        district: districtAt(u, v),
+        office: null,
+      });
+    }
+  }
+
+  return buildings;
+}
+
+/** Open block cells, for trees. */
+export function treeCells(buildings: readonly Building[]): Cell[] {
+  const built = new Set(buildings.map((b) => `${b.cell.u}:${b.cell.v}`));
+  const cells: Cell[] = [];
+
+  for (let u = 2; u <= ISLAND_W - 2; u += 1) {
+    for (let v = 2; v <= ISLAND_H - 2; v += 1) {
+      const kind = tileKindAt(u, v);
+      if (kind !== "grass" && kind !== "pavement") continue;
+      if (built.has(`${u}:${v}`)) continue;
+      if (cellSeed(u, v) % 3 !== 0) continue;
+      cells.push({ u, v });
+    }
+  }
+
+  return cells;
+}
+
+/**
+ * The outline of the granted scope.
+ *
+ * Traced around whole district plots rather than individual buildings: an
+ * operator grants reach into a system, and drawing the boundary at that level
+ * matches how the authority was described to them.
+ */
+export function perimeterOf(districts: readonly string[]): Cell[] {
+  const plots = districts.map(plotFor).filter((p): p is DistrictPlot => p !== undefined);
+  if (plots.length === 0) return [];
+
+  const u0 = Math.min(...plots.map((p) => p.u0)) - 1;
+  const v0 = Math.min(...plots.map((p) => p.v0)) - 1;
+  const u1 = Math.max(...plots.map((p) => p.u1)) + 1;
+  const v1 = Math.max(...plots.map((p) => p.v1)) + 1;
+
+  return [
+    { u: u0, v: v0 },
+    { u: u1, v: v0 },
+    { u: u1, v: v1 },
+    { u: u0, v: v1 },
+  ];
+}
+
+export function isInScope(cell: Cell, districts: readonly string[]): boolean {
+  const plots = districts.map(plotFor).filter((p): p is DistrictPlot => p !== undefined);
+  if (plots.length === 0) return false;
+
+  const u0 = Math.min(...plots.map((p) => p.u0)) - 1;
+  const v0 = Math.min(...plots.map((p) => p.v0)) - 1;
+  const u1 = Math.max(...plots.map((p) => p.u1)) + 1;
+  const v1 = Math.max(...plots.map((p) => p.v1)) + 1;
+
+  return cell.u >= u0 && cell.u <= u1 && cell.v >= v0 && cell.v <= v1;
+}

@@ -19,3 +19,5 @@ export {
 } from "./world-events.js";
 
 export { messageText, translate, translateAll, type TranslateResult } from "./translate.js";
+
+export { HarnessDriver, missionAgentSpec, type DriverOptions } from "./driver.js";

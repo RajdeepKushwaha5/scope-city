@@ -78,30 +78,22 @@ export interface Sponsor {
  *
  * This array is the whole configuration: add an entry and drop its image in
  * apps/web/public/ads to put another board in the world. assignSponsors decides
- * which slot each one lands on, and AD_BILLBOARD_COUNT follows the roster size,
- * so the ring stays populated without showing duplicate creatives.
+ * which slot each one lands on.
+ *
+ * Empty by default. Only place a board here for something you have the right to
+ * display -- a logo on a billboard is a use of someone's mark.
  */
-export const SPONSORS: readonly Sponsor[] = [
-  {
-    id: "pushtoprod",
-    name: "PushToProd.art",
-    url: "https://pushtoprod.art",
-    artwork: "/ads/pushtoprod.webp",
-    size: "square",
-    background: "#f4ede1",
-  },
-  {
-    id: "basecamp",
-    name: "Basecamp",
-    url: "https://basecamp.com",
-    artwork: "/ads/basecamp.png",
-    size: "small",
-    background: "#283441",
-  },
-];
+export const SPONSORS: readonly Sponsor[] = [];
 
-/** Number of advertising boards placed along the countryside ring. */
-export const AD_BILLBOARD_COUNT = SPONSORS.length;
+/**
+ * Number of board positions along the countryside ring.
+ *
+ * Fixed by the layout, not by the roster. Deriving it from SPONSORS.length
+ * coupled the shape of the world to who happened to be advertising in it, so
+ * an empty roster reported zero positions while adBillboardSlots still
+ * returned two. The ring exists whether or not anything is standing on it.
+ */
+export const AD_BILLBOARD_COUNT = 2;
 
 // ---------------------------------------------------------------------------
 // Slots
@@ -136,8 +128,8 @@ export function halfSpanOf(panelWidth: number): number {
 /**
  * Perimeter slots for advertising boards around the city edge.
  *
- * - PushToProd sits along the northern countryside edge, facing the city.
- * - Basecamp sits along the roadside grass near the naval base dock road approach.
+ * Slots are laid out around the countryside ring regardless of how many
+ * sponsors exist, so an empty roster simply leaves the ring bare.
  */
 export function adBillboardSlots(width: number, height: number): BillboardSlot[] {
   const safeWidth = Math.max(1, Math.round(width));
@@ -335,33 +327,30 @@ export type BillboardTarget =
 /**
  * Pairs each slot with a sponsor, deterministically from `seed` (the repo key).
  *
- * Sponsors are drawn without replacement so no repo shows the same advertiser
- * twice; once the roster is exhausted it refills, which only happens if there
- * are ever more boards than sponsors.
+ * Selection is by seeded hash alone. An earlier version special-cased two
+ * advertisers by id, which meant the placement rules only made sense while
+ * those exact entries existed -- removing them broke the layout rather than
+ * simply leaving a slot bare. A board's position is now a property of the slot
+ * and the seed, never of who is standing in it.
+ *
+ * An empty roster produces no placements, which is the correct behaviour: the
+ * ring is laid out either way and simply stays unlit.
  */
 export function assignSponsors(
   slots: readonly BillboardSlot[],
   seed: string,
 ): BillboardPlacement[] {
+  if (SPONSORS.length === 0) return [];
+
   const placements: BillboardPlacement[] = [];
-  const byId = new Map(SPONSORS.map((s) => [s.id, s]));
 
   for (const [index, slot] of slots.entries()) {
-    let sponsor: Sponsor | undefined;
-    if (slot.size === "square" && byId.has("basecamp")) {
-      sponsor = byId.get("basecamp");
-    } else if (index === 0 && byId.has("pushtoprod")) {
-      sponsor = byId.get("pushtoprod");
-    } else {
-      const choice = pickIndex(hashText(seed, index), SPONSORS.length);
-      sponsor = SPONSORS[choice] as Sponsor;
-    }
-    if (sponsor) {
-      placements.push({
-        slot: { ...slot, size: sponsor.size ?? slot.size },
-        sponsor,
-      });
-    }
+    const choice = pickIndex(hashText(seed, index), SPONSORS.length);
+    const sponsor = SPONSORS[choice] as Sponsor;
+    placements.push({
+      slot: { ...slot, size: sponsor.size ?? slot.size },
+      sponsor,
+    });
   }
 
   return placements;

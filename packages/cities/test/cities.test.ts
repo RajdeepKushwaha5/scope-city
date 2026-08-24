@@ -312,12 +312,12 @@ describe("GhCliClient helpers", () => {
   });
 
   it("reads owner/repo from either remote transport", () => {
-    expect(parseGitHubRemote("https://github.com/mittal-parth/claude-clan.git"))
-      .toBe("mittal-parth/claude-clan");
-    expect(parseGitHubRemote("git@github.com:mittal-parth/claude-clan.git"))
-      .toBe("mittal-parth/claude-clan");
-    expect(parseGitHubRemote("https://github.com/mittal-parth/claude-clan\n"))
-      .toBe("mittal-parth/claude-clan");
+    expect(parseGitHubRemote("https://github.com/acme/example-repo.git"))
+      .toBe("acme/example-repo");
+    expect(parseGitHubRemote("git@github.com:acme/example-repo.git"))
+      .toBe("acme/example-repo");
+    expect(parseGitHubRemote("https://github.com/acme/example-repo\n"))
+      .toBe("acme/example-repo");
   });
 
   it("declines to guess an API host for a non-GitHub remote", () => {

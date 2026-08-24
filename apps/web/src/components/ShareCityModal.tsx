@@ -29,7 +29,7 @@ export function ShareCityModal({
       ? activeRepoKey
       : "my codebase";
 
-  const defaultCaption = `I turned my repo ${repoDisplayName} into a city! \n\nTry yours at https://playclaude.vercel.app`;
+  const defaultCaption = `I mapped ${repoDisplayName} in Scope City! \n\nTry yours at https://scope-city.app`;
 
   const [caption, setCaption] = useState(defaultCaption);
   const [copiedCaption, setCopiedCaption] = useState(false);
@@ -38,7 +38,7 @@ export function ShareCityModal({
 
   useEffect(() => {
     setCaption(
-      `I turned my repo ${repoDisplayName} into a city! \n\nTry yours at https://playclaude.vercel.app`
+      `I mapped ${repoDisplayName} in Scope City! \n\nTry yours at https://scope-city.app`
     );
   }, [repoDisplayName]);
 
@@ -156,7 +156,7 @@ export function ShareCityModal({
   };
 
   const shareToLinkedin = () => {
-    const url = encodeURIComponent("https://playclaude.vercel.app");
+    const url = encodeURIComponent("https://scope-city.app");
     shareToPlatform(
       `https://www.linkedin.com/sharing/share-offsite/?url=${url}`,
       "LinkedIn"
@@ -165,9 +165,9 @@ export function ShareCityModal({
 
   const shareToReddit = () => {
     const title = encodeURIComponent(
-      `Check out my 3D repo city ${repoDisplayName} on PlayClaude!`
+      `Check out ${repoDisplayName} in Scope City!`
     );
-    const url = encodeURIComponent("https://playclaude.vercel.app");
+    const url = encodeURIComponent("https://scope-city.app");
     shareToPlatform(
       `https://www.reddit.com/submit?title=${title}&url=${url}`,
       "Reddit"
@@ -223,7 +223,7 @@ export function ShareCityModal({
                 {/* Retro Watermark Badge */}
                 <div className="absolute bottom-2 right-2 border border-[#243d4d] bg-[#081923]/90 px-2 py-0.5">
                   <span className="retro text-[8px] text-amber-300">
-                    playclaude.vercel.app
+                    scope-city.app
                   </span>
                 </div>
               </div>

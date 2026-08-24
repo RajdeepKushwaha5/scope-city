@@ -284,7 +284,7 @@ export class WorldAirportManager {
       const screen = worldToScreen(this.scene.cameras.main, sprite.x, sprite.y);
       this.airportHoverListener?.({
         cityId: "airport",
-        title: "CLAUDE CITY AIRPORT · CCX",
+        title: "SCOPE CITY AIRPORT · SCX",
         action: "Open departures · choose repository city",
         screenX: screen.x,
         screenY: screen.y,

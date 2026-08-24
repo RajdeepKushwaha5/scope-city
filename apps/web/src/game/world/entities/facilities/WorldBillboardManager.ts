@@ -209,7 +209,7 @@ export class WorldBillboardManager {
 
     if (owner === "" && name === "demo") {
       owner = "DEMO";
-      name = "claude city";
+      name = "scope city";
     }
 
     if (!name) {

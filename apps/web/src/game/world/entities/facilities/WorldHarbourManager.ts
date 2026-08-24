@@ -211,7 +211,7 @@ export class WorldHarbourManager {
     }
 
     const sign = onQuay(harbour.sign, HARBOUR_SIGN_KEY, HARBOUR_SIGN_ANCHOR_Y, 18);
-    sign.setData("hoverTitle", "CLAUDE CITY PORT");
+    sign.setData("hoverTitle", "SCOPE CITY PORT");
     this.harbourHoverAnchorSprite = sign;
 
     for (const lamp of harbour.lamps) {
@@ -354,7 +354,7 @@ export class WorldHarbourManager {
       const screen = worldToScreen(this.scene.cameras.main, anchor.x, anchor.y);
       this.showHarbourHover({
         cityId: "harbour",
-        title: String(sprite.getData("hoverTitle") ?? "CLAUDE CITY PORT"),
+        title: String(sprite.getData("hoverTitle") ?? "SCOPE CITY PORT"),
         action: "Sail out to your own PRs and worktrees",
         screenX: screen.x,
         screenY: screen.y,

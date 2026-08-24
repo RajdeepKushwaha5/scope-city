@@ -42,7 +42,7 @@ export function promptForIssue(issue: Issue): string {
     .join("\n\n");
 }
 
-/** Basename of a repo path → title case words (claude-clan → Claude Clan). */
+/** Basename of a repo path → title case words (scope-city → Scope City). */
 export function titleFromRepoPath(repoPath: string): string {
   const base =
     repoPath

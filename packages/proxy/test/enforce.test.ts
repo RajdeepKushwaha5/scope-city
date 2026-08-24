@@ -268,3 +268,45 @@ describe("visibleOffices — absent, not forbidden", () => {
     ]);
   });
 });
+
+describe("replays must not run twice", () => {
+  // Found by Qodo review. The deterministic idempotency key made retries
+  // recognisable, but enforceCall treated a replay like a fresh claim and went
+  // on to countersign and call upstream -- a second refund for the same money.
+  it("returns the original result instead of refunding again", async () => {
+    const h = harness();
+    const first = await h.run(
+      { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900 } },
+      scope(),
+      "same-key",
+    );
+    const second = await h.run(
+      { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900 } },
+      scope(),
+      "same-key",
+    );
+
+    expect(first).toMatchObject({ outcome: "allowed" });
+    expect(second).toEqual(first);
+    expect(h.upstream).toHaveBeenCalledOnce();
+    expect(h.countersign).toHaveBeenCalledOnce();
+  });
+
+  it("does not hand the budget back when a settled call is retried and refused", async () => {
+    const h = harness();
+    await h.run(
+      { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900 } },
+      scope(),
+      "same-key",
+    );
+    await h.run(
+      { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900 } },
+      scope(),
+      "same-key",
+    );
+
+    // The refund happened once and the budget stays spent. Releasing here
+    // would let the same irreversible action run again.
+    expect(h.ledger.consumed(scope().missionId)["charge.refund"]).toBe(1);
+  });
+});

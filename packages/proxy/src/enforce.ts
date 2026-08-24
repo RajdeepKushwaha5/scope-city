@@ -62,6 +62,24 @@ export async function enforceCall(params: {
   const spec = registry.get(call.office);
   const district = spec?.district ?? null;
 
+  // 0. answer a retry before applying policy.
+  //
+  // An operation that already completed is a matter of record, not a decision
+  // to make again -- and re-deciding it would refuse it for having spent the
+  // very quota it spent itself. A retry that is still in flight is refused
+  // rather than queued, so two concurrent submissions cannot both land.
+  const existing = ledger.lookup(scope.missionId, idempotencyKey);
+  if (existing) {
+    if (existing.settled) {
+      return { outcome: "allowed", value: existing.result };
+    }
+    return {
+      outcome: "refused",
+      reason: "call_in_flight",
+      detail: `an identical ${call.office} call is already in progress`,
+    };
+  }
+
   // 1. decide
   const decision = evaluate({
     scope,
@@ -86,45 +104,21 @@ export async function enforceCall(params: {
 
   // 2. claim -- only mutating offices are metered
   const mutating = spec?.mutating ?? true;
-  const ceiling = scope.limits.maxCalls[call.office];
   let claimed = false;
 
   if (mutating) {
-    const claim = ledger.claim({
-      missionId: scope.missionId,
-      office: call.office,
-      ceiling,
+    const outcome = takeQuota({
+      scope,
+      call,
+      district,
+      ledger,
+      emit,
       idempotencyKey,
       nonce,
       now,
     });
-
-    if (!claim.won) {
-      const reason = claim.reason === "exhausted" ? "call_count_exhausted" : "replayed_call";
-      emit({
-        type: "call.out_of_scope",
-        missionId: scope.missionId,
-        office: call.office,
-        district,
-        reason: "call_count_exhausted",
-        detail:
-          claim.reason === "exhausted"
-            ? `${call.office} budget is spent`
-            : `${call.office} call was already submitted`,
-        at: now,
-      });
-      return { outcome: "refused", reason, detail: `${call.office} refused by the ledger` };
-    }
-
+    if (outcome.kind !== "claimed") return outcome.result;
     claimed = true;
-    emit({
-      type: "quota.consumed",
-      missionId: scope.missionId,
-      office: call.office,
-      used: claim.used,
-      ceiling,
-      at: now,
-    });
   }
 
   const release = (): void => {
@@ -200,6 +194,18 @@ export async function enforceCall(params: {
   // 5. project -- an allowed call can still overshare
   const projected = project({ scope, office: call.office, registry, response: raw });
 
+  // The world has changed, so the claim stops being a reservation and becomes a
+  // fact: it can no longer be released, and a retry gets this result back
+  // instead of running again.
+  if (claimed) {
+    ledger.settle({
+      missionId: scope.missionId,
+      idempotencyKey,
+      result: projected.value,
+    });
+    claimed = false;
+  }
+
   if (projected.redacted.length > 0 || projected.truncated) {
     emit({
       type: "response.redacted",
@@ -236,6 +242,91 @@ export async function enforceCall(params: {
   }
 
   return { outcome: "allowed", value: projected.value };
+}
+
+type QuotaOutcome =
+  | { readonly kind: "claimed" }
+  | { readonly kind: "settled"; readonly result: EnforceResult }
+  | { readonly kind: "refused"; readonly result: EnforceResult };
+
+/**
+ * Takes one unit of quota, or explains why it could not.
+ *
+ * Split out of `enforceCall` because the concurrency cases here -- exhausted,
+ * replayed nonce, replay of a settled call, replay of one still in flight --
+ * are the fiddliest part of the pipeline and deserve to be read on their own.
+ */
+function takeQuota(params: {
+  scope: Scope;
+  call: Call;
+  district: string | null;
+  ledger: QuotaLedger;
+  emit: EmitProxyEvent;
+  idempotencyKey: string;
+  nonce: string;
+  now: number;
+}): QuotaOutcome {
+  const { scope, call, district, ledger, emit, idempotencyKey, nonce, now } = params;
+  const ceiling = scope.limits.maxCalls[call.office];
+
+  const claim = ledger.claim({
+    missionId: scope.missionId,
+    office: call.office,
+    ceiling,
+    idempotencyKey,
+    nonce,
+    now,
+  });
+
+  if (!claim.won) {
+    const exhausted = claim.reason === "exhausted";
+    emit({
+      type: "call.out_of_scope",
+      missionId: scope.missionId,
+      office: call.office,
+      district,
+      reason: "call_count_exhausted",
+      detail: exhausted
+        ? `${call.office} budget is spent`
+        : `${call.office} call was already submitted`,
+      at: now,
+    });
+    return {
+      kind: "refused",
+      result: {
+        outcome: "refused",
+        reason: exhausted ? "call_count_exhausted" : "replayed_call",
+        detail: `${call.office} refused by the ledger`,
+      },
+    };
+  }
+
+  // A replay reaching here means two identical calls raced past the
+  // short-circuit in enforceCall. Whichever lost must not proceed: calling
+  // upstream again would perform an irreversible action twice.
+  if ("replayOf" in claim) {
+    return claim.settled
+      ? { kind: "settled", result: { outcome: "allowed", value: claim.result } }
+      : {
+          kind: "refused",
+          result: {
+            outcome: "refused",
+            reason: "call_in_flight",
+            detail: `an identical ${call.office} call is already in progress`,
+          },
+        };
+  }
+
+  emit({
+    type: "quota.consumed",
+    missionId: scope.missionId,
+    office: call.office,
+    used: claim.used,
+    ceiling,
+    at: now,
+  });
+
+  return { kind: "claimed" };
 }
 
 /**

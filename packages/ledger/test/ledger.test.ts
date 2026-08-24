@@ -161,3 +161,70 @@ describe("QuotaLedger — audit trail", () => {
     expect(ledger.entries(MISSION)).toHaveLength(1);
   });
 });
+
+describe("QuotaLedger — a claim is a reservation until it settles", () => {
+  // Found by Qodo review. Before this distinction existed, a retry looked like
+  // a won claim and the caller ran the operation a second time.
+  it("reports a replay as unsettled while the first call is still in flight", () => {
+    const ledger = new QuotaLedger();
+    claim(ledger, 1, 5);
+
+    const retry = ledger.claim({
+      missionId: MISSION,
+      office: "charge.refund",
+      ceiling: 5,
+      idempotencyKey: "key-1",
+      nonce: "different",
+      now: NOW,
+    });
+
+    expect(retry).toMatchObject({ won: true, replayOf: "key-1", settled: false });
+  });
+
+  it("hands back the original result once the first call has settled", () => {
+    const ledger = new QuotaLedger();
+    claim(ledger, 1, 5);
+    ledger.settle({ missionId: MISSION, idempotencyKey: "key-1", result: { id: "re_1" } });
+
+    const retry = ledger.claim({
+      missionId: MISSION,
+      office: "charge.refund",
+      ceiling: 5,
+      idempotencyKey: "key-1",
+      nonce: "different",
+      now: NOW,
+    });
+
+    expect(retry).toMatchObject({ won: true, settled: true, result: { id: "re_1" } });
+  });
+
+  it("refuses to release a settled claim, because the world already changed", () => {
+    // You cannot un-send an email by decrementing a counter. Releasing here
+    // would hand the budget back for something that already happened.
+    const ledger = new QuotaLedger();
+    claim(ledger, 1);
+    ledger.settle({ missionId: MISSION, idempotencyKey: "key-1", result: {} });
+
+    const released = ledger.release({
+      missionId: MISSION,
+      office: "charge.refund",
+      idempotencyKey: "key-1",
+    });
+
+    expect(released).toBe(false);
+    expect(ledger.consumed(MISSION)["charge.refund"]).toBe(1);
+  });
+
+  it("still releases an unsettled claim", () => {
+    const ledger = new QuotaLedger();
+    claim(ledger, 1);
+    expect(
+      ledger.release({ missionId: MISSION, office: "charge.refund", idempotencyKey: "key-1" }),
+    ).toBe(true);
+  });
+
+  it("reports failure when settling something that was never claimed", () => {
+    const ledger = new QuotaLedger();
+    expect(ledger.settle({ missionId: MISSION, idempotencyKey: "nope", result: {} })).toBe(false);
+  });
+});

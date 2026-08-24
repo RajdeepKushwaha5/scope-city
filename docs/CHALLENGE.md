@@ -103,6 +103,69 @@ artifact this track scores.
 
 ---
 
+## The five best practices, scored honestly
+
+> **01. The harness has to be doing real work.**
+> *"A judge has to see TrueForge reaching a tool, running code in the sandbox,
+> and stopping for a person. If it would work just as well as a chat box,
+> change the project."*
+
+This is the qualification bar and it names **three** things. We can currently
+show one.
+
+| A judge must see | Us |
+|---|---|
+| TrueForge reaching a tool | **Yes.** Live session, real MCP connection, refusals over the wire. |
+| Code running in the sandbox | **No.** Criterion at zero. |
+| Stopping for a person | **Headlessly only.** Not yet clicked in the city. |
+
+> **02. Pick one job an agent can finish.**
+
+**Good.** One job: resolve ticket #184. Narrow, end to end, three minutes.
+
+> **03. Open pull requests from the first commit.**
+
+**Good.** Qodo was PR #1. Seven PRs, eight findings, each with a fix, a
+regression test and a reply.
+
+> **04. Put the approval gate in the demo.**
+> *"Control and safety is a judging criterion of its own, and it is the one
+> nobody films. Show where the agent's code ran, and show the moment it stops
+> and asks."*
+
+Note what this sentence asks for: **both** halves. Where the code ran *and* the
+moment it stops. Our demo script has the gate; it has nowhere to point for the
+sandbox.
+
+> **05. Ship a repo a judge can run.**
+
+**Not yet.** The repository is private and must be public before the deadline.
+Fixture mode has to work with no accounts and no keys.
+
+---
+
+## The eight things the harness does, and which we use
+
+Using more is not automatically better -- forcing a capability in is the red
+flag the winner's playbook warns about. But an unused one is worth a deliberate
+decision rather than an oversight.
+
+| Capability | Us |
+|---|---|
+| Connects to your tools (MCP) | **Central.** The proxy is the product. |
+| Runs code safely (sandbox) | **Unused.** The gap. |
+| Waits for a human | **Used.** `tool.approval_required`, countersign bound to a call fingerprint. |
+| Delegates (subagents) | Enabled in the spec; the city renders `thread.created`. Not yet forced by a mission. |
+| Survives reconnects | Not demonstrated. The orchestrator is replayable by design, so this is cheap to show. |
+| Runs on any model | **Used.** Three keys, rotation with per-failure cooldowns. |
+| Loads Skills | Unused. A deliberate skip -- the mission has no procedure worth versioning yet. |
+| Scales to Postgres/Redis | Not relevant at this size. |
+
+Three used centrally, one deliberately skipped, two cheap to show and worth
+doing: **sandbox** and **reconnect**.
+
+---
+
 ## Order of work
 
 1. **Sandbox** — the only criterion at zero, and the brief names it explicitly.

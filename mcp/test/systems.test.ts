@@ -195,3 +195,34 @@ describe("end to end: a real response, policed by a real scope", () => {
     expect(decision).toMatchObject({ allowed: false, reason: "office_not_in_scope" });
   });
 });
+
+describe("the systems defend themselves too", () => {
+  // Defence in depth: the evaluator refuses negative amounts, but a system
+  // that trusts its caller is one scope misconfiguration away from having no
+  // ceiling at all.
+  it("refuses a negative refund at the system boundary", async () => {
+    const system = exchequerSystem();
+    await expect(
+      office(system, "charge.refund").call({ charge_id: "ch_184", amount: -1000 }),
+    ).rejects.toThrow(/greater than zero/);
+  });
+
+  it("refuses a zero refund", async () => {
+    const system = exchequerSystem();
+    await expect(
+      office(system, "charge.refund").call({ charge_id: "ch_184", amount: 0 }),
+    ).rejects.toThrow(/greater than zero/);
+  });
+
+  it("does not let a negative amount restore refundable headroom", async () => {
+    const charges = fixtureCharges();
+    const system = exchequerSystem(charges);
+    await office(system, "charge.refund").call({ charge_id: "ch_184", amount: 4900 });
+
+    await expect(
+      office(system, "charge.refund").call({ charge_id: "ch_184", amount: -4900 }),
+    ).rejects.toThrow(/greater than zero/);
+
+    expect(charges.get("ch_184")?.refundedMinor).toBe(4900);
+  });
+});

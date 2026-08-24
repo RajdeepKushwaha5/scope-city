@@ -93,6 +93,19 @@ export function evaluate(params: {
           detail: `${argName} must be an integer in minor units, got ${String(value)}`,
         };
       }
+
+      // A ceiling alone does not bound an amount: -1000 is comfortably under
+      // 4900, and a negative refund runs backwards through the downstream
+      // system, restoring refundable headroom. Repeat that and the ceiling
+      // means nothing. The range has to be closed at both ends.
+      if (value <= 0) {
+        return {
+          allowed: false,
+          reason: "amount_not_positive",
+          detail: `${argName} must be greater than zero, got ${value}`,
+        };
+      }
+
       const ceiling = scope.limits.maxAmountMinor[call.office];
       if (ceiling === undefined || value > ceiling) {
         return {

@@ -30,10 +30,22 @@ export class NotFoundError extends Error {
   }
 }
 
-/** Money is integer minor units everywhere it crosses a boundary. */
+/**
+ * Money is integer minor units everywhere it crosses a boundary, and strictly
+ * positive.
+ *
+ * The positivity check is not redundant with the scope evaluator's. A negative
+ * amount runs the downstream arithmetic backwards -- `refundedMinor += -1000`
+ * restores refundable headroom -- so a system that trusts its caller here is
+ * one scope misconfiguration away from having no ceiling at all. Each layer
+ * defends itself.
+ */
 export function assertMinorUnits(value: unknown, field: string): number {
   if (typeof value !== "number" || !Number.isInteger(value)) {
     throw new TypeError(`${field} must be an integer in minor units`);
+  }
+  if (value <= 0) {
+    throw new RangeError(`${field} must be greater than zero, got ${value}`);
   }
   return value;
 }

@@ -7,7 +7,6 @@
     ".": "./src/index.ts"
   },
   "scripts": {
-    "dev": "tsx src/serve.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },

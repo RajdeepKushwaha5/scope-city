@@ -101,6 +101,7 @@ export const DenialReasonSchema = z.enum([
   "scope_expired",
   "scope_not_active",
   "amount_not_integer",
+  "amount_not_positive",
   "missing_required_argument",
 ]);
 

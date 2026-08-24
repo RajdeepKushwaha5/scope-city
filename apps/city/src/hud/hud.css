@@ -684,3 +684,77 @@ body {
   .order__fallbacks { display: none; }
   .console__job { display: none; }
 }
+
+/* ---- THE YARD ------------------------------------------------------------ */
+
+.yard__probes {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+  margin-bottom: 8px;
+}
+
+.yard__list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.yard__item {
+  padding: 8px 10px;
+  /* The stripe carries the severity, so the row itself stays quiet. A panel
+     where every finding shouts is a panel an operator learns to scroll past. */
+  border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.yard__item--critical { border-left-color: #ff4d4f; }
+.yard__item--warning  { border-left-color: #f0a020; }
+.yard__item--note     { border-left-color: rgba(255, 255, 255, 0.18); }
+
+.yard__head {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin-bottom: 3px;
+}
+
+.yard__sev {
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+.yard__sev--critical { color: #ff4d4f; }
+.yard__sev--warning  { color: #f0a020; }
+.yard__sev--note     { color: var(--hud-dim, #7f8c9b); }
+
+.yard__office {
+  font-size: 10px;
+  color: var(--hud-dim, #7f8c9b);
+}
+
+.yard__summary {
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.yard__detail {
+  font-size: 10px;
+  color: var(--hud-dim, #7f8c9b);
+  margin-top: 3px;
+  word-break: break-word;
+}
+
+.yard__remedy {
+  font-size: 10px;
+  color: var(--hud-dim, #7f8c9b);
+  margin-top: 4px;
+  font-style: italic;
+  opacity: 0.85;
+}

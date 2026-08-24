@@ -12,6 +12,8 @@ import { CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/m
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { backtest, counterfactual } from "@scope-city/yard";
+import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
 import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
 import {
@@ -176,6 +178,20 @@ async function main(): Promise<void> {
         return;
       }
 
+      // The Yard, before the mission exists.
+      //
+      // Run here rather than after dispatch because a backtest is only useful
+      // at the one moment its answer can still change the decision. Afterwards
+      // it is a postmortem. Nothing it does touches a system or spends
+      // anything -- every check is the pure evaluator against a generated call,
+      // or a walk over declared shapes -- so it is safe to run on a scope that
+      // has not been granted, which is the entire point.
+      const report = backtest({
+        scope: { ...derived.scope, state: "granted" },
+        registry: officeRegistry(),
+        now: Date.now(),
+      });
+
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
       const book = new CountersignBook();
@@ -204,6 +220,7 @@ async function main(): Promise<void> {
       async function expireMission(expiring: LiveMission): Promise<void> {
         await expireLiveMission(expiring, registry, (sessionId) => driver.cancel(sessionId));
       }
+      feed.append({ type: "yard.report", report });
       feed.append({ type: "mission.status", status: "starting" });
       void runLiveMission(live, book).catch(() => undefined);
 

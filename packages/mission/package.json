@@ -14,7 +14,8 @@
     "@scope-city/harness": "workspace:*",
     "@scope-city/ledger": "workspace:*",
     "@scope-city/proxy": "workspace:*",
-    "@scope-city/scope": "workspace:*"
+    "@scope-city/scope": "workspace:*",
+    "@scope-city/yard": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

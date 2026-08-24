@@ -29,6 +29,9 @@ importers:
       '@scope-city/scope':
         specifier: workspace:*
         version: link:../../packages/scope
+      '@scope-city/yard':
+        specifier: workspace:*
+        version: link:../../packages/yard
       react:
         specifier: ^19.2.0
         version: 19.2.8
@@ -78,6 +81,9 @@ importers:
       '@scope-city/scope':
         specifier: workspace:*
         version: link:../../packages/scope
+      '@scope-city/yard':
+        specifier: workspace:*
+        version: link:../../packages/yard
       '@truefoundry/trueforge-sdk':
         specifier: ^0.1.3
         version: 0.1.3
@@ -176,6 +182,9 @@ importers:
       '@scope-city/scope':
         specifier: workspace:*
         version: link:../scope
+      '@scope-city/yard':
+        specifier: workspace:*
+        version: link:../yard
     devDependencies:
       '@types/node':
         specifier: ^24.0.0
@@ -215,6 +224,22 @@ importers:
         specifier: ^4.4.3
         version: 4.4.3
     devDependencies:
+      typescript:
+        specifier: ^5.9.0
+        version: 5.9.3
+      vitest:
+        specifier: ^3.2.0
+        version: 3.2.7(@types/debug@4.1.13)(@types/node@24.13.3)(jiti@2.7.0)(lightningcss@1.33.0)(tsx@4.23.10)
+
+  packages/yard:
+    dependencies:
+      '@scope-city/scope':
+        specifier: workspace:*
+        version: link:../scope
+    devDependencies:
+      '@types/node':
+        specifier: ^24.0.0
+        version: 24.13.3
       typescript:
         specifier: ^5.9.0
         version: 5.9.3

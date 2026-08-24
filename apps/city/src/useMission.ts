@@ -322,6 +322,10 @@ export function useMission() {
     log,
     refusedAt,
     sandboxOpen,
+    // The offline replays are scripted rather than derived, so there is no
+    // scope for the Yard to have examined. Null renders the panel as "runs
+    // before the scope is granted", which is the truth for a replay.
+    yard: null,
     treasury,
     inspecting,
     expiresIn,

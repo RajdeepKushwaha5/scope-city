@@ -114,7 +114,7 @@ npx @truefoundry/trueforge           # http://127.0.0.1:8790
 pnpm demo:models
 
 # 3. start the mission control plane, scope proxy, and city
-pnpm dev                             # http://127.0.0.1:5173
+pnpm dev                             # http://127.0.0.1:5180
 ```
 
 On Windows, if an existing TrueForge database predates the installed version,

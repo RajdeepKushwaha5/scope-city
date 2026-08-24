@@ -20,6 +20,11 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
     mutating: false,
     args: { ticket_id: { kind: "resource", resourceClass: "ticket_ids", required: true } },
     responseFields: ["id", "subject", "body", "order_id", "customer_email", "status"],
+    // A customer writes both of these. They are the delivery vehicle for the
+    // whole poisoned-ticket scenario, and the reason the resolver may read this
+    // office at all is that `order_id` and `customer_email` survive without
+    // them.
+    freeTextFields: ["subject", "body"],
   },
   {
     office: "ticket.reply",
@@ -30,6 +35,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
       body: { kind: "opaque", required: true },
     },
     responseFields: ["id", "replies"],
+    freeTextFields: ["replies"],
   },
   {
     office: "ticket.close",
@@ -37,6 +43,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
     mutating: true,
     args: { ticket_id: { kind: "resource", resourceClass: "ticket_ids", required: true } },
     responseFields: ["id", "status"],
+    freeTextFields: [],
   },
 
   {
@@ -45,6 +52,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
     mutating: false,
     args: { order_id: { kind: "resource", resourceClass: "order_ids", required: true } },
     responseFields: ["id", "amount", "order_id"],
+    freeTextFields: [],
   },
   {
     office: "charge.get",
@@ -63,6 +71,10 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
       "customer.address",
       "customer.history",
     ],
+    // An address is typed by the customer, and history is an unbounded list of
+    // records carrying their own descriptions. Neither is a safe thing to read
+    // before a scope exists.
+    freeTextFields: ["customer.address", "customer.history"],
   },
   {
     office: "charge.refund",
@@ -73,6 +85,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
       amount: { kind: "amount_minor", required: true },
     },
     responseFields: ["id", "charge_id", "amount", "status"],
+    freeTextFields: [],
   },
   {
     office: "customer.list",
@@ -82,6 +95,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
     // granted or withheld. That is exactly why it is a dramatic counterfactual.
     args: {},
     responseFields: ["customers", "count"],
+    freeTextFields: ["customers"],
   },
 
   {
@@ -94,6 +108,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
       body: { kind: "opaque", required: true },
     },
     responseFields: ["id", "to"],
+    freeTextFields: [],
   },
   {
     office: "mail.list",
@@ -101,6 +116,7 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
     mutating: false,
     args: {},
     responseFields: ["messages", "count"],
+    freeTextFields: ["messages"],
   },
 ];
 

@@ -5,6 +5,7 @@ import { drawScene, fitCamera, type Figure, type SceneState } from "./render/sce
 import { DISTRICT_PLOTS, layOutCity, plotFor } from "./render/world.js";
 import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
+import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
@@ -199,6 +200,7 @@ export function App(): React.JSX.Element {
               onDeny={mission.denyScope}
               onRevoke={mission.revoke}
             />
+            <YardPanel report={mission.yard} />
           </div>
 
           <div className="hud__order">

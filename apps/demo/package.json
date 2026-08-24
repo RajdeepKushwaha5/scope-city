@@ -13,6 +13,8 @@
   },
   "dependencies": {
     "@scope-city/harness": "workspace:*",
+    "@scope-city/intent": "workspace:*",
+    "@scope-city/yard": "workspace:*",
     "@scope-city/ledger": "workspace:*",
     "@scope-city/mcp": "workspace:*",
     "@scope-city/mission": "workspace:*",

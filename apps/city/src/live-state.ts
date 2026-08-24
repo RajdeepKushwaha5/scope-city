@@ -1,4 +1,5 @@
 import type { CityFeedEvent } from "@scope-city/mission";
+import type { BacktestReport } from "@scope-city/yard";
 import type { Figure } from "./render/scene.js";
 import { plotFor } from "./render/world.js";
 import { OFFICES, type GateRequest, type LogLine, type Phase, type ScopeView } from "./useMission.js";
@@ -15,6 +16,8 @@ export interface LiveCityState {
   readonly refusedAt: { readonly u: number; readonly v: number } | null;
   readonly sandboxOpen: boolean;
   readonly scopeExpired: boolean;
+  /** The Yard's verdict, once it arrives. Null before the backtest is replayed. */
+  readonly yard: BacktestReport | null;
 }
 
 export const initialLiveCityState: LiveCityState = {
@@ -29,6 +32,7 @@ export const initialLiveCityState: LiveCityState = {
   refusedAt: null,
   sandboxOpen: false,
   scopeExpired: false,
+  yard: null,
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -124,6 +128,25 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       default:
         return state;
     }
+  }
+
+  if (feed.type === "yard.report") {
+    // Logged as well as stored, so the findings land in THE RECORD in the order
+    // they were produced -- before the first call -- rather than only appearing
+    // in a panel that a viewer may never open.
+    const lines = feed.report.clean
+      ? [`YARD  ${feed.report.probesRun} probes, no holes`]
+      : [
+          `YARD  ${feed.report.probesRun} probes, ${feed.report.findings.length} finding(s)`,
+          ...feed.report.findings
+            .filter((finding) => finding.severity !== "note")
+            .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
+        ];
+
+    return lines.reduce<LiveCityState>(
+      (acc, line) => addLog(acc, line, "plain", Date.now()),
+      { ...state, yard: feed.report },
+    );
   }
 
   const event = feed.event;

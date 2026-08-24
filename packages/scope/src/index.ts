@@ -19,6 +19,7 @@ export {
   ArgBindingSchema,
   OfficeSpecSchema,
   buildRegistry,
+  resolverSafeFields,
   type ArgBinding,
   type OfficeRegistry,
   type OfficeSpec,

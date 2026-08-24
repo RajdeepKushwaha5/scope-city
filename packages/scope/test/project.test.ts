@@ -8,6 +8,7 @@ const registry = buildRegistry([
     mutating: false,
     args: { charge_id: { kind: "resource", resourceClass: "charge_ids", required: true } },
     responseFields: ["id", "amount", "customer.email", "customer.history", "customer.address"],
+    freeTextFields: [],
   },
 ] satisfies OfficeSpec[]);
 

@@ -11,6 +11,9 @@ import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import { CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
+import { deriveScopeFromJob } from "./derive-scope.js";
+import { backtest, counterfactual } from "@scope-city/yard";
+import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
 import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
 import {
@@ -144,6 +147,48 @@ async function main(): Promise<void> {
       }
 
       const id = newMissionId();
+
+      // Stage 1 and 2 of sealing, before anything else exists.
+      //
+      // Deliberately ahead of the feed, the ledger and the session: if the
+      // sentence cannot produce a usable scope, the right outcome is a 422 and
+      // no mission at all, rather than a live agent holding authority nobody
+      // examined.
+      const derived = await deriveScopeFromJob({ job: order, missionId: id });
+
+      if (derived.scope.offices.length === 0) {
+        // Carry the reasons. A job that produced no scope because the operator
+        // did not state an amount is a completely different problem from one
+        // that named no system this city has, and the operator can only fix the
+        // one they are told about.
+        json(res, 422, {
+          error:
+            derived.dropped.length > 0
+              ? "that job could not be scoped"
+              : "no office in this city can do that",
+          detail:
+            derived.dropped.length > 0
+              ? derived.dropped.map((d) => `${d.office}: ${d.reason}`).join("; ")
+              : "Nothing in the request matched a system the city can reach.",
+          job: order,
+        });
+        return;
+      }
+
+      // The Yard, before the mission exists.
+      //
+      // Run here rather than after dispatch because a backtest is only useful
+      // at the one moment its answer can still change the decision. Afterwards
+      // it is a postmortem. Nothing it does touches a system or spends
+      // anything -- every check is the pure evaluator against a generated call,
+      // or a walk over declared shapes -- so it is safe to run on a scope that
+      // has not been granted, which is the entire point.
+      const report = backtest({
+        scope: { ...derived.scope, state: "granted" },
+        registry: officeRegistry(),
+        now: Date.now(),
+      });
+
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
       const book = new CountersignBook();
@@ -151,6 +196,10 @@ async function main(): Promise<void> {
         missionId: id,
         book,
         emit: (event) => feed.append({ type: "proxy", event }),
+        // Granted here because the operator's act of dispatching *is* the
+        // grant in this build. The state exists so a separate propose/grant
+        // screen can slot in without the enforcement layer changing.
+        scope: { ...derived.scope, state: "granted", grantedBy: "operator:scope-city", grantedAt: Date.now(), version: 1 },
       });
       registry.register(fixture.mission);
 
@@ -168,6 +217,7 @@ async function main(): Promise<void> {
       async function expireMission(expiring: LiveMission): Promise<void> {
         await expireLiveMission(expiring, registry, (sessionId) => driver.cancel(sessionId));
       }
+      feed.append({ type: "yard.report", report });
       feed.append({ type: "mission.status", status: "starting" });
       void runLiveMission(live, book).catch(() => undefined);
 

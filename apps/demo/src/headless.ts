@@ -12,6 +12,7 @@
  *   pnpm demo:headless
  */
 
+import "./load-env.js";
 import {
   HarnessDriver,
   ModelPool,

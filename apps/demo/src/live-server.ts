@@ -1,4 +1,5 @@
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
+import "./load-env.js";
 import {
   HarnessDriver,
   ModelPool,

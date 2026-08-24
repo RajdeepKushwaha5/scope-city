@@ -14,6 +14,7 @@
 
 import { HarnessDriver, missionAgentSpec, translate, initialState } from "@scope-city/harness";
 import { QuotaLedger } from "@scope-city/ledger";
+import { fingerprintCall } from "@scope-city/proxy";
 import {
   MissionRegistry,
   newMissionId,
@@ -21,6 +22,7 @@ import {
   type Mission,
 } from "@scope-city/proxy";
 import { CountersignBook, MissionEventLog, missionBrief } from "@scope-city/mission";
+import { newProxyToken, runMission } from "./mission-run.js";
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
@@ -152,22 +154,31 @@ async function main(): Promise<void> {
       if (!handler) throw new Error(`no system implements ${call.office}`);
       return handler.call(call.args);
     },
-    // In the headless run the operator is scripted: approve the one legitimate
-    // refund. The binding is still real -- the book compares fingerprints.
+    // Answers "was this exact call countersigned?" -- it does not decide.
+    //
+    // The entry it checks against was raised from the tool.approval_required
+    // event, fingerprinted over the arguments TrueForge showed the operator.
+    // Here we fingerprint the call the proxy is about to run. Two sources, one
+    // comparison. Raising the entry here instead, from the proxy's own request,
+    // would make this tautological: the call would approve itself.
     countersign: async (request) => {
-      const raised = book.raise({
+      const fingerprint = fingerprintCall({
         scope,
-        toolCallId: request.missionId + request.office,
-        threadId: "headless",
-        office: request.office,
-        args: request.args,
-        now: Date.now(),
+        call: { office: request.office, args: request.args, attemptedAt: Date.now() },
       });
-      console.log(
-        `${c.amber("  ⌐ GATE".padEnd(22))} ${request.office} — countersigning`,
-      );
-      book.settle(raised.toolCallId, { status: "approved", at: Date.now() });
-      return { approved: true, fingerprint: raised.fingerprint };
+
+      const verdict = book.checkFingerprint(fingerprint);
+      if (!verdict.approved) {
+        console.log(
+          `${c.red("  ⌐ NOT COUNTERSIGNED".padEnd(22))} ${request.office} — ${verdict.reason}`,
+        );
+      } else {
+        console.log(`${c.green("  ⌐ countersigned".padEnd(22))} ${request.office}`);
+      }
+
+      // Returning the fingerprint we computed rather than the caller's means a
+      // mismatch is visible to enforceCall rather than agreed with.
+      return { approved: verdict.approved, fingerprint };
     },
     emit: (event) => {
       if (event.type === "call.out_of_scope") {
@@ -195,7 +206,13 @@ async function main(): Promise<void> {
 
   /* 4. serve the proxy and register it ----------------------------------- */
 
-  const http = await startProxyHttp({ registry, port: PROXY_PORT, host: PROXY_BIND });
+  const token = newProxyToken();
+  const http = await startProxyHttp({
+    registry,
+    port: PROXY_PORT,
+    host: PROXY_BIND,
+    token,
+  });
   const proxyUrl = `http://${PROXY_PUBLIC_HOST}:${PROXY_PORT}/mission/${missionId}/mcp`;
   line(c.green("proxy"), proxyUrl);
 
@@ -205,6 +222,9 @@ async function main(): Promise<void> {
     name: proxyName,
     url: proxyUrl,
     description: "Scope City — mission-bound tools, enforced against a granted scope.",
+    // The harness is the only client that gets the token, so a mission URL
+    // leaking into a log is not enough to reach the tools behind it.
+    auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
   });
   line(c.green("registered"), proxyName);
 
@@ -225,30 +245,31 @@ async function main(): Promise<void> {
   console.log(c.dim("  ── the mission ─────────────────────────────────────"));
   console.log();
 
-  let translator = initialState();
   const log = new MissionEventLog();
 
-  for await (const event of driver.runTurn(sessionId, [
-    { type: "user.message", content: "Resolve ticket tkt_184." },
-  ])) {
-    if (process.env.SCOPE_TRACE === "true") {
-      console.log(c.dim(`  [${event.type}] ${JSON.stringify(event).slice(0, 400)}`));
-    }
-
-    // A failed turn carries its reason in the terminal state. Printing only
-    // "error" sends you to the server logs for something that was already in
-    // your hand.
-    if (event.type === "turn.done") {
-      const state = (event as { state?: Record<string, unknown> }).state ?? {};
-      if (state.status !== "done") {
-        console.log(c.red(`  turn ${String(state.status)}: ${JSON.stringify(state).slice(0, 500)}`));
+  // A mission is a loop, not one turn. TrueForge ends the stream when it gates
+  // a tool, so consuming a single runTurn stops one step before the refund.
+  const result = await runMission({
+    driver,
+    sessionId,
+    scope,
+    book,
+    prompt: "Resolve ticket tkt_184.",
+    maxTurns: 6,
+    decide: async (gate) => {
+      console.log(
+        `${c.amber("  ⌐ GATE".padEnd(22))} ${gate.office} ${JSON.stringify(gate.args)}`,
+      );
+      // Scripted here; the city puts a dialog in front of a person. Either way
+      // the decision is recorded against the call TrueForge displayed.
+      return { approved: true };
+    },
+    onRaw: (event) => {
+      if (process.env.SCOPE_TRACE === "true") {
+        console.log(c.dim(`  [${event.type}] ${JSON.stringify(event).slice(0, 300)}`));
       }
-    }
-
-    const { state, events } = translate(event, translator, Date.now());
-    translator = state;
-
-    for (const worldEvent of events) {
+    },
+    onEvent: (worldEvent) => {
       log.append(worldEvent, Date.now());
 
       if (worldEvent.type === "district.online") {
@@ -259,12 +280,12 @@ async function main(): Promise<void> {
         line(c.blue("  + field team"), worldEvent.title ?? worldEvent.threadId);
       } else if (worldEvent.type === "transmission") {
         console.log(c.dim(`  ${worldEvent.text.slice(0, 140)}`));
-      } else if (worldEvent.type === "mission.ended") {
-        console.log();
-        line(c.bold("  mission"), worldEvent.status);
       }
-    }
-  }
+    },
+  });
+
+  console.log();
+  line(c.bold("  mission"), `${result.status} — ${result.turns} turn(s), ${result.gates} gate(s)`);
 
   console.log();
   console.log(c.dim("  ── the record ──────────────────────────────────────"));

@@ -26,6 +26,18 @@ export interface ProxyHttpOptions {
   readonly registry: MissionRegistry;
   readonly port: number;
   readonly host?: string;
+  /**
+   * Bearer token every MCP request must carry.
+   *
+   * The mission id in the path is a capability, but the proxy usually binds to
+   * 0.0.0.0 so the harness can reach it from another network namespace -- which
+   * means everything else on that network can reach it too. A URL that ends up
+   * in a log should not be enough to spend a refund budget.
+   *
+   * Optional so a purely local run can skip it, but the demo sets one and
+   * registers it with the harness as a header.
+   */
+  readonly token?: string;
   /** Somewhere to report faults. Defaults to stderr. */
   readonly onError?: (error: unknown, context: string) => void;
 }
@@ -50,7 +62,7 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
       // A transport fault must not be silent. The harness reports a failed
       // connection as "Error POSTing to endpoint" with no body, so if this end
       // does not say what went wrong, nothing does.
-      report(error, `${req.method} ${req.url}`);
+      report(error, `${req.method ?? "?"} ${req.url ?? "?"}`);
       if (!res.headersSent) {
         res.writeHead(500, { "content-type": "application/json" });
         res.end(JSON.stringify({ error: "proxy fault" }));
@@ -64,6 +76,14 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
     if (url.pathname === "/healthz") {
       res.writeHead(200, { "content-type": "application/json" });
       res.end(JSON.stringify({ ok: true, missions: options.registry.size }));
+      return;
+    }
+
+    // Authenticate before resolving the mission, so a wrong token cannot be
+    // used to probe which mission ids exist.
+    if (options.token && !hasToken(req, options.token)) {
+      res.writeHead(401, { "content-type": "application/json" });
+      res.end(JSON.stringify({ error: "unauthorized" }));
       return;
     }
 
@@ -104,4 +124,25 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
         server.close((error) => (error ? reject(error) : resolve()));
       }),
   };
+}
+
+/**
+ * Whether a request carries the expected bearer token.
+ *
+ * Compared with a length-check first and then a constant-time comparison, so a
+ * caller cannot learn the token a byte at a time from response timings. That is
+ * paranoid for a demo and correct anywhere else, and the cost is nothing.
+ */
+function hasToken(req: IncomingMessage, expected: string): boolean {
+  const header = req.headers.authorization;
+  if (typeof header !== "string") return false;
+
+  const presented = header.startsWith("Bearer ") ? header.slice(7) : header;
+  if (presented.length !== expected.length) return false;
+
+  let difference = 0;
+  for (let i = 0; i < expected.length; i += 1) {
+    difference |= presented.charCodeAt(i) ^ expected.charCodeAt(i);
+  }
+  return difference === 0;
 }

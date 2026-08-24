@@ -120,6 +120,47 @@ export class CountersignBook {
     };
   }
 
+  /**
+   * Answers the proxy, which does not know TrueForge's tool_call_id.
+   *
+   * This is the binding that matters, and it only works because the two sides
+   * are computed from different sources. `raise` fingerprints the arguments
+   * TrueForge *displayed to the operator*; the proxy fingerprints the call it
+   * is *about to execute*. If those two agree, the operator approved this call.
+   * If they do not, something changed in between and the approval does not
+   * apply to it.
+   *
+   * A caller that passes in a fingerprint and receives "approved" plus that
+   * same fingerprint back has learned nothing, so this returns a decision and
+   * never echoes its input.
+   */
+  checkFingerprint(fingerprint: string): {
+    approved: boolean;
+    toolCallId?: string;
+    reason?: string;
+  } {
+    for (const [toolCallId, entry] of this.#pending) {
+      if (entry.fingerprint !== fingerprint) continue;
+
+      const verdict = this.#verdicts.get(toolCallId);
+      if (!verdict) {
+        return { approved: false, toolCallId, reason: "the operator has not decided yet" };
+      }
+      if (verdict.status === "denied") {
+        return {
+          approved: false,
+          toolCallId,
+          reason: verdict.reason ?? "the operator refused",
+        };
+      }
+      return { approved: true, toolCallId };
+    }
+
+    // Nothing was raised for this call. Either the harness never gated it, or
+    // the call being made is not the call that was shown.
+    return { approved: false, reason: "no approval was granted for this exact call" };
+  }
+
   /** Drops a settled entry once the call it guarded has run or failed. */
   close(toolCallId: string): void {
     this.#pending.delete(toolCallId);

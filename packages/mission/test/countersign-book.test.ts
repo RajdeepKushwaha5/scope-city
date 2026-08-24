@@ -176,3 +176,62 @@ describe("sweeping", () => {
     expect(book.sweep(NOW + 1_000, 30_000)).toEqual([]);
   });
 });
+
+describe("checkFingerprint — the binding the proxy actually uses", () => {
+  // Found by Qodo. The demo's countersign callback used to raise an entry from
+  // the proxy's own request and return its own fingerprint, so every gated call
+  // approved itself. The whole point is that the two fingerprints come from
+  // different places: one from what TrueForge showed a human, one from what the
+  // proxy is about to run.
+  it("approves a call whose fingerprint matches what was shown", () => {
+    const book = new CountersignBook();
+    const raised = raise(book);
+    book.settle("tc1", { status: "approved", at: NOW });
+
+    expect(book.checkFingerprint(raised.fingerprint)).toMatchObject({
+      approved: true,
+      toolCallId: "tc1",
+    });
+  });
+
+  it("refuses a call that is not the one the operator read", () => {
+    const book = new CountersignBook();
+    raise(book);
+    book.settle("tc1", { status: "approved", at: NOW });
+
+    const other = fingerprintCall({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_185", amount: 39_900 }, attemptedAt: NOW },
+    });
+
+    expect(book.checkFingerprint(other)).toMatchObject({
+      approved: false,
+      reason: "no approval was granted for this exact call",
+    });
+  });
+
+  it("refuses while the operator has not decided", () => {
+    const book = new CountersignBook();
+    const raised = raise(book);
+    expect(book.checkFingerprint(raised.fingerprint)).toMatchObject({ approved: false });
+  });
+
+  it("refuses when the operator said no, and carries their reason", () => {
+    const book = new CountersignBook();
+    const raised = raise(book);
+    book.settle("tc1", { status: "denied", reason: "wrong customer", at: NOW });
+
+    expect(book.checkFingerprint(raised.fingerprint)).toMatchObject({
+      approved: false,
+      reason: "wrong customer",
+    });
+  });
+
+  it("never echoes the fingerprint it was handed", () => {
+    // A check that returns your own input alongside "approved" has told you
+    // nothing at all.
+    const book = new CountersignBook();
+    const result = book.checkFingerprint("invented");
+    expect(Object.values(result)).not.toContain("invented");
+  });
+});

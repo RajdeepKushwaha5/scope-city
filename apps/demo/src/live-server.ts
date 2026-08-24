@@ -26,7 +26,14 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
-const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
+/**
+ * Models to rotate across, pinned by configuration if anyone asked.
+ *
+ * Empty means "use whatever the harness has", which is the better default:
+ * three keys were registered, this fell back to one hard-coded model, and a
+ * rate limit ended the mission with two untouched keys sitting right there.
+ */
+const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);
@@ -42,6 +49,46 @@ interface LiveMission extends ManagedLiveMission {
 
 async function main(): Promise<void> {
   const driver = new HarnessDriver();
+
+  // Discovered once at boot rather than per mission.
+  //
+  // Per-mission discovery would put a round trip on the one path that has to
+  // feel instant -- the operator presses Launch and the city should move. It
+  // also fails in a worse place: a harness that goes unreachable mid-demo would
+  // turn every launch into a hang before the first frame, instead of a mission
+  // that starts and reports the problem through the feed.
+  //
+  // The cost is that a model registered after boot is invisible until restart,
+  // which is the right trade for a control plane whose model set is fixed by
+  // .env at startup anyway.
+  //
+  // Discovery is allowed to fail. Booting is not: the previous behaviour was a
+  // server that came up and reported harness trouble through /api/health, and
+  // an unhandled rejection here would replace that with a process that exits
+  // before it can tell anyone why.
+  let source: "pinned" | "discovered" | "fallback default" = "pinned";
+  let found: readonly string[] = PINNED_MODELS;
+
+  if (PINNED_MODELS.length === 0) {
+    source = "discovered";
+    try {
+      found = await driver.listModels();
+    } catch (error) {
+      found = [];
+      console.warn(
+        `Model discovery failed (${error instanceof Error ? error.message : String(error)}); ` +
+          `starting anyway -- see /api/health`,
+      );
+    }
+  }
+
+  // Never silently claim discovery when the hard-coded default was used: a
+  // startup line reading "(discovered)" next to a single model is what made the
+  // original single-entry pool take so long to spot.
+  const models = found.length > 0 ? found : ["gemini-a/flash-a"];
+  if (found.length === 0) source = "fallback default";
+
+  console.log(`Models: ${models.join(", ")} (${source})`);
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();
@@ -194,7 +241,7 @@ async function main(): Promise<void> {
         auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
-      const pool = new ModelPool(MODELS.map((model, priority) => ({ model, priority })));
+      const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
       for (const model of pool.available(Date.now())) {
         let attemptSessionId: string | undefined;

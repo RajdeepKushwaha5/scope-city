@@ -29,3 +29,5 @@ export {
   type FailureKind,
   type PoolEntry,
 } from "./model-pool.js";
+
+export { qualifiedModelNames, type ModelListEntry } from "./model-names.js";

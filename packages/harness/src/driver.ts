@@ -1,6 +1,7 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import type { AgentSpec, McpServerManifest, TurnEvent, TurnInput } from "./types.js";
 import { MCP_SERVER_NAME_PATTERN } from "./types.js";
+import { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
 
 /**
  * Drives a real TrueForge session.
@@ -54,6 +55,23 @@ export class HarnessDriver {
     await this.#client.settings.mcpServers.createOrUpdate({
       manifest: manifest as never,
     });
+  }
+
+  /**
+   * Every model configured on this harness, as fully-qualified `provider/model`.
+   *
+   * Rotation is worthless if the pool has one entry, and the surest way to end
+   * up with one entry is to depend on an environment variable somebody forgot
+   * to set -- which is exactly what happened: three keys were registered, the
+   * default was a single model, and a rate limit ended the mission with two
+   * untouched keys sitting right there.
+   *
+   * Asking the harness what it has removes that failure entirely.
+   */
+  async listModels(): Promise<readonly string[]> {
+    const response = await this.#client.models.list();
+    const data = (response as { data?: ModelListEntry[] }).data ?? [];
+    return qualifiedModelNames(data);
   }
 
   async listMcpServers(): Promise<readonly { name: string }[]> {

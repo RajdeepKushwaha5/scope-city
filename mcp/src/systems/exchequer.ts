@@ -102,6 +102,22 @@ export function exchequerSystem(charges = fixtureCharges()): SystemDefinition {
     },
   };
 
+  const findByOrder: OfficeHandler = {
+    office: "charge.find_by_order",
+    description: "Find the refundable charge for one order id.",
+    inputSchema: {
+      type: "object",
+      properties: { order_id: { type: "string" } },
+      required: ["order_id"],
+    },
+    async call(args) {
+      const orderId = requireString(args, "order_id");
+      const charge = [...charges.values()].find((candidate) => candidate.orderId === orderId);
+      if (!charge) throw new NotFoundError(`charge for order ${orderId}`);
+      return { id: charge.id, amount: charge.amountMinor, order_id: charge.orderId };
+    },
+  };
+
   const refund: OfficeHandler = {
     office: "charge.refund",
     description: "Refund a charge, in whole or in part. Irreversible.",
@@ -155,5 +171,9 @@ export function exchequerSystem(charges = fixtureCharges()): SystemDefinition {
     },
   };
 
-  return { district: "exchequer", title: "The Exchequer", offices: [get, refund, list] };
+  return {
+    district: "exchequer",
+    title: "The Exchequer",
+    offices: [findByOrder, get, refund, list],
+  };
 }

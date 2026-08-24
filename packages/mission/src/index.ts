@@ -22,3 +22,5 @@ export {
   type BriefOptions,
   type Verification,
 } from "./brief.js";
+
+export { type CityFeedEvent } from "./feed-events.js";

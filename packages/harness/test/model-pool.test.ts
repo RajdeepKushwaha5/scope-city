@@ -80,6 +80,15 @@ describe("classifyFailure — err toward the shorter cooldown", () => {
     expect(classifyFailure({ statusCode: 503 })).toBe("unavailable");
   });
 
+  it("rotates when one provider entry rejects its credentials", () => {
+    const fromStatus = classifyFailure({ statusCode: 401 });
+    const fromTrueForgeMessage = classifyFailure(new Error("Request failed (403): Forbidden"));
+
+    expect(fromStatus).toBe("credential_rejected");
+    expect(fromTrueForgeMessage).toBe("credential_rejected");
+    expect(isWorthRotating(fromTrueForgeMessage)).toBe(true);
+  });
+
   it("treats a malformed request as not worth rotating for", () => {
     // A bad spec fails identically on every model; rotating multiplies noise.
     const kind = classifyFailure({ statusCode: 400, body: { message: "bad spec" } });
@@ -88,7 +97,12 @@ describe("classifyFailure — err toward the shorter cooldown", () => {
   });
 
   it("treats every transient failure as worth rotating for", () => {
-    for (const kind of ["rate_limited", "quota_exhausted", "unavailable"] as const) {
+    for (const kind of [
+      "rate_limited",
+      "quota_exhausted",
+      "credential_rejected",
+      "unavailable",
+    ] as const) {
       expect(isWorthRotating(kind)).toBe(true);
     }
   });

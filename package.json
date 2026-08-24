@@ -8,7 +8,7 @@
   },
   "scripts": {
     "build": "pnpm -r build",
-    "dev": "pnpm --parallel --filter @scope-city/server --filter @scope-city/web dev",
+    "dev": "pnpm --parallel --filter @scope-city/demo --filter @scope-city/city dev",
     "test": "pnpm -r --if-present test",
     "typecheck": "pnpm -r --if-present typecheck",
     "demo:headless": "pnpm --filter @scope-city/demo headless",

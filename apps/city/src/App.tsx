@@ -9,6 +9,7 @@ import { GatePanel } from "./hud/GatePanel.js";
 import { RecordPanel } from "./hud/RecordPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { useMission, type LogLine } from "./useMission.js";
+import { useLiveMission } from "./useLiveMission.js";
 
 /**
  * The city.
@@ -26,7 +27,9 @@ export function App(): React.JSX.Element {
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
 
-  const mission = useMission();
+  const replay = useMission();
+  const live = useLiveMission();
+  const mission = live.active ? live : replay;
 
   // --- canvas sizing ----------------------------------------------------
 
@@ -204,13 +207,31 @@ export function App(): React.JSX.Element {
             </div>
             <div className="window__body">
               <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-                <button className="btn btn--primary" onClick={mission.runPoisonedTicket}>
+                {!live.active ? (
+                  <button className="btn btn--primary" onClick={() => void live.launch()}>
+                    Launch live mission
+                  </button>
+                ) : (
+                  <button className="btn btn--danger" onClick={() => void live.leave()}>
+                    Stop live mission
+                  </button>
+                )}
+                <span style={{ color: live.connection === "live" ? "var(--good)" : "var(--ink-dim)" }}>
+                  {live.active ? `● ${live.connection}` : "○ replay mode"}
+                </span>
+                {live.error ? <span style={{ color: "var(--danger)" }}>{live.error}</span> : null}
+              </div>
+              <div style={{ color: "var(--ink-dim)", marginTop: 10, marginBottom: 6 }}>
+                OFFLINE SECURITY REPLAYS
+              </div>
+              <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                <button className="btn" disabled={live.active} onClick={replay.runPoisonedTicket}>
                   Poisoned ticket
                 </button>
-                <button className="btn" onClick={mission.runCleanJob}>
+                <button className="btn" disabled={live.active} onClick={replay.runCleanJob}>
                   Clean job
                 </button>
-                <button className="btn btn--danger" onClick={mission.runNoScope}>
+                <button className="btn btn--danger" disabled={live.active} onClick={replay.runNoScope}>
                   No scope
                 </button>
                 <button className="btn" onClick={() => setCamera(fitCamera(size))}>

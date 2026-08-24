@@ -253,9 +253,10 @@ async function main(): Promise<void> {
     let completed: MissionResult | undefined;
 
     for (const model of pool.available(Date.now())) {
+      let attemptSessionId: string | undefined;
       try {
         line(c.green("model"), model);
-        const sessionId = await driver.createSession(
+        attemptSessionId = await driver.createSession(
           missionAgentSpec({
             model,
             proxyName,
@@ -264,15 +265,15 @@ async function main(): Promise<void> {
             instructions: missionBrief({ ticketId: "tkt_184", sandbox: SANDBOX }),
           }),
         );
-        line(c.green("session"), sessionId);
+        line(c.green("session"), attemptSessionId);
 
         console.log();
         console.log(c.dim("  ── the mission ─────────────────────────────────────"));
         console.log();
 
-        completed = await runMission({
+        const attempt = await runMission({
           driver,
-          sessionId,
+          sessionId: attemptSessionId,
           scope,
           book,
           prompt: "Resolve ticket tkt_184.",
@@ -302,10 +303,20 @@ async function main(): Promise<void> {
             }
           },
         });
+        if (!["done", "completed", "success"].includes(attempt.status)) {
+          throw new Error(
+            attempt.message ?? `TrueForge ended the turn with status ${attempt.status}`,
+          );
+        }
+        completed = attempt;
         pool.restore(model);
         break;
       } catch (error) {
         lastError = error;
+        // A failed provider attempt owns a real TrueForge session. End it
+        // before rotating; cancellation failure must not hide the provider
+        // error that explains why rotation happened.
+        if (attemptSessionId) await driver.cancel(attemptSessionId).catch(() => undefined);
         const kind = classifyFailure(error);
         if (!isWorthRotating(kind)) throw error;
         pool.penalise(model, kind, Date.now());

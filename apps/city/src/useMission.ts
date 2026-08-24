@@ -37,6 +37,7 @@ export interface ScopeView {
   readonly resources: Readonly<Record<string, readonly string[]>>;
   readonly limits: readonly string[];
   readonly expiresInMs: number;
+  readonly expiresAt?: number;
 }
 
 interface Step {
@@ -59,11 +60,12 @@ interface StepApi {
 
 const ALL_DISTRICTS = ["records", "exchequer", "post-house", "yard", "gate"] as const;
 
-const OFFICES = [
+export const OFFICES = [
   { office: "ticket.get", district: "records" },
   { office: "ticket.reply", district: "records" },
   { office: "ticket.close", district: "records" },
   { office: "charge.get", district: "exchequer" },
+  { office: "charge.find_by_order", district: "exchequer" },
   { office: "charge.refund", district: "exchequer" },
   { office: "customer.list", district: "exchequer" },
   { office: "mail.send", district: "post-house" },
@@ -133,6 +135,7 @@ export function useMission() {
     const tick = window.setInterval(() => {
       const remaining = expiresAt - Date.now();
       if (remaining <= 0) {
+        clearTimers();
         setExpiresAt(null);
         setExpiresIn(0);
         setScopeState("none");
@@ -151,7 +154,7 @@ export function useMission() {
       setExpiresIn(remaining);
     }, 250);
     return () => window.clearInterval(tick);
-  }, [expiresAt]);
+  }, [clearTimers, expiresAt]);
 
   const api: StepApi = {
     log: (what, kind = "plain") =>
@@ -247,21 +250,23 @@ export function useMission() {
   }, []);
 
   const denyScope = useCallback(() => {
+    clearTimers();
     setScopeState("none");
     setScope(null);
     setPhase("drafting");
     setGate(null);
     setExpiresAt(null);
     api.log("Scope refused. Nothing was granted.", "refused");
-  }, []);
+  }, [clearTimers]);
 
   const revoke = useCallback(() => {
+    clearTimers();
     setScopeState("none");
     setExpiresAt(null);
     setPhase("done");
     setGate(null);
     api.log("Scope revoked. Every office is unreachable again.", "refused");
-  }, []);
+  }, [clearTimers]);
 
   const countersign = useCallback(
     (approved: boolean) => {

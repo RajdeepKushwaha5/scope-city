@@ -11,11 +11,22 @@ import {
 } from "./palette.js";
 import {
   drawBuilding,
+  drawBoat,
+  drawBillboard,
   drawCivicDome,
+  drawContainerStack,
+  drawControlTower,
+  drawCrane,
   drawFountain,
+  drawHangar,
   drawLamp,
+  drawLighthouse,
   drawPerimeter,
+  drawPlane,
+  drawPier,
+  drawRunway,
   drawShadow,
+  drawShip,
   drawTree,
   drawVehicle,
 } from "./shapes.js";
@@ -30,6 +41,7 @@ import {
   DISTRICT_PLOTS,
   ISLAND_H,
   ISLAND_W,
+  OCEAN_MARGIN,
   fountainCells,
   hash,
   isInScope,
@@ -117,11 +129,13 @@ export function drawScene(
 
   const items: Drawable[] = [
     ...groundItems(state),
+    ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...buildingItems(buildings, state),
     ...landmarkItems(state),
     ...trafficItems(state, time),
+    ...maritimeItems(time),
     ...figureItems(state),
   ];
 
@@ -168,8 +182,8 @@ function groundItems(state: SceneState): Drawable[] {
   const isSand = (u: number, v: number) => tileKindAt(u, v) === "sand";
   const isWater = (u: number, v: number) => tileKindAt(u, v) === "water";
 
-  for (let u = -2; u <= ISLAND_W + 2; u += 1) {
-    for (let v = -2; v <= ISLAND_H + 2; v += 1) {
+  for (let u = -OCEAN_MARGIN; u <= ISLAND_W + OCEAN_MARGIN; u += 1) {
+    for (let v = -OCEAN_MARGIN; v <= ISLAND_H + OCEAN_MARGIN; v += 1) {
       const kind = tileKindAt(u, v);
       const inScope = scoped(u, v);
       const material = groundMaterial(kind, inScope, state.scopeState);
@@ -204,7 +218,14 @@ function groundItems(state: SceneState): Drawable[] {
       const variant = kind === "grass" ? hash(`${cu}:${cv}`) % 3 : 0;
       items.push({
         z: depth(cu, cv, -1),
-        draw: (ctx) => drawDitheredTile(ctx, cu, cv, material, blend, amount, variant),
+        draw: (ctx) => {
+          drawDitheredTile(ctx, cu, cv, material, blend, amount, variant);
+          if (kind === "water" && hash(`wave:${cu}:${cv}`) % 13 === 0) {
+            const p = toScreen(cu, cv, 0.01);
+            ctx.fillStyle = "rgba(205, 237, 250, 0.24)";
+            ctx.fillRect(p.x - 7, p.y, 12, 1);
+          }
+        },
       });
     }
   }
@@ -221,6 +242,70 @@ function groundItems(state: SceneState): Drawable[] {
   }
 
   return items;
+}
+
+/** Airport, commercial port and naval quay: visible destinations, not decoration. */
+function facilityItems(time: number): Drawable[] {
+  const items: Drawable[] = [];
+
+  for (let u = 3; u <= 13; u += 1) {
+    const cu = u;
+    items.push({
+      z: depth(cu, 31, -0.4),
+      draw: (ctx) => drawRunway(ctx, cu, 31, "u", cu === 3 || cu === 13),
+    });
+  }
+  items.push(
+    { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, "#bce8eb") },
+    { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
+    { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
+    { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
+  );
+
+  for (let u = 28; u <= 37; u += 1) {
+    const cu = u;
+    items.push({ z: depth(cu, 32, -0.2), draw: (ctx) => drawPier(ctx, cu, 32) });
+  }
+  for (const [u, v, seed] of [[29, 29, 1], [31, 29, 2], [33, 29, 3], [35, 29, 4]] as const) {
+    items.push({ z: depth(u, v, 1), draw: (ctx) => drawContainerStack(ctx, u, v, seed) });
+  }
+  items.push(
+    { z: depth(29, 31, 3), draw: (ctx) => drawCrane(ctx, 29, 31) },
+    { z: depth(34, 31, 3), draw: (ctx) => drawCrane(ctx, 34, 31) },
+    { z: depth(37.5, 31, 4), draw: (ctx) => drawLighthouse(ctx, 37.5, 31, time) },
+    { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
+  );
+
+  for (let v = 18; v <= 25; v += 1) {
+    const cv = v;
+    items.push({ z: depth(39, cv, -0.2), draw: (ctx) => drawPier(ctx, 39, cv) });
+  }
+  items.push(
+    { z: depth(34.5, 34.5, 4), draw: (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo") },
+    { z: depth(41.5, 22, 4), draw: (ctx) => drawShip(ctx, 41.5, 22, "v", "navy") },
+  );
+  return items;
+}
+
+const BOAT_ROUTES = [
+  { axis: "u", fixed: -5, min: -7, max: 35, speed: 0.11, offset: 0.15, colour: "#e7aa3c", sail: true },
+  { axis: "v", fixed: 45, min: -4, max: 39, speed: 0.08, offset: 0.62, colour: "#d9654f", sail: true },
+  { axis: "u", fixed: 40, min: 4, max: 47, speed: 0.13, offset: 0.41, colour: "#f1e8d2", sail: false },
+  { axis: "v", fixed: -6, min: 0, max: 34, speed: 0.09, offset: 0.82, colour: "#e0a33c", sail: true },
+  { axis: "u", fixed: 44, min: 8, max: 45, speed: 0.07, offset: 0.05, colour: "#5d91b4", sail: false },
+] as const;
+
+function maritimeItems(time: number): Drawable[] {
+  return BOAT_ROUTES.map((route) => {
+    const span = route.max - route.min;
+    const moving = route.min + (((time / 1000) * route.speed + route.offset) % 1) * span;
+    const u = route.axis === "u" ? moving : route.fixed;
+    const v = route.axis === "v" ? moving : route.fixed;
+    return {
+      z: depth(u, v, 2),
+      draw: (ctx: CanvasRenderingContext2D) => drawBoat(ctx, u, v, route.axis, route.colour, route.sail),
+    };
+  });
 }
 
 function treeItems(
@@ -440,7 +525,9 @@ export function fitCamera(size: { width: number; height: number }): {
   y: number;
   zoom: number;
 } {
-  const bounds = blockBounds(-2, -2, ISLAND_W + 2, ISLAND_H + 2);
+  // Frame the beach plus a useful belt of water; the larger ocean margin is
+  // still available when the operator pans.
+  const bounds = blockBounds(-5, -5, ISLAND_W + 5, ISLAND_H + 5);
   const worldW = bounds.max.x - bounds.min.x;
   const worldH = bounds.max.y - bounds.min.y;
 

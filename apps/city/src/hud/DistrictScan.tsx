@@ -1,4 +1,5 @@
 import { Stat, Window } from "./Window.js";
+import { plotFor } from "../render/world.js";
 
 /**
  * What the harness has actually connected.
@@ -16,6 +17,7 @@ export function DistrictScan(props: {
   inspecting: string | null;
 }): React.JSX.Element {
   const counts = new Map<string, number>();
+  const inspectedPlot = props.inspecting ? plotFor(props.inspecting) : undefined;
   const reachable = new Set(
     props.dispositions
       .filter((entry) => entry.disposition !== "blocked")
@@ -47,7 +49,10 @@ export function DistrictScan(props: {
       )}
 
       {props.inspecting ? (
-        <div style={{ marginTop: 8, color: "var(--accent)" }}>▸ {props.inspecting}</div>
+        <div className="district-selection">
+          <strong>{inspectedPlot?.title ?? props.inspecting}</strong>
+          <span>Selected district · inspect its live authority and traffic in the console.</span>
+        </div>
       ) : null}
     </Window>
   );

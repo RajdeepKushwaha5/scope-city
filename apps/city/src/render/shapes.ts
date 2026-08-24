@@ -527,3 +527,267 @@ export function drawShadow(
   ctx.fill();
   ctx.restore();
 }
+
+/* ------------------------------------------------------ coastal facilities */
+
+/** A painted runway segment that follows one projected grid axis. */
+export function drawRunway(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  end = false,
+): void {
+  drawDiamond(ctx, u, v, 0.035, "#202a31", 0.94);
+  const c = toScreen(u, v, 0.04);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(angle);
+  ctx.fillStyle = "#e7e5d8";
+  if (end) {
+    for (let x = -18; x <= 12; x += 6) ctx.fillRect(x, -5, 3, 10);
+  } else {
+    ctx.fillRect(-10, -1, 20, 2);
+  }
+  ctx.restore();
+}
+
+/** Terminal or dock warehouse, deliberately broader than a normal office. */
+export function drawHangar(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  colour = "#d7e5e7",
+): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = "rgba(0,0,0,.25)";
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y + 5, 31, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#68889b";
+  ctx.fillRect(c.x - 28, c.y - 24, 56, 28);
+  ctx.fillStyle = colour;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 23, 28, 14, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillRect(c.x - 28, c.y - 23, 56, 25);
+  ctx.fillStyle = "#27465b";
+  ctx.fillRect(c.x - 22, c.y - 17, 44, 19);
+  ctx.fillStyle = "#f0a830";
+  ctx.fillRect(c.x - 27, c.y - 6, 54, 3);
+  ctx.restore();
+}
+
+export function drawControlTower(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = "#778b95";
+  ctx.fillRect(c.x - 6, c.y - 48, 12, 48);
+  ctx.fillStyle = "#173247";
+  ctx.fillRect(c.x - 13, c.y - 55, 26, 11);
+  ctx.fillStyle = "#9fd7e6";
+  ctx.fillRect(c.x - 9, c.y - 52, 18, 5);
+  ctx.fillStyle = "#e8e0c9";
+  ctx.fillRect(c.x - 10, c.y - 43, 20, 4);
+  ctx.restore();
+}
+
+export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  const angle = Math.atan2(TILE_H / 2, TILE_W / 2);
+  ctx.save();
+  ctx.translate(c.x, c.y - 5);
+  ctx.rotate(angle);
+  ctx.fillStyle = "rgba(0,0,0,.22)";
+  ctx.fillRect(-18, 4, 36, 4);
+  ctx.fillStyle = "#f2eee2";
+  ctx.beginPath();
+  ctx.moveTo(24, 0);
+  ctx.lineTo(-20, -4);
+  ctx.lineTo(-25, 0);
+  ctx.lineTo(-20, 4);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillRect(-5, -15, 8, 30);
+  ctx.fillStyle = "#c94f46";
+  ctx.fillRect(-24, -4, 8, 8);
+  ctx.fillRect(-3, -15, 4, 30);
+  ctx.restore();
+}
+
+export function drawBillboard(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  title: string,
+  subtitle: string,
+): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = "#493925";
+  ctx.fillRect(c.x - 27, c.y - 2, 4, 33);
+  ctx.fillRect(c.x + 23, c.y - 2, 4, 33);
+  ctx.fillStyle = "#09151f";
+  ctx.fillRect(c.x - 42, c.y - 48, 84, 48);
+  ctx.strokeStyle = "#d9a63e";
+  ctx.lineWidth = 2;
+  ctx.strokeRect(c.x - 42, c.y - 48, 84, 48);
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.font = "700 9px monospace";
+  ctx.fillStyle = "#f0a830";
+  ctx.fillText(title.toUpperCase(), c.x, c.y - 26);
+  ctx.font = "7px monospace";
+  ctx.fillStyle = "#a9bbca";
+  ctx.fillText(subtitle.toUpperCase(), c.x, c.y - 13);
+  ctx.restore();
+}
+
+export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  drawDiamond(ctx, u, v, 0.06, "#303b40", 0.96);
+  const c = toScreen(u, v, 0);
+  ctx.fillStyle = "#d39b43";
+  ctx.fillRect(c.x - 20, c.y - 2, 5, 6);
+  ctx.fillRect(c.x + 15, c.y - 2, 5, 6);
+}
+
+export function drawContainerStack(ctx: CanvasRenderingContext2D, u: number, v: number, seed: number): void {
+  const c = toScreen(u, v, 0);
+  const colours = ["#c65d3d", "#d9a735", "#3e7894", "#648258"] as const;
+  ctx.save();
+  for (let level = 0; level < 2; level += 1) {
+    ctx.fillStyle = colours[(seed + level) % colours.length] ?? colours[0];
+    ctx.fillRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
+    ctx.strokeStyle = "rgba(8,18,25,.55)";
+    ctx.strokeRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
+  }
+  ctx.restore();
+}
+
+export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.strokeStyle = "#e0a33c";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(c.x - 13, c.y);
+  ctx.lineTo(c.x - 13, c.y - 45);
+  ctx.lineTo(c.x + 25, c.y - 45);
+  ctx.stroke();
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(c.x + 12, c.y - 45);
+  ctx.lineTo(c.x + 12, c.y - 18);
+  ctx.stroke();
+  ctx.restore();
+}
+
+export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = "#efe8d5";
+  ctx.fillRect(c.x - 7, c.y - 46, 14, 46);
+  ctx.fillStyle = "#c75045";
+  ctx.fillRect(c.x - 7, c.y - 13, 14, 8);
+  ctx.fillRect(c.x - 7, c.y - 31, 14, 8);
+  ctx.fillStyle = "#223745";
+  ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
+  ctx.fillStyle = "#ffe58c";
+  ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
+  ctx.globalAlpha = 0.12 + (Math.sin(time / 650) + 1) * 0.06;
+  ctx.fillStyle = "#fff3a8";
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y - 54);
+  ctx.lineTo(c.x + 110, c.y - 72);
+  ctx.lineTo(c.x + 110, c.y - 44);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** Small moving craft. Wake direction makes motion readable at map scale. */
+export function drawBoat(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  colour: string,
+  sail = false,
+): void {
+  const c = toScreen(u, v, 0);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+  ctx.save();
+  ctx.translate(c.x, c.y - 3);
+  ctx.rotate(angle);
+  ctx.strokeStyle = "rgba(220,246,255,.55)";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(-12, 4);
+  ctx.lineTo(-29, 8);
+  ctx.moveTo(-12, 1);
+  ctx.lineTo(-26, -2);
+  ctx.stroke();
+  ctx.fillStyle = "#3a2a22";
+  ctx.beginPath();
+  ctx.moveTo(-12, -5);
+  ctx.lineTo(15, 0);
+  ctx.lineTo(-10, 7);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = colour;
+  ctx.fillRect(-7, -7, 13, 7);
+  if (sail) {
+    ctx.fillStyle = "#f6f0df";
+    ctx.fillRect(0, -25, 2, 22);
+    ctx.beginPath();
+    ctx.moveTo(1, -24);
+    ctx.lineTo(13, -5);
+    ctx.lineTo(1, -5);
+    ctx.closePath();
+    ctx.fill();
+  }
+  ctx.restore();
+}
+
+export function drawShip(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  kind: "cargo" | "navy",
+): void {
+  const c = toScreen(u, v, 0);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+  ctx.save();
+  ctx.translate(c.x, c.y - 8);
+  ctx.rotate(angle);
+  ctx.fillStyle = "rgba(224,246,255,.32)";
+  ctx.fillRect(-73, 10, 54, 3);
+  ctx.fillStyle = kind === "cargo" ? "#172632" : "#28343b";
+  ctx.beginPath();
+  ctx.moveTo(-62, -13);
+  ctx.lineTo(68, -13);
+  ctx.lineTo(79, 0);
+  ctx.lineTo(62, 13);
+  ctx.lineTo(-62, 13);
+  ctx.closePath();
+  ctx.fill();
+  ctx.fillStyle = kind === "cargo" ? "#dbe2df" : "#718087";
+  ctx.fillRect(-50, -19, 25, 14);
+  if (kind === "cargo") {
+    const colours = ["#bf5b3d", "#d5a13b", "#3f7890", "#6d8356"] as const;
+    for (let i = 0; i < 5; i += 1) {
+      ctx.fillStyle = colours[i % colours.length] ?? colours[0];
+      ctx.fillRect(-16 + i * 15, -10, 13, 17);
+    }
+  } else {
+    ctx.fillStyle = "#18262f";
+    ctx.fillRect(-4, -25, 35, 17);
+    ctx.fillRect(12, -34, 5, 12);
+    ctx.fillStyle = "#d8b454";
+    ctx.fillRect(45, -17, 18, 4);
+  }
+  ctx.restore();
+}

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import {
   DISTRICT_PLOTS,
   fountainCells,
+  isFacilityCell,
   isInScope,
   layOutCity,
   perimeterOf,
@@ -58,5 +59,16 @@ describe("city fabric", () => {
 
   it("keeps every civic landmark on a buildable tile", () => {
     expect(DISTRICT_PLOTS.every((plot) => tileKindAt(plot.landmark.u, plot.landmark.v) === "grass")).toBe(true);
+  });
+
+  it("keeps the coastal destinations clear of procedural structures", () => {
+    const buildings = layOutCity(offices);
+    expect(buildings.some(({ cell }) => isFacilityCell(cell.u, cell.v))).toBe(false);
+    expect(treeCells(buildings).some((cell) => isFacilityCell(cell.u, cell.v))).toBe(false);
+  });
+
+  it("surrounds the island with navigable water", () => {
+    expect(tileKindAt(-8, 12)).toBe("water");
+    expect(tileKindAt(47, 18)).toBe("water");
   });
 });

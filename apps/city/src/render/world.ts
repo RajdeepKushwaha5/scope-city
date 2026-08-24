@@ -16,6 +16,8 @@ import type { Cell } from "../iso/projection.js";
 
 export const ISLAND_W = 40;
 export const ISLAND_H = 34;
+/** Water rendered beyond the beach, large enough to pan without finding an edge. */
+export const OCEAN_MARGIN = 10;
 
 /**
  * Six-cell blocks leave a three-by-three buildable interior between pavement
@@ -121,6 +123,14 @@ function isLandmarkPlazaCell(u: number, v: number): boolean {
   );
 }
 
+/** Coastal destinations reserve these cells from procedural buildings and trees. */
+export function isFacilityCell(u: number, v: number): boolean {
+  const airport = u >= 3 && u <= 13 && v >= 27 && v <= 32;
+  const containerPort = u >= 27 && u <= 37 && v >= 28 && v <= 32;
+  const navalYard = u >= 35 && u <= 39 && v >= 17 && v <= 25;
+  return airport || containerPort || navalYard;
+}
+
 /**
  * Everything standing on the island.
  *
@@ -161,6 +171,7 @@ export function layOutCity(
       for (let v = plot.v0; v <= plot.v1; v += 1) {
         if (tileKindAt(u, v) !== "grass") continue;
         if (taken.has(key(u, v))) continue;
+        if (isFacilityCell(u, v)) continue;
         slots.push({ u, v });
       }
     }
@@ -196,6 +207,7 @@ export function layOutCity(
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "grass") continue;
       if (taken.has(key(u, v))) continue;
+      if (isFacilityCell(u, v)) continue;
 
       const seed = cellSeed(u, v);
       // Leave one cell in six open for pocket parks and vegetation.
@@ -229,6 +241,7 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
       if (kind !== "grass" && kind !== "pavement") continue;
       if (built.has(`${u}:${v}`)) continue;
       if (isLandmarkPlazaCell(u, v)) continue;
+      if (isFacilityCell(u, v)) continue;
       const seed = cellSeed(u, v);
       if (kind === "grass" ? seed % 2 !== 0 : hash(`street-tree:${u}:${v}`) % 11 !== 0) continue;
       cells.push({ u, v });
@@ -247,6 +260,7 @@ export function fountainCells(buildings: readonly Building[]): Cell[] {
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "grass" || built.has(`${u}:${v}`)) continue;
       if (isLandmarkPlazaCell(u, v)) continue;
+      if (isFacilityCell(u, v)) continue;
       // Filler parks are cells whose base seed is divisible by six. A second
       // divisor of thirty selects a stable subset without relying on a second
       // correlated hash that can accidentally select none of them.

@@ -7,6 +7,7 @@ import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
+import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
 
@@ -30,7 +31,8 @@ export function App(): React.JSX.Element {
   const live = useLiveMission();
   const mission = live.active ? live : replay;
   const structureCount = useMemo(
-    () => layOutCity(mission.offices).length + DISTRICT_PLOTS.length + 4,
+    // Six landmarks, four Exchequer wings, and eleven coastal structures.
+    () => layOutCity(mission.offices).length + DISTRICT_PLOTS.length + 15,
     [mission.offices],
   );
 
@@ -129,6 +131,22 @@ export function App(): React.JSX.Element {
     }));
   }, []);
 
+  const takeSnapshot = useCallback(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    canvas.toBlob((blob) => {
+      if (!blob) return;
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `scope-city-${new Date().toISOString().slice(0, 10)}.png`;
+      document.body.append(link);
+      link.click();
+      link.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
+    }, "image/png");
+  }, []);
+
   const onClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (suppressClickRef.current) {
@@ -172,6 +190,7 @@ export function App(): React.JSX.Element {
               dispositions={mission.scope?.offices ?? []}
               inspecting={mission.inspecting}
             />
+            <CitySnapshot onSnapshot={takeSnapshot} />
             <ScopePanel
               scope={mission.scope}
               scopeState={mission.scopeState}

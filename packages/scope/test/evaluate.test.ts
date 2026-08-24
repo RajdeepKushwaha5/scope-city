@@ -262,3 +262,58 @@ describe("evaluate — deny by default", () => {
     expect(decision).toMatchObject({ allowed: false, reason: "resource_not_in_scope" });
   });
 });
+
+describe("evaluate — a ceiling alone does not bound an amount", () => {
+  // Found by Qodo review. -1000 is comfortably under a 4900 ceiling, and a
+  // negative refund runs the downstream arithmetic backwards: refundedMinor
+  // decreases, restoring refundable headroom. Repeat it and the ceiling means
+  // nothing at all. The range has to be closed at both ends.
+  it("refuses a negative amount that would otherwise pass the ceiling check", () => {
+    const decision = evaluate({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: -1000 }, attemptedAt: NOW },
+      registry,
+      consumed: {},
+      now: NOW,
+    });
+    expect(decision).toMatchObject({ allowed: false, reason: "amount_not_positive" });
+  });
+
+  it("refuses zero, which is a call with no meaning and no reason to allow", () => {
+    const decision = evaluate({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 0 }, attemptedAt: NOW },
+      registry,
+      consumed: {},
+      now: NOW,
+    });
+    expect(decision).toMatchObject({ allowed: false, reason: "amount_not_positive" });
+  });
+
+  it("still allows the smallest meaningful amount", () => {
+    const decision = evaluate({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 1 }, attemptedAt: NOW },
+      registry,
+      consumed: {},
+      now: NOW,
+    });
+    expect(decision.allowed).toBe(true);
+  });
+
+  it("cannot be repeated to inflate headroom, because the first attempt never lands", () => {
+    // The attack in full: drive refundedMinor negative, then refund more than
+    // the ceiling. It fails at step one.
+    const attack = [-4900, -1000, -1];
+    for (const amount of attack) {
+      const decision = evaluate({
+        scope: scope(),
+        call: { office: "charge.refund", args: { charge_id: "ch_184", amount }, attemptedAt: NOW },
+        registry,
+        consumed: {},
+        now: NOW,
+      });
+      expect(decision.allowed).toBe(false);
+    }
+  });
+});

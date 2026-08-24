@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - mcp
 
 allowBuilds:
   esbuild: true

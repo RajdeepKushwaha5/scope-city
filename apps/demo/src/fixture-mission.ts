@@ -28,6 +28,15 @@ export function createFixtureMission(params: {
   book: CountersignBook;
   emit: EmitProxyEvent;
   now?: number;
+  /**
+   * A scope derived from the operator's own sentence.
+   *
+   * When absent this falls back to the hand-written SC-184 below, which is what
+   * the offline replays and the CI headless run need: a world that is identical
+   * every time. A live mission always passes one, because a scope that ignores
+   * what the operator typed is the thing the derivation pipeline exists to stop.
+   */
+  scope?: Scope;
 }): FixtureMission {
   const now = params.now ?? Date.now();
   const systems = [recordsSystem(), exchequerSystem(), postHouseSystem()];
@@ -35,7 +44,7 @@ export function createFixtureMission(params: {
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );
 
-  const scope: Scope = {
+  const scope: Scope = params.scope ?? {
     missionId: params.missionId,
     scopeId: "SC-184",
     agent: "refund-agent",

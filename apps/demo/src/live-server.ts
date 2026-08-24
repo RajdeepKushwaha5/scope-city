@@ -11,6 +11,7 @@ import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import { CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
+import { deriveScopeFromJob } from "./derive-scope.js";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
 import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
 import {
@@ -144,6 +145,37 @@ async function main(): Promise<void> {
       }
 
       const id = newMissionId();
+
+      // Stage 1 and 2 of sealing, before anything else exists.
+      //
+      // Deliberately ahead of the feed, the ledger and the session: if the
+      // sentence cannot produce a usable scope, the right outcome is a 422 and
+      // no mission at all, rather than a live agent holding authority nobody
+      // examined.
+      const derived = await deriveScopeFromJob({ job: order, missionId: id });
+
+      if (derived.scope.offices.length === 0) {
+        json(res, 422, {
+          error: "no office in this city can do that",
+          detail: "Nothing in the request matched a system the city can reach.",
+          job: order,
+        });
+        return;
+      }
+
+      if (derived.unfilled.length > 0) {
+        // A scope whose offices need a resource class that resolution could not
+        // fill is not a tight scope, it is a broken one: every call it makes
+        // would be refused for `resource_not_in_scope`, which reads on the map
+        // as the enforcement misfiring rather than the lookup having failed.
+        json(res, 422, {
+          error: "could not resolve everything that job needs",
+          detail: `unresolved: ${derived.unfilled.join(", ")}`,
+          job: order,
+        });
+        return;
+      }
+
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
       const book = new CountersignBook();
@@ -151,6 +183,10 @@ async function main(): Promise<void> {
         missionId: id,
         book,
         emit: (event) => feed.append({ type: "proxy", event }),
+        // Granted here because the operator's act of dispatching *is* the
+        // grant in this build. The state exists so a separate propose/grant
+        // screen can slot in without the enforcement layer changing.
+        scope: { ...derived.scope, state: "granted", grantedBy: "operator:scope-city", grantedAt: Date.now(), version: 1 },
       });
       registry.register(fixture.mission);
 

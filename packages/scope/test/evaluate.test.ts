@@ -10,6 +10,7 @@ const SPECS: OfficeSpec[] = [
     mutating: false,
     args: { charge_id: { kind: "resource", resourceClass: "charge_ids", required: true } },
     responseFields: ["id", "amount", "customer.email", "customer.history"],
+    freeTextFields: [],
   },
   {
     office: "charge.refund",
@@ -20,6 +21,7 @@ const SPECS: OfficeSpec[] = [
       amount: { kind: "amount_minor", required: true },
     },
     responseFields: ["id", "status"],
+    freeTextFields: [],
   },
   {
     office: "mail.send",
@@ -30,6 +32,7 @@ const SPECS: OfficeSpec[] = [
       body: { kind: "opaque", required: false },
     },
     responseFields: ["id"],
+    freeTextFields: [],
   },
 ];
 

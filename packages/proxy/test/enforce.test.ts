@@ -12,6 +12,7 @@ const registry = buildRegistry([
     mutating: false,
     args: { ticket_id: { kind: "resource", resourceClass: "ticket_ids", required: true } },
     responseFields: ["id", "subject", "body"],
+    freeTextFields: [],
   },
   {
     office: "charge.get",
@@ -19,6 +20,7 @@ const registry = buildRegistry([
     mutating: false,
     args: { charge_id: { kind: "resource", resourceClass: "charge_ids", required: true } },
     responseFields: ["id", "amount", "customer.email", "customer.history"],
+    freeTextFields: [],
   },
   {
     office: "charge.refund",
@@ -29,6 +31,7 @@ const registry = buildRegistry([
       amount: { kind: "amount_minor", required: true },
     },
     responseFields: ["id", "status"],
+    freeTextFields: [],
   },
   {
     office: "mail.send",
@@ -39,6 +42,7 @@ const registry = buildRegistry([
       body: { kind: "opaque", required: false },
     },
     responseFields: ["id"],
+    freeTextFields: [],
   },
 ] satisfies OfficeSpec[]);
 

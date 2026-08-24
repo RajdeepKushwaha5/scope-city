@@ -15,6 +15,7 @@ const registry = buildRegistry([
       amount: { kind: "amount_minor", required: true },
     },
     responseFields: ["id", "status"],
+    freeTextFields: [],
   },
 ] satisfies OfficeSpec[]);
 

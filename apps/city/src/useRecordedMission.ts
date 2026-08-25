@@ -8,6 +8,7 @@ import {
   type LiveCityState,
 } from "./live-state.js";
 import { playRecording, type RecordedMission, type ReplayHandle } from "./replay/recorded.js";
+import { verifyRecording, type ReplayVerdict } from "./replay/verify.js";
 
 /**
  * Watching a mission that already happened, with no server involved.
@@ -23,6 +24,8 @@ export function useRecordedMission(): {
   readonly view: CityView;
   readonly playing: boolean;
   readonly record: RecordedMission | null;
+  /** The chain verdict, computed before a single event was replayed. */
+  readonly verdict: ReplayVerdict | null;
   readonly error: string | null;
   play: (url: string) => Promise<void>;
   stop: () => void;
@@ -30,6 +33,7 @@ export function useRecordedMission(): {
   const [state, setState] = useState<LiveCityState>(initialLiveCityState);
   const [playing, setPlaying] = useState(false);
   const [record, setRecord] = useState<RecordedMission | null>(null);
+  const [verdict, setVerdict] = useState<ReplayVerdict | null>(null);
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<ReplayHandle | null>(null);
   const loadRef = useRef<symbol | null>(null);
@@ -77,12 +81,21 @@ export function useRecordedMission(): {
         return;
       }
 
-      // A lossy recording is a partial history, and replaying one without
-      // saying so presents an incomplete mission as a complete one -- the
-      // single most misleading thing this feature could do, since its whole
-      // claim is that you are watching what actually happened.
-      if (loaded.lossy) {
-        setError("That recording is incomplete — events were dropped when it was captured.");
+      // Verified before a single event is replayed.
+      //
+      // A recording is offered as evidence, and evidence nobody checks is
+      // decoration. Replaying first and verifying later would put the altered
+      // events on screen and correct them afterwards, which is the wrong order
+      // for the one feature whose whole claim is that this happened.
+      //
+      // This also subsumes the lossy check: an incomplete history is refused
+      // here rather than in a second place that could disagree with it.
+      const checked = await verifyRecording(loaded);
+      if (loadRef.current !== token) return;
+      setVerdict(checked);
+
+      if (!checked.ok) {
+        setError(`That recording does not verify: ${checked.reason}.`);
         return;
       }
 
@@ -113,5 +126,5 @@ export function useRecordedMission(): {
     idleJob: record?.job ?? "No mission",
   });
 
-  return { state, view, playing, record, error, play, stop };
+  return { state, view, playing, record, verdict, error, play, stop };
 }

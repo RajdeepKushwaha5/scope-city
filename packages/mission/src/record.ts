@@ -1,6 +1,9 @@
 import { createHash } from "node:crypto";
 import type { Scope } from "@scope-city/scope";
 import type { LoggedEvent } from "./event-log.js";
+import { canonical } from "./canonical.js";
+
+export { canonical } from "./canonical.js";
 
 /**
  * The record: what happened, in an order nobody can quietly revise.
@@ -47,25 +50,6 @@ export interface MissionRecord {
   readonly algorithm: "sha256";
   /** True when events were dropped from the log, so the chain is not complete. */
   readonly lossy: boolean;
-}
-
-/**
- * Deterministic JSON.
- *
- * `JSON.stringify` preserves insertion order, so two structurally identical
- * events hash differently if their keys were assigned in a different order --
- * which happens routinely across a serialisation boundary. Sorting keys makes
- * the hash a function of the content rather than of how the object was built.
- */
-export function canonical(value: unknown): string {
-  if (value === null || typeof value !== "object") return JSON.stringify(value) ?? "null";
-  if (Array.isArray(value)) return `[${value.map(canonical).join(",")}]`;
-
-  const entries = Object.entries(value as Record<string, unknown>)
-    .filter(([, v]) => v !== undefined)
-    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
-
-  return `{${entries.map(([k, v]) => `${JSON.stringify(k)}:${canonical(v)}`).join(",")}}`;
 }
 
 /** The genesis hash. Binds the chain to one mission and one scope. */

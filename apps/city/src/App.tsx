@@ -291,6 +291,7 @@ export function App(): React.JSX.Element {
               onResetView={() => setCamera(fitCamera(size))}
               onRecordedReplay={() => void recorded.play(RECORDING_URL)}
               recordedPlaying={recorded.playing}
+              recordedVerdict={recorded.verdict}
             />
           </div>
         </div>

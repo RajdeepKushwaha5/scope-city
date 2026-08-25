@@ -15,6 +15,8 @@ export function MissionOrder(props: {
   onResetView: () => void;
   onRecordedReplay: () => void;
   recordedPlaying: boolean;
+  /** Shown so the chain check is visible rather than merely claimed. */
+  recordedVerdict: { readonly ok: boolean; readonly entries?: number; readonly reason?: string } | null;
 }): React.JSX.Element {
   const [order, setOrder] = useState(DEFAULT_ORDER);
 
@@ -104,7 +106,11 @@ export function MissionOrder(props: {
             {props.recordedPlaying ? "Replaying…" : "Replay a real run"}
           </button>
           <span className="order__hint order__hint--inline">
-            No server needed — a captured TrueForge session
+            {props.recordedVerdict === null
+              ? "No server needed — a captured TrueForge session"
+              : props.recordedVerdict.ok
+                ? `chain verified · ${props.recordedVerdict.entries} entries`
+                : `does not verify — ${props.recordedVerdict.reason}`}
           </span>
         </div>
 

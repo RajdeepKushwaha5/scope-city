@@ -32,6 +32,7 @@ import {
   drawTree,
   drawVehicle,
 } from "./shapes.js";
+import { drawBuildingMarker, drawSelection, type BuildingMarker } from "./shapes.js";
 import { bake, blit } from "./bake.js";
 import {
   blendAmount,
@@ -84,6 +85,18 @@ export interface SceneState {
   readonly gates: readonly string[];
   readonly refusedAt: { u: number; v: number } | null;
   readonly scopeState: "none" | "proposed" | "granted";
+  /**
+   * Per-building state, keyed by office.
+   *
+   * Passed in rather than derived here: the scene renders, it does not decide
+   * what a building means, and a second derivation would drift from the one the
+   * inspector reads.
+   */
+  readonly buildings?: ReadonlyMap<string, { authority: string; activity: string }>;
+  /** The office the operator has selected, if any. */
+  readonly selected?: string | null;
+  /** Animation phase, 0..1, for the states that pulse. */
+  readonly phase?: number;
 }
 
 interface Drawable {
@@ -127,6 +140,13 @@ export function drawScene(
   size: { width: number; height: number },
   time: number,
 ): void {
+  // The pulse phase is derived from the frame clock rather than passed in, so a
+  // caller cannot forget it and leave every beacon frozen. Roughly a
+  // second-and-a-half cycle: slow enough to read as breathing rather than
+  // blinking, which matters because the only pulsing state is the one asking a
+  // person for a decision.
+  const framed: SceneState = { ...state, phase: (time % 1500) / 1500 };
+
   ctx.save();
   ctx.fillStyle = UI.sky;
   ctx.fillRect(0, 0, size.width, size.height);
@@ -135,18 +155,18 @@ export function drawScene(
   ctx.scale(camera.zoom, camera.zoom);
   ctx.imageSmoothingEnabled = false;
 
-  const { buildings, trees, fountains } = cityFor(state.offices);
+  const { buildings, trees, fountains } = cityFor(framed.offices);
 
   const items: Drawable[] = [
-    ...groundItems(state),
+    ...groundItems(framed),
     ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...buildingItems(buildings, state),
-    ...landmarkItems(state),
-    ...trafficItems(state, time),
+    ...landmarkItems(framed),
+    ...trafficItems(framed, time),
     ...maritimeItems(time),
-    ...figureItems(state),
+    ...figureItems(framed),
   ];
 
   items.sort((a, b) => a.z - b.z);
@@ -345,6 +365,25 @@ function fountainItems(
   });
 }
 
+/**
+ * Which marker a building's state earns.
+ *
+ * Activity wins over authority when something is happening, because an operator
+ * scanning the city is looking for what needs them now -- a gated office that
+ * is actually waiting should not read the same as one merely capable of
+ * waiting. When nothing is happening, authority shows instead, so the map still
+ * says which offices would stop for a countersign.
+ */
+function markerFor(runtime: { authority: string; activity: string }): BuildingMarker {
+  if (runtime.activity === "waiting") return "waiting";
+  if (runtime.activity === "refused") return "refused";
+  if (runtime.activity === "working") return "working";
+  if (runtime.activity === "done") return "done";
+  if (runtime.authority === "gated") return "gated";
+  if (runtime.authority === "proposed") return "proposed";
+  return "none";
+}
+
 function buildingItems(buildings: readonly Building[], state: SceneState): Drawable[] {
   return buildings.map((building) => {
     const { u, v } = building.cell;
@@ -375,6 +414,17 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
         );
         const anchor = toScreen(u, v, 0);
         blit(ctx, sprite, anchor.x, anchor.y);
+
+        // Markers are drawn after the sprite and never baked into it. They
+        // pulse, and the sprite cache is keyed by appearance, so baking a phase
+        // would mean a cache entry per frame.
+        if (building.office) {
+          const runtime = state.buildings?.get(building.office);
+          if (runtime) {
+            drawBuildingMarker(ctx, u, v, height, markerFor(runtime), state.phase ?? 0);
+          }
+          if (state.selected === building.office) drawSelection(ctx, u, v, height);
+        }
       },
     };
   });

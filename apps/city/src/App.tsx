@@ -114,6 +114,13 @@ export function App(): React.JSX.Element {
 
   // --- the render loop --------------------------------------------------
 
+  // Derived once per state change and shared by the canvas and the inspector,
+  // so the marker on a roof and the panel beside it cannot disagree.
+  const runtimeStates = useMemo(
+    () => buildingStates(live.rawState, mission.offices),
+    [live.rawState, mission.offices],
+  );
+
   const scene: SceneState = useMemo(
     () => ({
       online: mission.online,
@@ -124,8 +131,10 @@ export function App(): React.JSX.Element {
       gates: mission.gateDistricts,
       refusedAt: mission.refusedAt,
       scopeState: mission.scopeState,
+      buildings: runtimeStates,
+      selected: selectedOffice,
     }),
-    [mission],
+    [mission, runtimeStates, selectedOffice],
   );
 
   useEffect(() => {
@@ -300,11 +309,7 @@ export function App(): React.JSX.Element {
               />
             ) : null}
             <BuildingInspector
-              state={
-                selectedOffice === null
-                  ? null
-                  : (buildingStates(live.rawState, mission.offices).get(selectedOffice) ?? null)
-              }
+              state={selectedOffice === null ? null : (runtimeStates.get(selectedOffice) ?? null)}
               onClose={() => setSelectedOffice(null)}
             />
             <YardPanel report={mission.yard} />

@@ -960,3 +960,71 @@ body {
   margin-bottom: 6px;
   border-bottom: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
 }
+
+/* ---- BUILDING INSPECTOR -------------------------------------------------- */
+
+.inspector__close {
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.inspector__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.inspector__badge {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.15));
+  color: var(--hud-dim, #7f8c9b);
+}
+
+/* Authority. Amber for a decision still pending, cyan once it is granted, red
+   only for a gate that is actively waiting on a person. */
+.inspector__badge--proposed { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--allowed  { border-color: #3fb0d0; color: #3fb0d0; }
+.inspector__badge--gated    { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--absent   { border-color: rgba(255, 255, 255, 0.12); }
+
+.inspector__badge--activity-working { border-color: #3fb0d0; color: #3fb0d0; }
+.inspector__badge--activity-waiting { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--activity-done    { border-color: #3fb950; color: #3fb950; }
+.inspector__badge--activity-refused { border-color: #ff4d4f; color: #ff4d4f; }
+
+.inspector__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.inspector__value {
+  text-align: right;
+  word-break: break-word;
+}
+
+.inspector__absent,
+.inspector__note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--hud-dim, #7f8c9b);
+  margin: 4px 0 0;
+}
+
+.inspector__refusal {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-left: 2px solid #ff4d4f;
+  background: rgba(255, 77, 79, 0.06);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}

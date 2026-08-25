@@ -238,6 +238,8 @@ export function useLiveMission() {
     proposedScope: state.proposedScope,
     report: state.yard,
     verification: state.verification,
+    // The raw reducer state, for views that derive rather than read.
+    rawState: state,
     inspecting,
     inspect: setInspecting,
     grant,

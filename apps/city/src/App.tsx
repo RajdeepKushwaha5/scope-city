@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import "./hud/hud.css";
-import { pickCell } from "./iso/projection.js";
+import { pickBuilding, isMeaningful } from "./render/pick.js";
+import { cityFor } from "./render/scene.js";
+import { buildingStates } from "./building-state.js";
 import { drawScene, fitCamera, type Figure, type SceneState } from "./render/scene.js";
 import { DISTRICT_PLOTS, layOutCity, plotFor } from "./render/world.js";
 import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
 import { ScopeReview } from "./hud/ScopeReview.js";
+import { BuildingInspector } from "./hud/BuildingInspector.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
@@ -51,6 +54,7 @@ export function App(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
+  const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -204,22 +208,42 @@ export function App(): React.JSX.Element {
     }, "image/png");
   }, []);
 
+  /** Canvas coordinates with the camera transform undone. */
+  const toWorld = useCallback(
+    (clientX: number, clientY: number) => ({
+      x: (clientX - size.width / 2 - camera.x) / camera.zoom,
+      y: (clientY - size.height / 2 - camera.y) / camera.zoom,
+    }),
+    [camera, size],
+  );
+
   const onClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       if (suppressClickRef.current) {
         suppressClickRef.current = false;
         return;
       }
-      const cell = pickCell(
-        (e.clientX - size.width / 2 - camera.x) / camera.zoom,
-        (e.clientY - size.height / 2 - camera.y) / camera.zoom,
-      );
+
+      const world = toWorld(e.clientX, e.clientY);
+      const { building, cell } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
+
+      // A building answers the narrow question -- may the agent refund *this*
+      // charge -- and the district answers only where it stands. Prefer the
+      // building, and fall back to the district so clicking open ground still
+      // does something rather than nothing.
+      if (isMeaningful(building)) {
+        setSelectedOffice(building.office);
+        mission.inspect(building.district);
+        return;
+      }
+
+      setSelectedOffice(null);
       const plot = DISTRICT_PLOTS.find(
         (p) => cell.u >= p.u0 && cell.u <= p.u1 && cell.v >= p.v0 && cell.v <= p.v1,
       );
       mission.inspect(plot?.id ?? null);
     },
-    [camera, size, mission],
+    [toWorld, mission],
   );
 
   return (
@@ -275,6 +299,14 @@ export function App(): React.JSX.Element {
                 onAsk={live.askCounterfactual}
               />
             ) : null}
+            <BuildingInspector
+              state={
+                selectedOffice === null
+                  ? null
+                  : (buildingStates(live.rawState, mission.offices).get(selectedOffice) ?? null)
+              }
+              onClose={() => setSelectedOffice(null)}
+            />
             <YardPanel report={mission.yard} />
           </div>
 

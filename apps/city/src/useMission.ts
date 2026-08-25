@@ -1,3 +1,4 @@
+import { initialLiveCityState } from "./live-state.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Figure } from "./render/scene.js";
 import { plotFor } from "./render/world.js";
@@ -336,6 +337,7 @@ export function useMission() {
     proposedScope: null,
     report: null,
     verification: null,
+    rawState: initialLiveCityState,
     askCounterfactual: async () => null,
     expireNow: async () => undefined,
     treasury,

@@ -28,12 +28,42 @@ export interface LiveCityState {
   readonly yard: BacktestReport | null;
   /** The scope as proposed or granted, straight from the feed. */
   readonly proposedScope: WireScope | null;
+  /**
+   * What has happened at each office, keyed by office id.
+   *
+   * Tracked here rather than derived from the log because the log is a list of
+   * lines for a human and this is state for a renderer: counting settled calls
+   * by re-parsing prose would break the first time a message was reworded.
+   */
+  readonly officeActivity: Readonly<Record<string, OfficeActivity>>;
   /** The most recent sandbox check, shown beside the gate it justifies. */
   readonly verification: {
     readonly script: string;
     readonly output: string;
     readonly passed: boolean;
   } | null;
+}
+
+export interface OfficeActivity {
+  /** Calls the ledger has settled here. */
+  readonly calls: number;
+  /** True between the agent arriving and finishing. */
+  readonly busy: boolean;
+  /** Why the boundary last refused a call here, if it did. */
+  readonly refusal: string | null;
+}
+
+/** Records something happening at one office, leaving the others untouched. */
+function atOffice(
+  state: LiveCityState,
+  office: string,
+  change: Partial<OfficeActivity>,
+): LiveCityState {
+  const current = state.officeActivity[office] ?? { calls: 0, busy: false, refusal: null };
+  return {
+    ...state,
+    officeActivity: { ...state.officeActivity, [office]: { ...current, ...change } },
+  };
 }
 
 export const initialLiveCityState: LiveCityState = {
@@ -51,6 +81,7 @@ export const initialLiveCityState: LiveCityState = {
   yard: null,
   proposedScope: null,
   verification: null,
+  officeActivity: {},
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -117,11 +148,28 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
     const event = feed.event;
     switch (event.type) {
       case "call.allowed":
-        return addLog(moveAgent(state, event.office), `ALLOWED  ${event.office}`, "allowed", event.at);
+        // A settled call clears any earlier refusal at this office: the agent
+        // tried something out of scope, was refused, and then did something
+        // permitted. Leaving the building red would report the refusal as the
+        // current state when it is history.
+        return addLog(
+          atOffice(moveAgent(state, event.office), event.office, {
+            calls: (state.officeActivity[event.office]?.calls ?? 0) + 1,
+            busy: false,
+            refusal: null,
+          }),
+          `ALLOWED  ${event.office}`,
+          "allowed",
+          event.at,
+        );
       case "call.out_of_scope": {
         const plot = event.district ? plotFor(event.district) : undefined;
         return addLog(
-          { ...state, refusedAt: plot ? plot.landmark : state.refusedAt },
+          atOffice(
+            { ...state, refusedAt: plot ? plot.landmark : state.refusedAt },
+            event.office,
+            { busy: false, refusal: event.detail },
+          ),
           `OUT OF SCOPE  ${event.office} — ${event.detail}`,
           "refused",
           event.at,
@@ -202,7 +250,9 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
           : [...new Set([...state.online, event.district])],
       };
     case "agent.arrived":
-      return moveAgent(state, event.office);
+      return atOffice(moveAgent(state, event.office), event.office, { busy: true });
+    case "agent.finished":
+      return atOffice(state, event.office, { busy: false });
     case "field.joined": {
       const index = state.figures.filter((figure) => figure.kind === "team").length;
       const plot = plotFor("exchequer")!;

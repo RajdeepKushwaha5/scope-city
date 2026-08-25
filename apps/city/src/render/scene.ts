@@ -97,7 +97,15 @@ let cachedCity: Building[] = [];
 let cachedTrees: { u: number; v: number }[] = [];
 let cachedFountains: { u: number; v: number }[] = [];
 
-function cityFor(offices: readonly { office: string; district: string }[]): {
+/**
+ * The laid-out city for a set of offices, memoised.
+ *
+ * Exported so the interaction layer can pick against the same buildings the
+ * renderer drew. Laying out a second copy for hit-testing would work until the
+ * two disagreed, and then the operator would be clicking one city and reading
+ * about another.
+ */
+export function cityFor(offices: readonly { office: string; district: string }[]): {
   buildings: Building[];
   trees: { u: number; v: number }[];
   fountains: { u: number; v: number }[];

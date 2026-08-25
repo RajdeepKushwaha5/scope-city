@@ -330,6 +330,12 @@ export function useMission() {
     // record to hand over and no server-held scope to expire, so the panel
     // omits both rather than offering controls that would 404.
     missionId: null as string | null,
+    // Scripted replays have no server-held scope, so nothing is ever waiting
+    // on a grant here.
+    awaitingGrant: false,
+    proposedScope: null,
+    report: null,
+    askCounterfactual: async () => null,
     expireNow: async () => undefined,
     treasury,
     inspecting,

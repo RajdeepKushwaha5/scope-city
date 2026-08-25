@@ -6,7 +6,15 @@ import { OFFICES, type GateRequest, type LogLine, type Phase, type ScopeView } f
 
 export interface LiveCityState {
   readonly phase: Phase;
-  readonly status: "idle" | "starting" | "running" | "completed" | "failed" | "cancelled";
+  readonly status:
+    | "idle"
+    | "proposed"
+    | "denied"
+    | "starting"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled";
   readonly detail: string | null;
   readonly online: readonly string[];
   readonly figures: readonly Figure[];
@@ -18,6 +26,8 @@ export interface LiveCityState {
   readonly scopeExpired: boolean;
   /** The Yard's verdict, once it arrives. Null before the backtest is replayed. */
   readonly yard: BacktestReport | null;
+  /** The scope as proposed or granted, straight from the feed. */
+  readonly proposedScope: WireScope | null;
 }
 
 export const initialLiveCityState: LiveCityState = {
@@ -33,6 +43,7 @@ export const initialLiveCityState: LiveCityState = {
   sandboxOpen: false,
   scopeExpired: false,
   yard: null,
+  proposedScope: null,
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -128,6 +139,29 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       default:
         return state;
     }
+  }
+
+  // The scope arrives on the feed rather than only in the launch response, so a
+  // browser reconnecting mid-review replays the proposal instead of finding an
+  // empty panel and a mission it cannot explain.
+  if (feed.type === "scope.proposed") {
+    return {
+      ...addLog(state, `SCOPE PROPOSED  ${feed.scope.scopeId}`, "plain", Date.now()),
+      proposedScope: feed.scope,
+    };
+  }
+
+  if (feed.type === "scope.granted") {
+    return addLog(
+      { ...state, proposedScope: feed.scope },
+      `SCOPE GRANTED  ${feed.scope.scopeId}`,
+      "allowed",
+      feed.at,
+    );
+  }
+
+  if (feed.type === "scope.denied") {
+    return addLog(state, "SCOPE DENIED  the agent was never dispatched", "refused", feed.at);
   }
 
   if (feed.type === "yard.report") {
@@ -239,7 +273,15 @@ export interface WireScope {
     readonly maxCalls?: Readonly<Record<string, number>>;
   };
   readonly expiresAt: number;
-  readonly grantedAt: number;
+  /**
+   * Null while the scope is only proposed.
+   *
+   * A scope waiting on a human has not been granted, so there is no grant time
+   * to report. Typing this as a plain number let a proposal be treated as a
+   * grant with a timestamp of zero, which reads on screen as a lease that
+   * expired decades ago.
+   */
+  readonly grantedAt: number | null;
 }
 
 export function scopeViewFromWire(scope: WireScope): ScopeView {
@@ -265,7 +307,10 @@ export function scopeViewFromWire(scope: WireScope): ScopeView {
         ([office, count]) => `${office} × ${count}`,
       ),
     ],
-    expiresInMs: Math.max(0, scope.expiresAt - scope.grantedAt),
+    // Measured from the grant when there is one, and from now when the scope
+    // is still a proposal -- the lease has not started ticking yet, so the
+    // honest number is its full length.
+    expiresInMs: Math.max(0, scope.expiresAt - (scope.grantedAt ?? Date.now())),
     expiresAt: scope.expiresAt,
   };
 }

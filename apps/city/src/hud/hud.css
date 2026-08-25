@@ -801,3 +801,119 @@ body {
   color: var(--hud-dim, #7f8c9b);
   vertical-align: middle;
 }
+
+/* ---- GRANT THE SCOPE ----------------------------------------------------- */
+
+.review__job {
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.review__meta {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  margin-bottom: 10px;
+}
+
+.review__section {
+  margin-bottom: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+}
+
+.review__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.review__office {
+  color: var(--hud-fg, #e6edf3);
+}
+
+.review__limits {
+  color: var(--hud-dim, #7f8c9b);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.review__findings,
+.review__clean {
+  margin-bottom: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
+}
+
+.review__clean {
+  color: var(--hud-dim, #7f8c9b);
+}
+
+.review__finding {
+  padding: 4px 8px;
+  margin-top: 4px;
+  border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+  line-height: 1.4;
+}
+
+.review__finding--critical { border-left-color: #ff4d4f; }
+.review__finding--warning  { border-left-color: #f0a020; }
+.review__finding--note     { border-left-color: rgba(255, 255, 255, 0.18); }
+
+.review__candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.review__cf {
+  margin-top: 8px;
+  padding: 8px;
+  /* Amber rather than red: annexing a district is a consequence to weigh, not
+     an error to correct. */
+  border: 1px solid rgba(240, 160, 32, 0.35);
+  background: rgba(240, 160, 32, 0.06);
+}
+
+.review__cf-summary {
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.review__cf-delta {
+  font-size: 10px;
+  color: var(--hud-dim, #7f8c9b);
+  margin-bottom: 6px;
+}
+
+.review__cf-clear {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.review__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+}
+
+.review__actions .btn { flex: 1; }
+
+.review__hint {
+  margin-top: 8px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  line-height: 1.5;
+}

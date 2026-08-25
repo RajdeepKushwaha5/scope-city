@@ -5,6 +5,7 @@ import { drawScene, fitCamera, type Figure, type SceneState } from "./render/sce
 import { DISTRICT_PLOTS, layOutCity, plotFor } from "./render/world.js";
 import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
+import { ScopeReview } from "./hud/ScopeReview.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
@@ -30,6 +31,21 @@ import { useRecordedMission } from "./useRecordedMission.js";
  * need a component edit to find it.
  */
 const RECORDING_URL = "/replays/refund-184.json";
+
+/**
+ * Offices worth asking "what if" about.
+ *
+ * A short, curated list rather than every office the city has. The question is
+ * only interesting for permissions someone might plausibly add and regret --
+ * `customer.list` takes no record id and so cannot be narrowed at all, which is
+ * the most instructive thing the counterfactual has to say.
+ */
+const COUNTERFACTUAL_CANDIDATES = [
+  "customer.list",
+  "mail.send",
+  "mail.list",
+  "ticket.close",
+] as const;
 
 export function App(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -240,6 +256,25 @@ export function App(): React.JSX.Element {
               onDeny={mission.denyScope}
               onRevoke={mission.revoke}
             />
+            {live.awaitingGrant && live.proposedScope ? (
+              <ScopeReview
+                scopeId={live.proposedScope.scopeId}
+                job={live.proposedScope.job}
+                offices={live.proposedScope.offices}
+                resources={live.proposedScope.resources}
+                maxAmountMinor={live.proposedScope.limits.maxAmountMinor ?? {}}
+                maxCalls={live.proposedScope.limits.maxCalls ?? {}}
+                countersignRequired={live.proposedScope.countersignRequired}
+                expiresInMs={Math.max(0, live.proposedScope.expiresAt - Date.now())}
+                report={live.report}
+                candidates={COUNTERFACTUAL_CANDIDATES.filter(
+                  (office) => !live.proposedScope!.offices.includes(office),
+                )}
+                onGrant={() => void live.grant()}
+                onDeny={() => void live.denyScope()}
+                onAsk={live.askCounterfactual}
+              />
+            ) : null}
             <YardPanel report={mission.yard} />
           </div>
 

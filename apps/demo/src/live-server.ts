@@ -47,7 +47,9 @@ interface LiveMission extends ManagedLiveMission {
   readonly order: string;
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
-  readonly scope: ReturnType<typeof createFixtureMission>["scope"];
+  readonly book: CountersignBook;
+  readonly report: ReturnType<typeof backtest>;
+  scope: ReturnType<typeof createFixtureMission>["scope"];
   readonly startedAt: number;
   sessionId?: string;
 }
@@ -222,14 +224,19 @@ async function main(): Promise<void> {
         return;
       }
 
-      // The Yard, before the mission exists.
+      // The Yard, before anything is granted.
       //
-      // Run here rather than after dispatch because a backtest is only useful
-      // at the one moment its answer can still change the decision. Afterwards
-      // it is a postmortem. Nothing it does touches a system or spends
-      // anything -- every check is the pure evaluator against a generated call,
-      // or a walk over declared shapes -- so it is safe to run on a scope that
-      // has not been granted, which is the entire point.
+      // Run here because a backtest is only useful at the one moment its answer
+      // can still change the decision; afterwards it is a postmortem. Nothing
+      // it does touches a system or spends anything -- every check is the pure
+      // evaluator against a generated call, or a walk over declared shapes --
+      // so it is safe to run on a scope nobody has approved, which is the
+      // entire point.
+      //
+      // It probes the scope *as if granted*, because that is the authority the
+      // operator is being asked about. Probing the proposed state would refuse
+      // everything for `scope_not_active` and report a clean sheet that means
+      // nothing.
       const report = backtest({
         scope: { ...derived.scope, state: "granted" },
         registry: officeRegistry(),
@@ -239,46 +246,44 @@ async function main(): Promise<void> {
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
       const book = new CountersignBook();
-      const fixture = createFixtureMission({
-        missionId: id,
-        book,
-        emit: (event) => feed.append({ type: "proxy", event }),
-        // Granted here because the operator's act of dispatching *is* the
-        // grant in this build. The state exists so a separate propose/grant
-        // screen can slot in without the enforcement layer changing.
-        scope: { ...derived.scope, state: "granted", grantedBy: "operator:scope-city", grantedAt: Date.now(), version: 1 },
-      });
-      registry.register(fixture.mission);
 
+      // Proposed, and nothing else.
+      //
+      // No proxy registration and no TrueForge session exist yet. That is the
+      // difference between a product that shows you a scope and one that asks
+      // your permission: until grant, there is nothing for an agent to reach
+      // even if one were somehow started, because the mission is not in the
+      // registry the proxy consults.
       const live: LiveMission = {
         id,
         order,
         feed,
         gates,
-        scope: fixture.scope,
+        book,
+        scope: derived.scope,
+        report,
         startedAt: Date.now(),
-        status: "starting",
+        status: "proposed",
       };
       missions.set(id, live);
-      live.expiryTimer = setTimeout(() => void expireMission(live), Math.max(0, live.scope.expiresAt - Date.now()));
 
-      async function expireMission(expiring: LiveMission): Promise<void> {
-        await expireLiveMission(expiring, registry, (sessionId) => driver.cancel(sessionId));
-      }
+      feed.append({ type: "scope.proposed", scope: derived.scope });
       feed.append({ type: "yard.report", report });
-      feed.append({ type: "mission.status", status: "starting" });
-      void runLiveMission(live, book).catch(() => undefined);
+      feed.append({ type: "mission.status", status: "proposed" });
 
-      json(res, 202, {
+      json(res, 200, {
         missionId: id,
         status: live.status,
-        scope: fixture.scope,
+        scope: derived.scope,
+        report,
+        dropped: derived.dropped,
         eventUrl: `/api/missions/${id}/events`,
+        grantUrl: `/api/missions/${id}/grant`,
       });
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire)$/);
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire|grant|deny|counterfactual)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -313,6 +318,91 @@ async function main(): Promise<void> {
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
       });
       json(res, 200, { accepted: true });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "grant") {
+      if (mission.status !== "proposed") {
+        json(res, 409, { error: "that mission is not awaiting a grant" });
+        return;
+      }
+
+      // The lease starts now, not when the scope was drafted.
+      //
+      // `expiresAt` was computed during derivation, so an operator who spent
+      // two minutes reading the Yard report would have granted a scope with two
+      // minutes already spent -- and a ten-minute lease that expires in eight
+      // is not the lease they were shown. Recomputing at grant makes the
+      // countdown mean what the screen said.
+      const grantedAt = Date.now();
+      const ttl = mission.scope.expiresAt - mission.startedAt;
+      const granted = {
+        ...mission.scope,
+        state: "granted" as const,
+        grantedBy: "operator:scope-city",
+        grantedAt,
+        expiresAt: grantedAt + Math.max(1, ttl),
+        version: mission.scope.version + 1,
+      };
+
+      const fixture = createFixtureMission({
+        missionId: mission.id,
+        book: mission.book,
+        emit: (event) => mission.feed.append({ type: "proxy", event }),
+        scope: granted,
+      });
+
+      // Only now does the proxy know this mission exists.
+      registry.register(fixture.mission);
+
+      mission.scope = granted;
+      mission.status = "starting";
+      mission.expiryTimer = setTimeout(
+        () => void expireLiveMission(mission, registry, (sid) => driver.cancel(sid)),
+        Math.max(0, granted.expiresAt - Date.now()),
+      );
+
+      mission.feed.append({ type: "scope.granted", scope: granted, at: grantedAt });
+      mission.feed.append({ type: "mission.status", status: "starting" });
+      void runLiveMission(mission, mission.book).catch(() => undefined);
+
+      json(res, 202, { missionId: mission.id, status: mission.status, scope: granted });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "deny") {
+      if (mission.status !== "proposed") {
+        json(res, 409, { error: "that mission is not awaiting a grant" });
+        return;
+      }
+      // Nothing to revoke: a denied scope was never registered with the proxy
+      // and never had a session. Denial is simply the mission ending here.
+      mission.status = "denied";
+      mission.feed.append({ type: "scope.denied", at: Date.now() });
+      mission.feed.append({ type: "mission.status", status: "denied" });
+      json(res, 200, { denied: true });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "counterfactual") {
+      const body = await readJson(req);
+      const office = typeof body.office === "string" ? body.office : "";
+      if (!office) {
+        json(res, 400, { error: "office is required" });
+        return;
+      }
+
+      // Answered against the proposed scope, which is the only time the answer
+      // is actionable: once granted, "what would this cost" is a question about
+      // authority the agent already holds.
+      json(res, 200, {
+        counterfactual: counterfactual({
+          scope: { ...mission.scope, state: "granted" },
+          registry: officeRegistry(),
+          office,
+          now: Date.now(),
+        }),
+      });
       return;
     }
 

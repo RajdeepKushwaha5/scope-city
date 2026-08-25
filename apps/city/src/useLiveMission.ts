@@ -237,6 +237,7 @@ export function useLiveMission() {
     awaitingGrant: state.status === "proposed",
     proposedScope: state.proposedScope,
     report: state.yard,
+    verification: state.verification,
     inspecting,
     inspect: setInspecting,
     grant,

@@ -28,6 +28,12 @@ export interface LiveCityState {
   readonly yard: BacktestReport | null;
   /** The scope as proposed or granted, straight from the feed. */
   readonly proposedScope: WireScope | null;
+  /** The most recent sandbox check, shown beside the gate it justifies. */
+  readonly verification: {
+    readonly script: string;
+    readonly output: string;
+    readonly passed: boolean;
+  } | null;
 }
 
 export const initialLiveCityState: LiveCityState = {
@@ -44,6 +50,7 @@ export const initialLiveCityState: LiveCityState = {
   scopeExpired: false,
   yard: null,
   proposedScope: null,
+  verification: null,
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -247,6 +254,17 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
         pendingGates: state.pendingGates.filter((gate) => gate.toolCallId !== event.toolCallId),
       };
     }
+    case "yard.verified":
+      // Stored as well as logged. The gate needs it beside the decision it
+      // justifies; the log needs it in sequence, so the record shows the
+      // check happening before the approval rather than after.
+      return addLog(
+        { ...state, verification: { script: event.script, output: event.output, passed: event.passed } },
+        `SANDBOX  ${event.passed ? "verified" : "CHECK FAILED"}`,
+        event.passed ? "allowed" : "refused",
+        event.at,
+      );
+
     case "yard.opened":
       return {
         ...state,

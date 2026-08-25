@@ -49,9 +49,24 @@ world  agent.finished  {office: exec}
 world  gate.raised     {office: charge.refund}
 ```
 
-The order is the point. The sandbox runs *before* the countersign is
-requested, which is what makes it the step that earns the approval rather
-than a checkbox.
+The order is the point, and it is now enforced rather than merely observed.
+When a sandbox is configured, the approval endpoint refuses a countersign
+unless a passing check exists: no check returns 428 with "the agent has not
+shown its working", and a failed one returns 428 with the output. That is
+what makes the sandbox the step that earns the approval instead of a step the
+agent performs and nobody depends on.
+
+The operator sees the working, not a claim that working was done -- the
+script and its output render beside the gate.
+
+A real run shows why the reading has to be careful. The agent's first attempt
+wrote Python into a bash shell and died with exit code 2. It retried with
+`python3 -c`, asserted the amounts matched, and printed "Verdict: Ready to
+refund." with exit code 0. An earlier version of the verdict reader matched
+prose and marked that *failed*, because the sentence contains none of the
+words it looked for -- blocking an approval on a check that passed, which
+teaches an operator the gate is noise just as effectively as letting a failed
+one through. The exit code is the honest signal and is now read first.
 
 Two traps cost real time and are recorded so they cost it once.
 

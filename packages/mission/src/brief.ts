@@ -134,30 +134,3 @@ export function missionBrief(options: BriefOptions): string {
 
   return lines.join("\n");
 }
-
-/**
- * What a sandbox verification produced, parsed back out of the agent's run.
- *
- * The map shows this next to the gate, because an operator being asked to
- * approve an irreversible transfer should see the arithmetic that justified it
- * rather than a summary of it.
- */
-export interface Verification {
-  readonly script: string;
-  readonly output: string;
-  readonly passed: boolean;
-}
-
-/**
- * Reads a verdict out of sandbox output.
- *
- * Deliberately strict: anything that is not a clear pass is treated as a fail.
- * A verification whose result cannot be read is not a verification, and
- * defaulting to "probably fine" in the one place a human is relying on the
- * check would be the worst possible default.
- */
-export function readVerdict(output: string): boolean {
-  const text = output.toLowerCase();
-  if (/\b(fail|failed|mismatch|error|traceback|assertionerror)\b/.test(text)) return false;
-  return /\b(ok|pass|passed|match|verified)\b/.test(text);
-}

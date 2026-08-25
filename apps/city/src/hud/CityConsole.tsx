@@ -30,6 +30,18 @@ export function CityConsole(props: {
   onApprove: () => void;
   onDeny: () => void;
   onExpireNow: () => void;
+  /**
+   * The agent's working from the sandbox, when it ran one.
+   *
+   * Shown beside the gate rather than in the log, because an operator asked to
+   * approve an irreversible transfer on the strength of a check they cannot
+   * see is not really checking.
+   */
+  verification: {
+    readonly script: string;
+    readonly output: string;
+    readonly passed: boolean;
+  } | null;
 }): React.JSX.Element {
   const total = 10 * 60 * 1000;
   const remaining = props.expiresIn ?? 0;
@@ -87,6 +99,24 @@ export function CityConsole(props: {
           ) : null}
         </div>
       )}
+
+      {props.gate && props.verification ? (
+        /* The working, next to the decision it justifies.
+           An operator asked to approve an irreversible transfer on the strength
+           of a check they cannot see is not really checking. */
+        <div className={`proof proof--${props.verification.passed ? "pass" : "fail"}`}>
+          <div className="proof__head">
+            <span>Daytona sandbox</span>
+            <span className="proof__verdict">
+              {props.verification.passed ? "verified" : "check failed"}
+            </span>
+          </div>
+          {props.verification.script ? (
+            <pre className="proof__script">{props.verification.script.slice(0, 600)}</pre>
+          ) : null}
+          <pre className="proof__output">{props.verification.output.slice(0, 400)}</pre>
+        </div>
+      ) : null}
 
       {props.gate ? (
         <div className="console__permit">

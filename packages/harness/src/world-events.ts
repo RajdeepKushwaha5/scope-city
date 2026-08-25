@@ -27,6 +27,23 @@ export type WorldEvent =
     }
   | { readonly type: "gate.cleared"; readonly toolCallId: string; readonly approved: boolean; readonly at: number }
   | { readonly type: "yard.opened"; readonly sandboxId: string; readonly at: number }
+  /**
+   * What the agent ran in the sandbox, and what came back.
+   *
+   * Carried rather than summarised because an operator about to approve an
+   * irreversible transfer is entitled to the working, not a claim that working
+   * was done. "The Yard is open" proves a sandbox exists; this proves why its
+   * result should be believed.
+   */
+  | {
+      readonly type: "yard.verified";
+      readonly toolCallId: string;
+      readonly script: string;
+      readonly output: string;
+      /** Read strictly: anything that is not a clear pass is a fail. */
+      readonly passed: boolean;
+      readonly at: number;
+    }
   | { readonly type: "transmission"; readonly threadId: string; readonly text: string; readonly at: number };
 
 /** Carried between events so deltas can be merged and offices remembered. */

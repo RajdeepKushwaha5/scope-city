@@ -335,6 +335,7 @@ export function useMission() {
     awaitingGrant: false,
     proposedScope: null,
     report: null,
+    verification: null,
     askCounterfactual: async () => null,
     expireNow: async () => undefined,
     treasury,

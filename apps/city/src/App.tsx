@@ -312,6 +312,7 @@ export function App(): React.JSX.Element {
             onDeny={() => mission.countersign(false)}
             missionId={mission.missionId}
             onExpireNow={() => void mission.expireNow()}
+            verification={mission.verification}
           />
         </div>
       </div>

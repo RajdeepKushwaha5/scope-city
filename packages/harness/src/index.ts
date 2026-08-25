@@ -18,7 +18,14 @@ export {
   type WorldEvent,
 } from "./world-events.js";
 
-export { messageText, translate, translateAll, type TranslateResult } from "./translate.js";
+export {
+  isSandboxOffice,
+  messageText,
+  scriptFrom,
+  translate,
+  translateAll,
+  type TranslateResult,
+} from "./translate.js";
 
 export { HarnessDriver, missionAgentSpec, type DriverOptions } from "./driver.js";
 
@@ -31,3 +38,5 @@ export {
 } from "./model-pool.js";
 
 export { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
+
+export { readVerdict, sandboxEnvelope, type Verification } from "./verdict.js";

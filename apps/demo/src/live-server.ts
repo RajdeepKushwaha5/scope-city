@@ -30,6 +30,15 @@ const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY ?? "";
+
+/**
+ * Whether this run has a sandbox, decided once at boot.
+ *
+ * Gates whether an approval requires the agent's working. With no sandbox the
+ * brief never asked for a check, so demanding one would refuse every approval
+ * on a build behaving exactly as configured.
+ */
+const SANDBOX_AVAILABLE = { value: false };
 /**
  * Models to rotate across, pinned by configuration if anyone asked.
  *
@@ -48,6 +57,8 @@ interface LiveMission extends ManagedLiveMission {
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly book: CountersignBook;
+  /** The most recent sandbox check, if the agent ran one. */
+  verification?: { script: string; output: string; passed: boolean };
   readonly report: ReturnType<typeof backtest>;
   scope: ReturnType<typeof createFixtureMission>["scope"];
   readonly startedAt: number;
@@ -109,6 +120,11 @@ async function main(): Promise<void> {
   // `type` enum has exactly one member. Installing bwrap, socat and ripgrep
   // does nothing for this build, whatever other versions may support.
   const sandbox = await resolveSandbox(driver);
+
+  // Held in a box rather than closed over directly so the request handlers,
+  // which are defined below, read the value settled at boot rather than a
+  // binding that has not been initialised when they are created.
+  SANDBOX_AVAILABLE.value = sandbox;
 
   async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
     if (!SANDBOX) return false;
@@ -309,6 +325,39 @@ async function main(): Promise<void> {
         json(res, 400, { error: "toolCallId is required" });
         return;
       }
+      // An approval needs the working behind it, when there is a sandbox to
+      // produce working.
+      //
+      // The brief asks the agent to verify an irreversible amount before
+      // requesting it, and the point of asking is that the answer gates the
+      // request. Accepting a countersign while the check failed -- or while no
+      // check was ever run -- would make the sandbox decorative: a step the
+      // agent performs and nobody depends on. Refusing here is what turns it
+      // into the thing that earns the approval.
+      //
+      // Only when a sandbox exists. Without one the brief never asked for a
+      // check, so demanding evidence of one would refuse every approval on a
+      // build that is running exactly as configured.
+      if (approved && SANDBOX_AVAILABLE.value) {
+        const check = mission.verification;
+        if (!check) {
+          json(res, 428, {
+            error: "no sandbox verification for this call",
+            detail:
+              "The agent has not shown its working. An irreversible action is " +
+              "not approvable until the check it was asked to run has run.",
+          });
+          return;
+        }
+        if (!check.passed) {
+          json(res, 428, {
+            error: "the sandbox check did not pass",
+            detail: check.output.slice(0, 400),
+          });
+          return;
+        }
+      }
+
       if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {
         json(res, 409, { error: "that gate is not waiting" });
         return;
@@ -542,6 +591,17 @@ async function main(): Promise<void> {
                   office: event.office,
                   args: (event.args ?? {}) as Record<string, unknown>,
                 });
+              }
+              // Kept server-side as well as published, because the approval
+              // endpoint consults it. A verification that only existed in the
+              // browser would let a client that never rendered it approve
+              // anyway, which is the wrong place for the check to live.
+              if (event.type === "yard.verified") {
+                live.verification = {
+                  script: event.script,
+                  output: event.output,
+                  passed: event.passed,
+                };
               }
               live.feed.append({ type: "world", event });
             },

@@ -137,13 +137,32 @@ do not delete it. Start the hackathon instance with an isolated database:
 SQLITE_PATH=/tmp/scope-city-trueforge.sqlite npx @truefoundry/trueforge
 ```
 
-### Fixture systems and offline replay
+### Real systems, and fixtures
 
-The ticket, payment, and mail systems are local deterministic fixtures. No
-Stripe, helpdesk, or email credentials are needed, and no real refund or email
-is sent. A live mission still needs one configured model key. The clearly
-labelled **Offline security replays** in the UI and the full test suite need no
-network or credentials.
+The Exchequer talks to **Stripe test mode** when `STRIPE_API_KEY` is set. A
+refund issued there is genuinely irreversible in the test ledger, which is the
+property the gate exists to protect — a demo whose "irreversible action" is a
+counter in memory is asking to be taken on faith.
+
+```bash
+node scripts/seed-stripe.mjs   # creates the charges the demo refunds
+```
+
+Scope the key to **Charges and Refunds: write** and **Payment Intents: read**,
+and nothing else. That is the entire surface the Exchequer uses. It is worth
+doing properly: our first attempt looked correct — the two permissions we
+wanted were set — and probing what the key could actually reach found write
+access to payouts, transfers and top-ups, inherited from a group toggle. Stated
+permissions and actual reach are different things, which is the same argument
+the Yard makes about the agent.
+
+Records and Post House remain fixtures. `SCOPE_FIXTURES=true` forces every
+district to its fixture regardless of what is configured, so the whole demo
+runs with no accounts at all — and the test suite sets it, so no test can reach
+a payment API by accident.
+
+The clearly labelled **Offline security replays** in the UI need no network or
+credentials either.
 
 ## Judge mode — no install, no credentials
 

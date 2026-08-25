@@ -16,20 +16,29 @@ gaps below are the kind that stay comfortable until the day before a deadline.
 > *"Your GitHub, your database, your internal tools, your calendar.
 > **Connected, not mocked.**"*
 
-**Where we are: partial, and this is a real gap.**
+**Where we are: met for the district that matters.**
 
-The agent reaches three MCP systems through a live TrueForge session over a
-real MCP connection — that part is genuine, and the proxy in front of them is
-the product. But Records, the Exchequer and Post House are **fixtures**. Real
-protocol, real network, invented data.
+The Exchequer talks to Stripe test mode: real API, real network, real charge
+objects, and refunds that genuinely cannot be undone. Verified end to end — a
+mission derived a scope that resolved a real charge id from an order id in
+metadata, the operator granted it, the agent ran, and the countersign produced:
 
-"Connected, not mocked" is explicit, and a judge who opens `mcp/src/systems`
-will see fixtures. The fix is not cosmetic: Stripe **test mode** is a real API
-over the real network with real charge objects and real refunds that genuinely
-cannot be undone. Same for a real mailbox via Mailpit or a real inbox.
+```
+re_3U8T0Z2WNLo6nvwi1OGTTvhc   4900 usd   succeeded
+```
 
-Fixture mode stays, because a stranger must be able to clone and run this with
-no accounts. It becomes the fallback, not the default.
+read back from Stripe's own API, with the charge showing `refunded: 4900`.
+
+Records and Post House remain fixtures, and that is a deliberate stopping
+point rather than an unfinished one: the claim being tested is that
+enforcement is independent of what sits behind it, and one real system
+demonstrates that as well as three would. `SCOPE_FIXTURES=true` forces all of
+them back, so a stranger can still clone and run the whole thing with no
+accounts.
+
+What this cost is the honest measure of the architecture: one new module. The
+office specs, evaluator, projector, quota ledger and countersign were not
+touched.
 
 ### 2. A safe place to run what it writes
 

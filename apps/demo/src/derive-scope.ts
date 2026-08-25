@@ -15,6 +15,7 @@ import {
   postHouseSystem,
   recordsSystem,
 } from "@scope-city/mcp";
+import { missionSystems } from "./systems.js";
 import type { Scope } from "@scope-city/scope";
 
 /**
@@ -70,7 +71,7 @@ const BOUNDS = {
  * somewhere else.
  */
 function localResolverIO(): ResolverIO {
-  const systems = [recordsSystem(), exchequerSystem(), postHouseSystem()];
+  const systems = missionSystems();
   const handlers = new Map(
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );

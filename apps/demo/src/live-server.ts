@@ -12,6 +12,7 @@ import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeed
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { systemsSummary } from "./systems.js";
 import { backtest, counterfactual } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
@@ -125,6 +126,8 @@ async function main(): Promise<void> {
   // which are defined below, read the value settled at boot rather than a
   // binding that has not been initialised when they are created.
   SANDBOX_AVAILABLE.value = sandbox;
+
+  console.log(systemsSummary());
 
   async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
     if (!SANDBOX) return false;

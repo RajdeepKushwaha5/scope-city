@@ -7,6 +7,7 @@ import {
   recordsSystem,
   type SystemDefinition,
 } from "@scope-city/mcp";
+import { missionSystems } from "./systems.js";
 import { fingerprintCall, type Mission } from "@scope-city/proxy";
 import type { CountersignBook } from "@scope-city/mission";
 import type { EmitProxyEvent } from "@scope-city/proxy";
@@ -39,7 +40,7 @@ export function createFixtureMission(params: {
   scope?: Scope;
 }): FixtureMission {
   const now = params.now ?? Date.now();
-  const systems = [recordsSystem(), exchequerSystem(), postHouseSystem()];
+  const systems = missionSystems();
   const handlers = new Map(
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );

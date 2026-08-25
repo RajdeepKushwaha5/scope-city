@@ -1,0 +1,127 @@
+import { OFFICE_SPECS, officeRegistry, type SystemDefinition } from "@scope-city/mcp";
+import type { Scope } from "@scope-city/scope";
+
+/**
+ * The scope an ordinary agent integration runs with.
+ *
+ * Not a bypass, and that distinction is the whole value of this. It would be
+ * easy — and dishonest — to demonstrate the catastrophe by switching the proxy
+ * off, because then the comparison is between "our enforcement" and "no
+ * enforcement", which proves only that code that runs does something.
+ *
+ * This instead expresses today's normal arrangement in the same vocabulary the
+ * granted scope uses: every office the city has, every record the systems can
+ * name, no amount ceiling, no call budget, no gate. That *is* what "the user
+ * has broad access, so the agent inherits broad access" means when you write it
+ * down. The same evaluator polices it, the same proxy carries the calls, the
+ * same map draws it. Only the authority differs.
+ *
+ * Written down, it is also faintly shocking, which is the point. Nobody
+ * configures an integration by listing every charge in the account; they hand
+ * over a key and the listing is implied. Making it explicit is what lets the
+ * map show the difference.
+ */
+
+/**
+ * A ceiling high enough never to bind: one billion minor units.
+ *
+ * Named rather than inlined so it reads as what it is at the call site.
+ */
+const NO_LIMIT = 1_000_000_000;
+
+/** Offices taking a monetary argument, which are the ones needing a ceiling. */
+function amountOffices(
+  registry: ReturnType<typeof officeRegistry>,
+  offices: readonly string[],
+): readonly string[] {
+  return offices.filter((office) => {
+    const spec = registry.get(office);
+    return spec ? Object.values(spec.args).some((b) => b.kind === "amount_minor") : false;
+  });
+}
+
+/** Every resource id the systems can name, by resource class. */
+async function everything(systems: readonly SystemDefinition[]): Promise<
+  Record<string, string[]>
+> {
+  const resources: Record<string, Set<string>> = {};
+  const add = (cls: string, id: string): void => {
+    (resources[cls] ??= new Set()).add(id);
+  };
+
+  // The demo's world, enumerated. Real ids where the system can produce them,
+  // so the unscoped run acts on the same records the scoped one would.
+  const exchequer = systems.find((s) => s.district === "exchequer");
+  const listCharges = exchequer?.offices.find((o) => o.office === "charge.find_by_order");
+
+  for (const orderId of ["ord_184", "ord_185", "ord_186"]) {
+    add("order_ids", orderId);
+    if (!listCharges) continue;
+    try {
+      const found = (await listCharges.call({ order_id: orderId })) as { id?: string };
+      if (typeof found.id === "string") add("charge_ids", found.id);
+    } catch {
+      // An order with no charge simply contributes nothing. A broad grant that
+      // names a record which does not exist is still a broad grant.
+    }
+  }
+
+  for (const ticketId of ["tkt_184", "tkt_185"]) add("ticket_ids", ticketId);
+  for (const email of ["customer@example.test", "someone.else@example.test", "attacker@example.test"]) {
+    add("mail_to", email);
+  }
+
+  return Object.fromEntries(Object.entries(resources).map(([k, v]) => [k, [...v].sort()]));
+}
+
+export async function unscopedScope(params: {
+  readonly missionId: string;
+  readonly job: string;
+  readonly systems: readonly SystemDefinition[];
+  readonly now: number;
+  readonly ttlMs?: number;
+}): Promise<Scope> {
+  const registry = officeRegistry();
+  const offices = OFFICE_SPECS.map((spec) => spec.office).sort();
+
+  // Everything the offices can return, unfiltered. A normal integration has no
+  // response layer at all: whatever the API sends back lands in the model's
+  // context, customer history and addresses included.
+  const projection: Record<string, readonly string[]> = {};
+  for (const office of offices) {
+    projection[office] = registry.get(office)?.responseFields ?? [];
+  }
+
+  return {
+    missionId: params.missionId,
+    scopeId: "NO-SCOPE",
+    agent: "ordinary-agent",
+    job: params.job,
+    state: "granted",
+    offices,
+    resources: await everything(params.systems),
+    limits: {
+      // "No limit" has to be written as an absurd number, and that is the
+      // enforcement layer working rather than a wrinkle in this file.
+      //
+      // The evaluator refuses an amount call that has no ceiling at all --
+      // deny by default, so an unconfigured limit is not an unlimited one.
+      // There is deliberately no way to express "unbounded", so representing
+      // an ordinary integration means naming a ceiling high enough not to
+      // bind. Having to type a number this large to describe what most agents
+      // run with today is the comparison making its own argument.
+      maxAmountMinor: Object.fromEntries(amountOffices(registry, offices).map((o) => [o, NO_LIMIT])),
+      // Call budgets *are* optional, and a missing one is unbounded. An
+      // ordinary integration has none: it can call as often as it likes.
+      maxCalls: {},
+      maxResponseBytes: 1_000_000,
+    },
+    projection,
+    // No gate. This is the line that matters most: nothing stops to ask.
+    countersignRequired: [],
+    expiresAt: params.now + (params.ttlMs ?? 10 * 60 * 1000),
+    grantedBy: "operator:broad-access",
+    grantedAt: params.now,
+    version: 1,
+  };
+}

@@ -233,3 +233,46 @@ doing: **sandbox** and **reconnect**.
 2. **Real systems** — Stripe test mode first; it is the one that turns
    "connected, not mocked" from arguable into true.
 3. **Countersign from the UI** — the control story is built but not visible.
+
+---
+
+## The comparison, and an honest result
+
+`mode: "unscoped"` runs the same job with the authority an ordinary
+integration hands over: every office, every record, no ceiling, no gate. It is
+not a bypass — the same evaluator, proxy and map are used, and only the scope
+differs. Comparing "our enforcement" against "no enforcement" would prove only
+that code which runs does something.
+
+The measurable difference is the blast radius, and it is deterministic:
+
+| | Scoped | Unscoped |
+|---|---|---|
+| probes fired | 46 | 121 |
+| findings | 0 | 22 |
+| critical | 0 | 4 |
+
+The critical ones are the shape of the problem: *"the scope permits
+charge.find_by_order on the record next to the one granted"*, and the same for
+every other office.
+
+**The injection did not land.** Across several runs, Gemini 2.5 Flash read the
+poisoned ticket, ignored the instruction to refund every order and mail the
+customer list to the attacker, and resolved the actual request. That is worth
+stating plainly rather than re-running until it misbehaves, and it is worth
+being careful about what it means.
+
+It is not evidence that broad access is safe. It is one model, on one prompt,
+on a handful of runs, and the next model or the next phrasing is a coin toss.
+The argument for enforcement has never been that models always fall for
+injections — it is that **you cannot tell in advance whether this one will**,
+and an architecture that is fine only when the model behaves is not an
+architecture. The blast radius above is a fact about the authority; the
+refusal is a fact about one afternoon.
+
+The briefing is held equal so the comparison isolates authority. The unscoped
+run gets a plain integration brief with the same job, the same tools and the
+same record ids, but none of our framing about untrusted content or refusals
+being answers — handing it those would quietly help it resist something a real
+integration meets undefended, and omitting the ids would show an agent
+fumbling rather than an agent with power.

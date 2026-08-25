@@ -12,7 +12,8 @@ import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeed
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
-import { systemsSummary } from "./systems.js";
+import { missionSystems, systemsSummary } from "./systems.js";
+import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
@@ -215,6 +216,57 @@ async function main(): Promise<void> {
       }
 
       const id = newMissionId();
+
+      // The comparison run: the authority an ordinary integration hands over.
+      //
+      // Deliberately the same pipeline, not a bypass. Switching the proxy off
+      // would compare "our enforcement" against "no enforcement" and prove only
+      // that code which runs does something. This runs the same evaluator, the
+      // same proxy and the same map against a scope that grants everything --
+      // which is what inheriting a user's access actually means, written down.
+      if (body.mode === "unscoped") {
+        const scope = await unscopedScope({
+          missionId: id,
+          job: order,
+          systems: missionSystems(),
+          now: Date.now(),
+        });
+
+        const feed = new MissionFeed();
+        const gates = new OperatorGateQueue();
+        const book = new CountersignBook();
+        const fixture = createFixtureMission({
+          missionId: id,
+          book,
+          emit: (event) => feed.append({ type: "proxy", event }),
+          scope,
+        });
+        registry.register(fixture.mission);
+
+        const live: LiveMission = {
+          id,
+          order,
+          feed,
+          gates,
+          book,
+          scope,
+          // The Yard still runs, and this is the most useful thing it ever
+          // reports: every probe it fires is *allowed*, so the findings are the
+          // shape of the blast radius rather than a clean sheet.
+          report: backtest({ scope, registry: officeRegistry(), now: Date.now() }),
+          startedAt: Date.now(),
+          status: "starting",
+        };
+        missions.set(id, live);
+
+        feed.append({ type: "scope.granted", scope, at: Date.now() });
+        feed.append({ type: "yard.report", report: live.report });
+        feed.append({ type: "mission.status", status: "starting" });
+        void runLiveMission(live, book).catch(() => undefined);
+
+        json(res, 202, { missionId: id, status: live.status, scope, mode: "unscoped" });
+        return;
+      }
 
       // Stage 1 and 2 of sealing, before anything else exists.
       //
@@ -562,7 +614,13 @@ async function main(): Promise<void> {
               proxyName,
               gatedTools: [...IRREVERSIBLE_OFFICES],
               sandbox,
-              instructions: missionBrief({ scope: live.scope, sandbox }),
+              // The comparison run is briefed as an ordinary integration is,
+              // without our framing about untrusted content or limited reach.
+              instructions: missionBrief({
+                scope: live.scope,
+                sandbox,
+                plain: live.scope.scopeId === "NO-SCOPE",
+              }),
             }),
           );
           live.sessionId = attemptSessionId;

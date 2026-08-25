@@ -24,3 +24,14 @@ export {
 } from "./brief.js";
 
 export { type CityFeedEvent } from "./feed-events.js";
+
+export {
+  buildRecord,
+  canonical,
+  chainHash,
+  genesisHash,
+  verifyRecord,
+  type MissionRecord,
+  type RecordEntry,
+  type RecordVerdict,
+} from "./record.js";

@@ -8,7 +8,7 @@ import {
   missionAgentSpec,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
-import { CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
+import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
@@ -47,6 +47,7 @@ interface LiveMission extends ManagedLiveMission {
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly scope: ReturnType<typeof createFixtureMission>["scope"];
+  readonly startedAt: number;
   sessionId?: string;
 }
 
@@ -209,6 +210,7 @@ async function main(): Promise<void> {
         feed,
         gates,
         scope: fixture.scope,
+        startedAt: Date.now(),
         status: "starting",
       };
       missions.set(id, live);
@@ -230,7 +232,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel)$/);
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -265,6 +267,56 @@ async function main(): Promise<void> {
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
       });
       json(res, 200, { accepted: true });
+      return;
+    }
+
+    if (req.method === "GET" && match[2] === "record") {
+      // Built on demand from the log rather than maintained alongside it.
+      //
+      // A record kept in step with the feed is a second place for the truth to
+      // live, and the two disagreeing is precisely the failure a tamper-evident
+      // log is supposed to rule out. Derived once, at the moment it is asked
+      // for, there is only ever one answer.
+      const built = buildRecord({
+        missionId: mission.id,
+        scope: mission.scope,
+        events: mission.feed.since(0).events,
+        // The first thing that happened, not the scope's expiry.
+        //
+        // `grantedAt ?? expiresAt` put a *future* timestamp on a record whose
+        // whole purpose is establishing when things occurred, in the one case
+        // where grantedAt was absent. The log's own first entry is the honest
+        // answer, and an empty log has no start to report.
+        startedAt: mission.startedAt,
+        finishedAt: Date.now(),
+        lossy: mission.feed.lossy,
+      });
+
+      // Verified before it is handed over, and the two ways it can fail get
+      // different answers.
+      //
+      // A broken chain means this server produced a record that does not
+      // verify, which is a fault here and not something to hand over with a
+      // flag set and hope the reader checks. An incomplete history is
+      // different: the log dropped events under capacity pressure, the record
+      // is still exactly what remains, and withholding it would destroy
+      // evidence to avoid an awkward field.
+      const verdict = verifyRecord(built);
+
+      if (!verdict.ok && !verdict.chainIntact) {
+        json(res, 500, {
+          error: "the record does not verify",
+          detail: verdict.reason,
+          brokenAt: verdict.brokenAt,
+        });
+        return;
+      }
+
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-disposition": `attachment; filename="scope-city-${mission.id}.json"`,
+      });
+      res.end(JSON.stringify({ ...built, verified: verdict }, null, 2));
       return;
     }
 

@@ -174,6 +174,7 @@ export function useLiveMission() {
     refusedAt: state.refusedAt,
     sandboxOpen: state.sandboxOpen,
     yard: state.yard,
+    missionId,
     treasury: 0,
     inspecting,
     expiresIn,

@@ -117,7 +117,21 @@ export function buildRecord<TEvent>(params: {
 
 export type RecordVerdict =
   | { readonly ok: true; readonly entries: number }
-  | { readonly ok: false; readonly reason: string; readonly brokenAt: number | null };
+  | {
+      readonly ok: false;
+      readonly reason: string;
+      readonly brokenAt: number | null;
+      /**
+       * Whether the hashes themselves check out.
+       *
+       * Separated from `ok` because "someone altered this" and "this is only
+       * part of what happened" are different problems with different responses,
+       * and collapsing them into one boolean loses the distinction exactly when
+       * a reader needs it. A lossy record has an intact chain and an incomplete
+       * history; a tampered one has neither.
+       */
+      readonly chainIntact: boolean;
+    };
 
 /**
  * Recomputes the chain and says whether the record is internally consistent.
@@ -142,6 +156,7 @@ export function verifyRecord(record: MissionRecord): RecordVerdict {
         ok: false,
         reason: `entry ${entry.sequence} does not match the chain`,
         brokenAt: entry.sequence,
+        chainIntact: false,
       };
     }
     previous = entry.hash;
@@ -151,7 +166,28 @@ export function verifyRecord(record: MissionRecord): RecordVerdict {
     // Every link checked out but the head disagrees, which means entries were
     // removed from the end -- the one tampering that leaves each remaining
     // hash individually valid.
-    return { ok: false, reason: "head does not match the chain", brokenAt: null };
+    return {
+      ok: false,
+      reason: "head does not match the chain",
+      brokenAt: null,
+      chainIntact: false,
+    };
+  }
+
+  // The chain is sound, but soundness is not the whole claim.
+  //
+  // A log under capacity pressure drops its oldest events, and the chain
+  // rebuilt from what remains verifies perfectly -- it is a valid chain over an
+  // incomplete history. Stamping that "ok" would be the most misleading output
+  // this function could produce, because the reader's question is whether the
+  // record accounts for the mission, not whether the arithmetic is right.
+  if (record.lossy) {
+    return {
+      ok: false,
+      reason: "the log dropped events, so this record is not a complete history",
+      brokenAt: null,
+      chainIntact: true,
+    };
   }
 
   return { ok: true, entries: record.entries.length };

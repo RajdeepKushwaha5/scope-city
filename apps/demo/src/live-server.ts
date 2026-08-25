@@ -47,6 +47,7 @@ interface LiveMission extends ManagedLiveMission {
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly scope: ReturnType<typeof createFixtureMission>["scope"];
+  readonly startedAt: number;
   sessionId?: string;
 }
 
@@ -209,6 +210,7 @@ async function main(): Promise<void> {
         feed,
         gates,
         scope: fixture.scope,
+        startedAt: Date.now(),
         status: "starting",
       };
       missions.set(id, live);
@@ -279,14 +281,36 @@ async function main(): Promise<void> {
         missionId: mission.id,
         scope: mission.scope,
         events: mission.feed.since(0).events,
-        startedAt: mission.scope.grantedAt ?? mission.scope.expiresAt,
+        // The first thing that happened, not the scope's expiry.
+        //
+        // `grantedAt ?? expiresAt` put a *future* timestamp on a record whose
+        // whole purpose is establishing when things occurred, in the one case
+        // where grantedAt was absent. The log's own first entry is the honest
+        // answer, and an empty log has no start to report.
+        startedAt: mission.startedAt,
         finishedAt: Date.now(),
         lossy: mission.feed.lossy,
       });
 
-      // Verified before it is handed over. Serving a record that does not
-      // verify would put the burden of noticing on whoever receives it.
+      // Verified before it is handed over, and the two ways it can fail get
+      // different answers.
+      //
+      // A broken chain means this server produced a record that does not
+      // verify, which is a fault here and not something to hand over with a
+      // flag set and hope the reader checks. An incomplete history is
+      // different: the log dropped events under capacity pressure, the record
+      // is still exactly what remains, and withholding it would destroy
+      // evidence to avoid an awkward field.
       const verdict = verifyRecord(built);
+
+      if (!verdict.ok && !verdict.chainIntact) {
+        json(res, 500, {
+          error: "the record does not verify",
+          detail: verdict.reason,
+          brokenAt: verdict.brokenAt,
+        });
+        return;
+      }
 
       res.writeHead(200, {
         "content-type": "application/json",

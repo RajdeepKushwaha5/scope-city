@@ -130,6 +130,42 @@ describe("the record chain", () => {
     expect(empty.head).toBe(genesisHash(scope.missionId, scope));
   });
 
+  it("refuses to call an incomplete history verified", () => {
+    // A log under capacity pressure drops its oldest events, and the chain
+    // rebuilt from what remains verifies perfectly -- a valid chain over an
+    // incomplete history. Stamping that "ok" is the most misleading output
+    // this function could produce: the reader is asking whether the record
+    // accounts for the mission, not whether the arithmetic is right.
+    const lossy = { ...record(), lossy: true };
+    const verdict = verifyRecord(lossy);
+
+    expect(verdict.ok).toBe(false);
+    if (!verdict.ok) {
+      expect(verdict.chainIntact).toBe(true);
+      expect(verdict.reason).toContain("complete history");
+    }
+  });
+
+  it("tells an incomplete history apart from a tampered one", () => {
+    // Different problems, different responses. Collapsing them into one
+    // boolean loses the distinction exactly where a reader needs it.
+    const original = record();
+    const tampered = {
+      ...original,
+      entries: original.entries.map((e, i) => (i === 0 ? { ...e, event: { a: 9 } } : e)),
+    };
+
+    const lossyVerdict = verifyRecord({ ...original, lossy: true });
+    const tamperedVerdict = verifyRecord(tampered);
+
+    expect(lossyVerdict.ok).toBe(false);
+    expect(tamperedVerdict.ok).toBe(false);
+    if (!lossyVerdict.ok && !tamperedVerdict.ok) {
+      expect(lossyVerdict.chainIntact).toBe(true);
+      expect(tamperedVerdict.chainIntact).toBe(false);
+    }
+  });
+
   it("carries the scope, so the record says what was authorised", () => {
     // A log of actions without the authority they were taken under is only half
     // the evidence.

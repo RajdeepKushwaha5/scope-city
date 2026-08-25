@@ -175,13 +175,41 @@ export class HarnessDriver {
    * Configures Daytona as the sandbox provider.
    *
    * Daytona is the only provider TrueForge 0.1.4 accepts -- the manifest's
-   * `type` enum has exactly one member -- so despite the local sandbox needing
-   * `bwrap`, `socat` and `ripgrep` in other builds, on this one a sandbox means
-   * a Daytona key and nothing else will do.
+   * `type` enum has exactly one member -- so on this build a sandbox means a
+   * Daytona key and nothing else will do.
+   *
+   * The lifecycle fields are taken from the harness's own catalog rather than
+   * written here. `GET /catalogs/sandbox-providers` describes itself as presets
+   * to copy into the PUT, and copying them is the point: they are all required,
+   * and hardcoding a second set of timeouts would silently diverge from the
+   * harness's defaults the first time it changed one. Sending our own numbers
+   * would also be inventing policy -- how long a sandbox idles before being
+   * archived is the harness's business, not ours.
    */
   async configureDaytonaSandbox(apiKey: string): Promise<void> {
+    const catalog = await this.#client.catalogs.sandboxProviders.list();
+    const presets = ((catalog as { data?: unknown }).data ?? []) as Record<string, unknown>[];
+    const preset = presets.find((entry) => entry["type"] === "daytona");
+
+    if (!preset) {
+      throw new Error(
+        "this harness offers no daytona preset — check /catalogs/sandbox-providers",
+      );
+    }
+
+    // The catalog answers in wire form (snake_case) while the SDK takes
+    // camelCase and converts on the way out, so the preset is translated rather
+    // than passed through. Getting this wrong is quiet: the SDK accepts the
+    // object, drops the unrecognised keys, and the server rejects the manifest
+    // for missing exactly the fields that were just supplied.
+    const manifest: Record<string, unknown> = { type: "daytona", auth: { apiKey } };
+    for (const [key, value] of Object.entries(preset)) {
+      if (key === "type") continue;
+      manifest[key.replace(/_([a-z])/g, (_, c: string) => c.toUpperCase())] = value;
+    }
+
     await this.#client.settings.sandboxProviders.createOrUpdate({
-      manifest: { type: "daytona", auth: { apiKey } } as never,
+      manifest: manifest as never,
     } as never);
   }
 

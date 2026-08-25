@@ -111,6 +111,34 @@ export function useLiveMission() {
     }
   }, [closeSource, connect]);
 
+  /**
+   * Closes the city limits now instead of waiting out the lease.
+   *
+   * The server moves the scope to `expired` through the same path its timer
+   * uses, so what happens afterwards is the real refusal rather than a
+   * demonstration of one.
+   */
+  const expireNow = useCallback(async () => {
+    if (!missionId) return;
+
+    // Failures are surfaced, not swallowed.
+    //
+    // This button exists to be pressed while somebody is watching, and a
+    // silent catch made a failed request indistinguishable from a working one:
+    // the limits stay open, nothing is said, and the honest reading on camera
+    // is that the enforcement did not fire. Whatever went wrong, the operator
+    // needs to know the scope is still live.
+    try {
+      const response = await fetch(`/api/missions/${missionId}/expire`, { method: "POST" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "The scope could not be expired.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [missionId]);
+
   const countersign = useCallback(
     async (approved: boolean) => {
       if (!missionId || !state.gate) return;
@@ -187,6 +215,7 @@ export function useLiveMission() {
     denyScope: () => undefined,
     revoke: leave,
     countersign,
+    expireNow,
     runPoisonedTicket: () => undefined,
     runCleanJob: () => undefined,
     runNoScope: () => undefined,

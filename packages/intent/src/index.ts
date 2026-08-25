@@ -13,7 +13,7 @@ export {
   type RawDerivation,
 } from "./derive.js";
 
-export { amountMinorIn, derivationPrompt, draftFromText } from "./draft.js";
+export { amountMinorIn, derivationPrompt, draftFromText, ttlMsIn } from "./draft.js";
 
 export {
   DEFAULT_RESOLVER_STEPS,

@@ -232,7 +232,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record)$/);
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -325,6 +325,26 @@ async function main(): Promise<void> {
       retireMission(mission, registry, "cancelled", "mission cancelled");
       if (sessionId) await driver.cancel(sessionId).catch(() => undefined);
       json(res, 200, { cancelled: true });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "expire") {
+      // Expiry on demand, for the beat where the operator watches the city
+      // limits close rather than waiting out a timer on camera.
+      //
+      // It does not shortcut the enforcement it demonstrates. The scope moves
+      // to `expired` through exactly the path the timer uses, so afterwards the
+      // agent is refused by the evaluator's own `scope_expired` check and not
+      // by a demo flag. A control that faked the outcome would be showing the
+      // wrong thing at the one moment somebody is watching closely.
+      const expired = await expireLiveMission(mission, registry, (sessionId) =>
+        driver.cancel(sessionId),
+      );
+      if (!expired) {
+        json(res, 409, { error: "that mission has already finished" });
+        return;
+      }
+      json(res, 200, { expired: true, at: Date.now() });
       return;
     }
 

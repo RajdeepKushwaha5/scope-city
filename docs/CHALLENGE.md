@@ -36,11 +36,24 @@ no accounts. It becomes the fallback, not the default.
 > *"Generated code has to execute somewhere that cannot damage anything if it
 > is wrong."*
 
-**Where we are: wired end to end, and gated on a key we do not have.**
+**Where we are: met, and verified against a running sandbox.**
 
-The verification step is written, the agent spec asks for a sandbox, and the
-control plane configures the provider at boot. What is missing is the
-credential.
+The control plane configures the Daytona provider at boot, the agent opens a
+sandbox mid-mission, and it runs its verification there before the gate asks a
+human to approve anything. From a real mission record:
+
+```
+world  agent.arrived   {office: exec}
+world  yard.opened     {sandboxId: v1:daytona:default.f57465e9-...}
+world  agent.finished  {office: exec}
+world  gate.raised     {office: charge.refund}
+```
+
+The order is the point. The sandbox runs *before* the countersign is
+requested, which is what makes it the step that earns the approval rather
+than a checkbox.
+
+Two traps cost real time and are recorded so they cost it once.
 
 An earlier version of this note claimed TrueForge offers a local provider
 needing `bubblewrap`, `socat` and `ripgrep`. That is **wrong for 0.1.4**, and
@@ -67,12 +80,12 @@ checkbox into the step that earns the approval.
 
 > *"It should stop and ask a person before doing anything you cannot undo."*
 
-**Where we are: built and proven headlessly; not yet driven from the UI.**
+**Where we are: met, and driven from the city.**
 
 `tool.approval_required` raises The Gate, the countersign is bound to a
-fingerprint of the exact call, and a drifted call voids the approval. What is
-missing is a human clicking it in the city rather than a scripted approval in a
-terminal.
+fingerprint of the exact call, and a drifted call voids the approval. A human clicks it in the city, and the
+recorded mission shows the whole sequence: gate raised, cleared by an
+operator, quota consumed 1/1, fingerprint revalidated, then the call allowed.
 
 ---
 

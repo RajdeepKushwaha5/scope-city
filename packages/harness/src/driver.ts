@@ -149,6 +149,42 @@ export class HarnessDriver {
     }
   }
 
+  /**
+   * Whether this harness has a sandbox provider configured.
+   *
+   * Asked at boot rather than discovered when a mission fails. With
+   * `sandbox: { enabled: true }` and no provider, the harness rejects the
+   * *session* with a 422, so every mission dies at creation with a message
+   * about `PUT /settings/sandbox-providers` that surfaces to the operator as
+   * "mission failed" and to the map as nothing at all. Checking once, up
+   * front, turns that into a line in the startup log.
+   */
+  async hasSandboxProvider(): Promise<boolean> {
+    try {
+      const response = await this.#client.settings.sandboxProviders.get();
+      return (response as { data?: unknown }).data !== undefined;
+    } catch {
+      // The harness answers "no provider configured" with an error rather than
+      // an empty body, so a throw here is the expected negative case and not a
+      // transport failure worth propagating.
+      return false;
+    }
+  }
+
+  /**
+   * Configures Daytona as the sandbox provider.
+   *
+   * Daytona is the only provider TrueForge 0.1.4 accepts -- the manifest's
+   * `type` enum has exactly one member -- so despite the local sandbox needing
+   * `bwrap`, `socat` and `ripgrep` in other builds, on this one a sandbox means
+   * a Daytona key and nothing else will do.
+   */
+  async configureDaytonaSandbox(apiKey: string): Promise<void> {
+    await this.#client.settings.sandboxProviders.createOrUpdate({
+      manifest: { type: "daytona", auth: { apiKey } } as never,
+    } as never);
+  }
+
   async cancel(sessionId: string): Promise<void> {
     await this.#client.sessions.cancel(sessionId, {} as never);
   }

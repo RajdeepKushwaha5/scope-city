@@ -36,12 +36,26 @@ no accounts. It becomes the fallback, not the default.
 > *"Generated code has to execute somewhere that cannot damage anything if it
 > is wrong."*
 
-**Where we are: nothing. This criterion currently scores zero.**
+**Where we are: wired end to end, and gated on a key we do not have.**
 
-`SCOPE_SANDBOX=true` exists and the agent spec asks for a sandbox, but no
-sandbox provider is configured, so every mission runs without one. TrueForge
-offers Daytona (needs a key) or a local provider that needs `bubblewrap`,
-`socat` and `ripgrep` on the host and is Linux/macOS only.
+The verification step is written, the agent spec asks for a sandbox, and the
+control plane configures the provider at boot. What is missing is the
+credential.
+
+An earlier version of this note claimed TrueForge offers a local provider
+needing `bubblewrap`, `socat` and `ripgrep`. That is **wrong for 0.1.4**, and
+the correction cost real time, so it is recorded here rather than quietly
+fixed: the provider manifest's `type` enum has exactly one member, `daytona`.
+There is no local provider on this version. Installing those three binaries
+changes nothing.
+
+So the sandbox needs a Daytona API key. With `DAYTONA_API_KEY` set the
+provider is configured at boot and the verification step runs; without it the
+startup log says so and the brief omits the step. What must not happen — and
+did, before this was resolved at boot — is a session created with
+`sandbox.enabled` and no provider: the harness rejects it with a 422, so
+*every* mission fails at creation and the operator sees "mission failed" with
+nothing on the map.
 
 There also has to be a *reason* for the agent to write code. The obvious one,
 and the one the brief's own illustration uses, is verification: have the agent

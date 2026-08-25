@@ -93,13 +93,17 @@ every branch reachable from a test.
 ### Requirements
 
 - **Linux or macOS** for the TrueForge server. On Windows use WSL2 — the
-  standalone server segfaults on `win32` and its sandbox provider is
-  Linux/macOS only.
+  standalone server segfaults on `win32`.
 - Node.js >= 22.13, pnpm 11.10
-- For the sandbox: `bwrap`, `socat`, `ripgrep`
-  ```bash
-  sudo apt-get install -y bubblewrap socat ripgrep
-  ```
+- **The sandbox is optional, and needs a Daytona key.** TrueForge 0.1.4 accepts
+  exactly one sandbox provider — the manifest's `type` enum has a single member,
+  `daytona` — so there is no local provider on this version and installing
+  `bwrap`, `socat` or `ripgrep` does nothing for it. Set `DAYTONA_API_KEY` and
+  `SCOPE_SANDBOX=true` and the control plane configures the provider at boot.
+
+  Without a key, everything else still runs. The startup log says the sandbox is
+  unavailable and the mission brief omits its verification step, rather than
+  asking the agent for working it has no way to produce.
 
 ### Quick start — live mission
 

@@ -29,6 +29,7 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
+const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY ?? "";
 /**
  * Models to rotate across, pinned by configuration if anyone asked.
  *
@@ -93,6 +94,51 @@ async function main(): Promise<void> {
   if (found.length === 0) source = "fallback default";
 
   console.log(`Models: ${models.join(", ")} (${source})`);
+
+  // Whether a sandbox is actually available, settled once at boot.
+  //
+  // `sandbox: { enabled: true }` with no provider configured makes the harness
+  // reject the *session*, so every mission dies at creation with a 422 about
+  // `PUT /settings/sandbox-providers` -- which reaches the operator as "mission
+  // failed" and the map as nothing at all. Resolving it here turns a broken
+  // demo into a line in the startup log.
+  //
+  // Note that TrueForge 0.1.4 accepts only Daytona: the provider manifest's
+  // `type` enum has exactly one member. Installing bwrap, socat and ripgrep
+  // does nothing for this build, whatever other versions may support.
+  const sandbox = await resolveSandbox(driver);
+
+  async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
+    if (!SANDBOX) return false;
+
+    if (await harness.hasSandboxProvider()) {
+      console.log("Sandbox: provider already configured");
+      return true;
+    }
+
+    if (!DAYTONA_API_KEY) {
+      console.warn(
+        "Sandbox: SCOPE_SANDBOX=true but no provider is configured and " +
+          "DAYTONA_API_KEY is unset — running without one. " +
+          "The brief's verification step is omitted rather than promised and skipped.",
+      );
+      return false;
+    }
+
+    try {
+      await harness.configureDaytonaSandbox(DAYTONA_API_KEY);
+      console.log("Sandbox: Daytona provider configured");
+      return true;
+    } catch (error) {
+      // A rejected key must not take the control plane down with it. The
+      // mission is still worth running; it just runs without the sandbox, and
+      // the reason is on the record rather than inferred from a later failure.
+      console.warn(
+        `Sandbox: could not configure Daytona (${error instanceof Error ? error.message : String(error)}) — running without one`,
+      );
+      return false;
+    }
+  }
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();
@@ -373,8 +419,8 @@ async function main(): Promise<void> {
               model,
               proxyName,
               gatedTools: [...IRREVERSIBLE_OFFICES],
-              sandbox: SANDBOX,
-              instructions: missionBrief({ ticketId: "tkt_184", sandbox: SANDBOX }),
+              sandbox,
+              instructions: missionBrief({ ticketId: "tkt_184", sandbox }),
             }),
           );
           live.sessionId = attemptSessionId;

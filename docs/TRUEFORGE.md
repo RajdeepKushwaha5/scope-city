@@ -167,5 +167,8 @@ Kept honest so nothing unproven reaches the demo:
       restart** (browser refresh is expected to be fine).
 - [ ] Whether `tools/list` is re-requested between turns, so a scope granted
       mid-session changes the visible tool set.
-- [ ] Sandbox execution on the demo machine; `bwrap` and `ripgrep` are present,
-      but `socat` still needs to be installed with WSL sudo.
+- [ ] Sandbox execution on the demo machine. Needs a `DAYTONA_API_KEY`:
+      0.1.4's provider manifest accepts only `type: "daytona"`, so the local
+      bwrap/socat/ripgrep route does not exist on this version. Verified by
+      reading `SandboxProviderManifest` in the running instance's OpenAPI
+      document, after installing those binaries achieved nothing.

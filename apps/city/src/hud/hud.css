@@ -782,6 +782,8 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--hud-dim, #7f8c9b);
+}
+
 .console__expire {
   width: 100%;
   margin-top: 8px;

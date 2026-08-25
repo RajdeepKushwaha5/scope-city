@@ -175,7 +175,8 @@ sandbox.
 
 > **05. Ship a repo a judge can run.**
 
-**Not yet.** The repository is private and must be public before the deadline.
+**Yes.** Public at `RajdeepKushwaha5/scope-city`, MIT licensed, with the
+fixture path requiring no credentials at all.
 Fixture mode has to work with no accounts and no keys.
 
 ---

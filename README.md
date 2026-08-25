@@ -136,6 +136,33 @@ is sent. A live mission still needs one configured model key. The clearly
 labelled **Offline security replays** in the UI and the full test suite need no
 network or credentials.
 
+## Judge mode — no install, no credentials
+
+The city is a static build. Deploying `apps/city` gives a public URL with no
+sign-in, no backend, and no keys, and the **Replay a real run** button plays a
+mission that actually happened.
+
+That recording is not a script. It is what the control plane produced during a
+live TrueForge session — the derivation, the Yard's 46 probes, the gates, the
+countersigns, the quota — and it is hash-chained, so anyone doubting the order
+of events can check it:
+
+```bash
+# the same file the UI replays
+cat apps/city/public/replays/refund-184.json
+```
+
+It replays through the **same reducer the live stream drives**, so there is no
+second code path that could flatter the first.
+
+```bash
+pnpm --filter @scope-city/city build   # -> apps/city/dist, deploy anywhere static
+```
+
+The scripted **Offline security replays** sit alongside it and are labelled
+differently on purpose: those illustrate a scenario, the recording is one that
+happened.
+
 ## Verifying the claim
 
 The safety claim is not rhetorical; it is a test suite.

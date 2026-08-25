@@ -13,6 +13,8 @@ export function MissionOrder(props: {
   onCleanReplay: () => void;
   onNoScopeReplay: () => void;
   onResetView: () => void;
+  onRecordedReplay: () => void;
+  recordedPlaying: boolean;
 }): React.JSX.Element {
   const [order, setOrder] = useState(DEFAULT_ORDER);
 
@@ -88,6 +90,24 @@ export function MissionOrder(props: {
       {props.error ? <div className="order__error">{props.error}</div> : null}
 
       <div className="order__fallbacks">
+        {/* Listed first and separately from the scripted replays below,
+            because it is a different kind of claim. Those illustrate a
+            scenario; this one is a mission that happened, hash-chained, with
+            the granted scope attached. */}
+        <span className="hud-label">Recorded live mission</span>
+        <div>
+          <button
+            className="btn btn--primary"
+            disabled={props.active}
+            onClick={props.onRecordedReplay}
+          >
+            {props.recordedPlaying ? "Replaying…" : "Replay a real run"}
+          </button>
+          <span className="order__hint order__hint--inline">
+            No server needed — a captured TrueForge session
+          </span>
+        </div>
+
         <span className="hud-label">Offline security replays</span>
         <div>
           <button className="btn" disabled={props.active} onClick={props.onPoisonedReplay}>

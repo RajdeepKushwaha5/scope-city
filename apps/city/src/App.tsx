@@ -11,6 +11,7 @@ import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
+import { useRecordedMission } from "./useRecordedMission.js";
 
 /**
  * The city.
@@ -30,7 +31,16 @@ export function App(): React.JSX.Element {
 
   const replay = useMission();
   const live = useLiveMission();
-  const mission = live.active ? live : replay;
+  const recorded = useRecordedMission();
+
+  // Live wins, then a recorded run, then the scripted replays. Ordered by how
+  // much each one proves: a live mission is happening, a recording happened,
+  // and a scripted replay illustrates.
+  const mission = live.active
+    ? live
+    : recorded.playing || recorded.record
+      ? { ...replay, ...recorded.view }
+      : replay;
   const structureCount = useMemo(
     // Six landmarks, four Exchequer wings, and eleven coastal structures.
     () => layOutCity(mission.offices).length + DISTRICT_PLOTS.length + 15,
@@ -207,13 +217,15 @@ export function App(): React.JSX.Element {
             <MissionOrder
               active={live.active}
               connection={live.connection}
-              error={live.error}
+              error={live.error ?? recorded.error}
               onLaunch={live.launch}
               onStop={live.leave}
               onPoisonedReplay={replay.runPoisonedTicket}
               onCleanReplay={replay.runCleanJob}
               onNoScopeReplay={replay.runNoScope}
               onResetView={() => setCamera(fitCamera(size))}
+              onRecordedReplay={() => void recorded.play("/replays/refund-184.json")}
+              recordedPlaying={recorded.playing}
             />
           </div>
         </div>

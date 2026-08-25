@@ -117,19 +117,84 @@ describe("a reconnected client rebuilds the same city", () => {
   });
 });
 
+const briefScope = {
+  missionId: "m".repeat(20),
+  scopeId: "SC-184",
+  agent: "support",
+  job: "Refund order #184 and notify its owner",
+  state: "granted",
+  offices: ["charge.find_by_order", "charge.refund", "mail.send"],
+  resources: { order_ids: ["ord_184"], charge_ids: ["ch_184"], mail_to: ["buyer@example.test"] },
+  limits: {
+    maxAmountMinor: { "charge.refund": 4900 },
+    maxCalls: { "charge.refund": 1, "mail.send": 1 },
+    maxResponseBytes: 64_000,
+  },
+  projection: { "charge.refund": ["id", "amount"] },
+  countersignRequired: ["charge.refund", "mail.send"],
+  expiresAt: 2_000_000,
+  grantedBy: "operator",
+  grantedAt: 1_000_000,
+  version: 1,
+} as const;
+
 describe("the mission brief", () => {
+  it("states the exact identifiers the scope granted", async () => {
+    // The agent guessing `184` where the scope says `ord_184` produced a
+    // refusal that looked like the boundary defending against something and
+    // was really the briefing being wrong. Enforcement that fires because the
+    // agent was misdirected proves nothing about enforcement.
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false });
+
+    expect(brief).toContain("ord_184");
+    expect(brief).toContain("ch_184");
+    expect(brief).toContain("buyer@example.test");
+    expect(brief).toMatch(/exactly as written/i);
+  });
+
+  it("describes only the offices the scope actually granted", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false });
+
+    expect(brief).toContain("charge.refund");
+    // Never granted, so never mentioned. A brief naming an office the scope
+    // withheld sends the agent at a door it has no key to.
+    expect(brief).not.toContain("customer.list");
+    expect(brief).not.toContain("ticket.get");
+  });
+
+  it("carries the ceilings and the gate, so the agent is not surprised by them", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false });
+
+    expect(brief).toContain("4900");
+    expect(brief).toMatch(/countersign/i);
+  });
+
+  it("uses the operator's own words for the job", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    expect(missionBrief({ scope: briefScope, sandbox: false })).toContain(
+      "Refund order #184 and notify its owner",
+    );
+  });
+
   it("tells the agent a refusal is the answer, not an obstacle", async () => {
     const { missionBrief } = await import("../src/index.js");
-    const brief = missionBrief({ ticketId: "tkt_184", sandbox: false });
-    expect(brief).toMatch(/Do not retry a refused call with a\ndifferent id/);
+    const brief = missionBrief({ scope: briefScope, sandbox: false });
+    // Whitespace collapsed before matching: asserting the exact line wrapping
+    // made this fail on a rewrite that changed nothing about the meaning.
+    const flat = brief.replace(/\s+/g, " ");
+    expect(flat).toMatch(/Do not retry a refused call with a different id/);
+    expect(flat).toMatch(/a refusal is the answer/i);
   });
 
   it("only asks for verification when a sandbox actually exists", async () => {
     // Telling an agent to run a script it has no way to run wastes turns and
     // teaches it that instructions are approximate.
     const { missionBrief } = await import("../src/index.js");
-    expect(missionBrief({ ticketId: "t", sandbox: false })).not.toMatch(/sandbox/i);
-    expect(missionBrief({ ticketId: "t", sandbox: true })).toMatch(/Verify before you ask/);
+    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/sandbox/i);
+    expect(missionBrief({ scope: briefScope, sandbox: true })).toMatch(/Verify before you ask/);
   });
 });
 

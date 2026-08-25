@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CityFeedEvent } from "@scope-city/mission";
+import { cityViewFrom } from "./city-view.js";
 import { initialLiveCityState, reduceLiveCity, scopeViewFromWire } from "./live-state.js";
 import { OFFICES, type ScopeView } from "./useMission.js";
 import { LaunchGuard } from "./launch-guard.js";
@@ -168,47 +169,19 @@ export function useLiveMission() {
     setConnection("offline");
   }, [closeSource, missionId, state.status]);
 
-  const scopeEffective = Boolean(
-    scope &&
-      !state.scopeExpired &&
-      state.status !== "cancelled" &&
-      state.status !== "failed" &&
-      state.status !== "completed" &&
-      expiresIn !== 0,
-  );
-  const granted = useMemo(
-    () => (scopeEffective
-      ? ["records", "exchequer", "post-house"]
-      : []),
-    [scopeEffective],
-  );
+  // Presentation comes from the shared mapping, so a recorded replay of this
+  // mission renders identically to the mission itself.
+  const view = cityViewFrom({ state, scope, expiresIn, idleJob: "No live mission" });
 
   return {
+    ...view,
     active,
     connection,
     error,
     launch,
     leave,
-    phase: state.phase,
-    scope,
-    scopeState: scopeEffective ? "granted" as const : "none" as const,
-    online: state.online,
-    offices: OFFICES,
-    figures: state.figures,
-    gate: state.gate,
-    pendingGateCount: state.pendingGates.length,
-    gateDistricts: state.gate ? [state.gate.district] : [],
-    log: state.log,
-    refusedAt: state.refusedAt,
-    sandboxOpen: state.sandboxOpen,
-    yard: state.yard,
     missionId,
-    treasury: 0,
     inspecting,
-    expiresIn,
-    job: scope?.job ?? "No live mission",
-    granted,
-    proposed: [] as readonly string[],
     inspect: setInspecting,
     propose: () => undefined,
     grant: () => undefined,

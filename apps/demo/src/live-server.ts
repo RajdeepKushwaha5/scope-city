@@ -420,7 +420,7 @@ async function main(): Promise<void> {
               proxyName,
               gatedTools: [...IRREVERSIBLE_OFFICES],
               sandbox,
-              instructions: missionBrief({ ticketId: "tkt_184", sandbox }),
+              instructions: missionBrief({ scope: live.scope, sandbox }),
             }),
           );
           live.sessionId = attemptSessionId;

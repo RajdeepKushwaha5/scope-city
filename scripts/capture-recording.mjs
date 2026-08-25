@@ -37,7 +37,18 @@ async function post(path, body) {
 }
 
 const launched = await post("/api/missions", { order: ORDER });
-if (!launched.body.missionId) {
+
+// A 409 carries a missionId too -- the *existing* mission's -- so checking only
+// for its presence read a refusal as a success and then failed further down
+// with an unhelpful TypeError about a scope that was never sent.
+if (launched.status === 409) {
+  console.error(
+    `a mission is already active (${launched.body.missionId}).\n` +
+      `cancel it first:  curl -X POST ${BASE}/api/missions/${launched.body.missionId}/cancel`,
+  );
+  process.exit(1);
+}
+if (launched.status !== 200 || !launched.body.scope) {
   console.error("launch failed:", launched.body.error, launched.body.detail ?? "");
   process.exit(1);
 }

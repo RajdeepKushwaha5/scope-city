@@ -41,6 +41,15 @@ const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY ?? "";
  * on a build behaving exactly as configured.
  */
 const SANDBOX_AVAILABLE = { value: false };
+
+/**
+ * How long a mission will wait for a model to come off cooldown.
+ *
+ * Long enough to ride out the per-minute rate limits free-tier keys hit
+ * constantly, short enough that a genuinely dead pool is reported rather than
+ * hidden behind a city that appears to be thinking.
+ */
+const POOL_WAIT_BUDGET_MS = 4 * 60 * 1000;
 /**
  * Models to rotate across, pinned by configuration if anyone asked.
  *
@@ -605,7 +614,40 @@ async function main(): Promise<void> {
 
       const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
-      for (const model of pool.available(Date.now())) {
+
+      // Iterated live rather than over a snapshot of what was available at the
+      // start, and willing to wait when nothing is.
+      //
+      // `pool.available()` taken once meant that if every model happened to be
+      // cooling at that instant the loop body never ran and the mission failed
+      // outright. On free-tier keys that is not an edge case: three keys
+      // rate-limiting within a few seconds of each other is the normal way a
+      // busy afternoon goes, and giving up while every one of them is sixty
+      // seconds from working again wastes the whole mission.
+      //
+      // Bounded, because waiting forever is its own failure -- an operator
+      // watching a city do nothing deserves to be told it has given up rather
+      // than left to guess.
+      const poolDeadline = Date.now() + POOL_WAIT_BUDGET_MS;
+
+      for (;;) {
+        const model = pool.next(Date.now());
+
+        if (model === undefined) {
+          const readyAt = pool.nextAvailableAt(Date.now());
+          if (readyAt === undefined || readyAt > poolDeadline) break;
+
+          const waitMs = Math.max(0, readyAt - Date.now()) + 250;
+          live.feed.append({
+            type: "mission.status",
+            status: "starting",
+            detail: `every model is cooling; waiting ${Math.ceil(waitMs / 1000)}s`,
+          });
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          if (isTerminalMissionStatus(live.status)) return;
+          continue;
+        }
+
         let attemptSessionId: string | undefined;
         try {
           attemptSessionId = await driver.createSession(

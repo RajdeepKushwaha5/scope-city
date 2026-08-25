@@ -1,7 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { CityFeedEvent } from "@scope-city/mission";
 import { cityViewFrom, type CityView } from "./city-view.js";
-import { initialLiveCityState, reduceLiveCity, type LiveCityState } from "./live-state.js";
+import {
+  initialLiveCityState,
+  reduceLiveCity,
+  scopeViewFromWire,
+  type LiveCityState,
+} from "./live-state.js";
 import { playRecording, type RecordedMission, type ReplayHandle } from "./replay/recorded.js";
 
 /**
@@ -27,10 +32,13 @@ export function useRecordedMission(): {
   const [record, setRecord] = useState<RecordedMission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const handleRef = useRef<ReplayHandle | null>(null);
+  const loadRef = useRef<symbol | null>(null);
 
   const stop = useCallback(() => {
     handleRef.current?.stop();
     handleRef.current = null;
+    // Any fetch still in flight is abandoned along with the replay it was for.
+    loadRef.current = null;
     setPlaying(false);
   }, []);
 
@@ -43,20 +51,38 @@ export function useRecordedMission(): {
       setError(null);
       setState(initialLiveCityState);
 
+      // Guards against a second play() landing while the first is still
+      // fetching. Without it the slower response wins whichever order the two
+      // were started in, and the city plays a recording nobody asked for.
+      const token = Symbol("replay");
+      loadRef.current = token;
+
       let loaded: RecordedMission;
       try {
         const response = await fetch(url);
         if (!response.ok) throw new Error(`${response.status} ${response.statusText}`);
         loaded = (await response.json()) as RecordedMission;
       } catch (cause) {
+        if (loadRef.current !== token) return;
         setError(
           `Could not load the recording: ${cause instanceof Error ? cause.message : String(cause)}`,
         );
         return;
       }
 
+      if (loadRef.current !== token) return;
+
       if (!Array.isArray(loaded.entries) || loaded.entries.length === 0) {
         setError("That recording has no events in it.");
+        return;
+      }
+
+      // A lossy recording is a partial history, and replaying one without
+      // saying so presents an incomplete mission as a complete one -- the
+      // single most misleading thing this feature could do, since its whole
+      // claim is that you are watching what actually happened.
+      if (loaded.lossy) {
+        setError("That recording is incomplete — events were dropped when it was captured.");
         return;
       }
 
@@ -71,12 +97,18 @@ export function useRecordedMission(): {
     [stop],
   );
 
+  // The scope comes from the file, not from the events.
+  //
+  // The reducer never sees a scope event -- the control plane holds the scope
+  // and sends only what happened -- so a replay that waited for one would draw
+  // no city limits at all, and the viewer would see actions with no visible
+  // authority behind them. That is precisely the half of the evidence this
+  // feature exists to show.
   const view = cityViewFrom({
     state,
-    // A recording carries its scope in the file, but the reducer never sees a
-    // scope event, so the limits are not drawn from one. The job line comes
-    // from the recording itself.
-    scope: null,
+    scope: record ? scopeViewFromWire(record.scope) : null,
+    // A recording is a past mission; there is no countdown left to run on it.
+    // Null renders no timer rather than a frozen or negative one.
     expiresIn: null,
     idleJob: record?.job ?? "No mission",
   });

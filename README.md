@@ -101,12 +101,14 @@ every branch reachable from a test.
   `bwrap`, `socat` or `ripgrep` does nothing for it. Set `DAYTONA_API_KEY` and
   `SCOPE_SANDBOX=true` and the control plane configures the provider at boot.
 
-  **Grant the key broad permissions.** A key scoped to Sandboxes alone is
-  rejected: TrueForge's validation touches more than that, and Daytona answers
-  403 on `/api/volumes` for a narrowly-scoped key, which surfaces as
-  "Daytona rejected the API key — check the credentials". Least privilege is
-  the right instinct and it is the wrong place to apply it, because the failure
-  is reported as a bad credential rather than a missing scope.
+  **Scope the key to three permissions: Sandboxes, Snapshots, Volumes.** A key
+  scoped to Sandboxes alone is refused — TrueForge's validation reaches
+  further, and Daytona answers 403 on `/api/volumes`, which surfaces as
+  "Daytona rejected the API key — check the credentials" and sends you to
+  check a credential that works. Those three are what a working key needs;
+  verified by probing each endpoint, with `api-keys` still 403 on the key that
+  configures successfully. There is no reason to grant more than that, least
+  of all in this project.
 
   Without a key, everything else still runs. The startup log says the sandbox is
   unavailable and the mission brief omits its verification step, rather than

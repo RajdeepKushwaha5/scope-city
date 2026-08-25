@@ -83,9 +83,18 @@ checkbox into the step that earns the approval.
 **Where we are: met, and driven from the city.**
 
 `tool.approval_required` raises The Gate, the countersign is bound to a
-fingerprint of the exact call, and a drifted call voids the approval. A human clicks it in the city, and the
-recorded mission shows the whole sequence: gate raised, cleared by an
-operator, quota consumed 1/1, fingerprint revalidated, then the call allowed.
+fingerprint of the exact call, and a drifted call voids the approval. The gate is wired to the city: `GatePanel` posts to
+`/api/missions/:id/decisions`, and the recorded mission shows the whole
+sequence -- gate raised, cleared, quota consumed 1/1, fingerprint revalidated,
+then the call allowed.
+
+Stated precisely, because the distinction matters: **that recording was driven
+through the same HTTP endpoint the UI calls, not by a click in a browser.**
+`gate.cleared` carries a tool-call id, an approval boolean and a timestamp,
+and no actor provenance, so nothing in the record could support a claim about
+who pressed what. The code path is the one the UI uses and is covered by
+tests; the recording is evidence that the path works, not that a human walked
+it. Saying otherwise would be the exact kind of overclaim that loses a Q&A.
 
 ---
 

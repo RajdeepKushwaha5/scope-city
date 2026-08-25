@@ -98,13 +98,13 @@
                 "customer.address",
                 "customer.history"
               ],
-              "remedy": "No action \u00e2\u20ac\u201d this is the response filter doing its job."
+              "remedy": "No action — this is the response filter doing its job."
             },
             {
               "kind": "composition_reach",
               "severity": "note",
               "office": "charge.refund",
-              "summary": "charge.find_by_order yields charge_ids, which charge.refund accepts \u00e2\u20ac\u201d the pair is a path to act on whatever charge.find_by_order returns.",
+              "summary": "charge.find_by_order yields charge_ids, which charge.refund accepts — the pair is a path to act on whatever charge.find_by_order returns.",
               "detail": [
                 "charge_ids"
               ],
@@ -114,7 +114,7 @@
               "kind": "composition_reach",
               "severity": "note",
               "office": "charge.refund",
-              "summary": "charge.get yields charge_ids, which charge.refund accepts \u00e2\u20ac\u201d the pair is a path to act on whatever charge.get returns.",
+              "summary": "charge.get yields charge_ids, which charge.refund accepts — the pair is a path to act on whatever charge.get returns.",
               "detail": [
                 "charge_ids"
               ],
@@ -124,7 +124,7 @@
               "kind": "composition_reach",
               "severity": "note",
               "office": "mail.send",
-              "summary": "charge.get yields mail_to, which mail.send accepts \u00e2\u20ac\u201d the pair is a path to act on whatever charge.get returns.",
+              "summary": "charge.get yields mail_to, which mail.send accepts — the pair is a path to act on whatever charge.get returns.",
               "detail": [
                 "mail_to"
               ],

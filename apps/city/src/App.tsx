@@ -22,6 +22,15 @@ import { useRecordedMission } from "./useRecordedMission.js";
  * the whole point of the interface is that you can trust what you are looking
  * at.
  */
+/**
+ * The shipped recording.
+ *
+ * Named here rather than inlined at the call site so the deployed asset has
+ * one place to change, and so a build that ships a different capture does not
+ * need a component edit to find it.
+ */
+const RECORDING_URL = "/replays/refund-184.json";
+
 export function App(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
@@ -39,7 +48,28 @@ export function App(): React.JSX.Element {
   const mission = live.active
     ? live
     : recorded.playing || recorded.record
-      ? { ...replay, ...recorded.view }
+      ? {
+          ...replay,
+          ...recorded.view,
+          // Controls are inert during a recorded replay.
+          //
+          // Spreading the scripted replay's handlers under the recorded view
+          // left buttons that mutated one mission's state while the HUD
+          // rendered another's -- a Grant that appeared to do nothing, and a
+          // countersign that quietly advanced a scripted run nobody was
+          // watching. A recording is a past mission: there is nothing left to
+          // decide about it, and the honest control is one that does not
+          // pretend otherwise.
+          propose: () => undefined,
+          grant: () => undefined,
+          denyScope: () => undefined,
+          revoke: recorded.stop,
+          countersign: async () => undefined,
+          expireNow: async () => undefined,
+          runPoisonedTicket: () => undefined,
+          runCleanJob: () => undefined,
+          runNoScope: () => undefined,
+        }
       : replay;
   const structureCount = useMemo(
     // Six landmarks, four Exchequer wings, and eleven coastal structures.
@@ -224,7 +254,7 @@ export function App(): React.JSX.Element {
               onCleanReplay={replay.runCleanJob}
               onNoScopeReplay={replay.runNoScope}
               onResetView={() => setCamera(fitCamera(size))}
-              onRecordedReplay={() => void recorded.play("/replays/refund-184.json")}
+              onRecordedReplay={() => void recorded.play(RECORDING_URL)}
               recordedPlaying={recorded.playing}
             />
           </div>

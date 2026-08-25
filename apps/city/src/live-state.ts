@@ -228,7 +228,7 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
   }
 }
 
-interface WireScope {
+export interface WireScope {
   readonly scopeId: string;
   readonly job: string;
   readonly offices: readonly string[];

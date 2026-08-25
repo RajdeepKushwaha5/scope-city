@@ -1,4 +1,5 @@
 import type { CityFeedEvent } from "@scope-city/mission";
+import type { WireScope } from "../live-state.js";
 
 /**
  * Replaying a mission that actually happened.
@@ -30,6 +31,15 @@ export interface RecordedMission {
   readonly missionId: string;
   readonly scopeId: string;
   readonly job: string;
+  /**
+   * The authority the recorded events were taken under.
+   *
+   * Carried in the file rather than inferred from the events, because the
+   * point of replaying a real mission is that a sceptical viewer can see what
+   * was granted -- not just what happened. A replay that showed the actions
+   * without the scope would be the less interesting half of the evidence.
+   */
+  readonly scope: WireScope;
   readonly startedAt: number;
   readonly finishedAt: number;
   readonly entries: readonly RecordedEntry[];
@@ -100,10 +110,29 @@ export function playRecording(
   // during render.
   timer = setTimeout(step, 0);
 
+  // A hidden tab throttles timers to roughly one per second, which stretches a
+  // replay out and lands the viewer mid-mission when they come back. Pausing
+  // and resuming from where it stopped keeps the pacing intact, which matters
+  // because the pacing is what makes a gate visibly *wait*.
+  // Guarded because this module is unit-tested without a DOM, and a replay
+  // that only works inside a browser could not be tested at all.
+  const doc = typeof document === "undefined" ? null : document;
+
+  const onVisibility = (): void => {
+    if (stopped || !doc) return;
+    if (doc.visibilityState === "hidden") {
+      if (timer !== undefined) clearTimeout(timer);
+    } else {
+      timer = setTimeout(step, 250);
+    }
+  };
+  doc?.addEventListener("visibilitychange", onVisibility);
+
   return {
     stop() {
       stopped = true;
       if (timer !== undefined) clearTimeout(timer);
+      doc?.removeEventListener("visibilitychange", onVisibility);
     },
   };
 }

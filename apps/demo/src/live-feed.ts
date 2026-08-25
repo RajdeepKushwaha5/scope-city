@@ -27,6 +27,11 @@ export class MissionFeed {
     return this.#log.since(cursor);
   }
 
+  /** True when the log has dropped events, so a record built from it has a gap. */
+  get lossy(): boolean {
+    return this.#log.lossy;
+  }
+
   subscribe(listener: FeedListener): () => void {
     this.#listeners.add(listener);
     return () => this.#listeners.delete(listener);

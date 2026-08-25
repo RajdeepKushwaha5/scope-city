@@ -20,6 +20,8 @@ export function CityConsole(props: {
   expiresIn: number | null;
   connection: "offline" | "connecting" | "live" | "reconnecting";
   lines: readonly LogLine[];
+  /** Null during an offline replay, which has no server-side record. */
+  missionId: string | null;
   gate: GateRequest | null;
   pendingGateCount: number;
   onApprove: () => void;
@@ -115,6 +117,25 @@ export function CityConsole(props: {
         <span>Permits · operator</span>
         <span>{props.structureCount} structures</span>
       </div>
+
+      {/* The record, and a way to take it away.
+          Not a convenience: a mission that stops when the tab closes has
+          produced no evidence, and "what was the agent actually able to touch"
+          is the question nobody can answer after an incident. A plain link
+          rather than a fetch-and-blob, so the browser saves the same bytes the
+          server verified with nothing in between to reshape them. */}
+      {props.missionId ? (
+        <div className="record__footer">
+          <a
+            className="btn record__download"
+            href={`/api/missions/${props.missionId}/record`}
+            download
+          >
+            Download the record
+          </a>
+          <span className="record__hint">Hash-chained · includes the granted scope</span>
+        </div>
+      ) : null}
     </Window>
   );
 }

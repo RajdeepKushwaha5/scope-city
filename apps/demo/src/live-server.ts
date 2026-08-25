@@ -8,7 +8,7 @@ import {
   missionAgentSpec,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
-import { CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
+import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
@@ -230,7 +230,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel)$/);
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -265,6 +265,34 @@ async function main(): Promise<void> {
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
       });
       json(res, 200, { accepted: true });
+      return;
+    }
+
+    if (req.method === "GET" && match[2] === "record") {
+      // Built on demand from the log rather than maintained alongside it.
+      //
+      // A record kept in step with the feed is a second place for the truth to
+      // live, and the two disagreeing is precisely the failure a tamper-evident
+      // log is supposed to rule out. Derived once, at the moment it is asked
+      // for, there is only ever one answer.
+      const built = buildRecord({
+        missionId: mission.id,
+        scope: mission.scope,
+        events: mission.feed.since(0).events,
+        startedAt: mission.scope.grantedAt ?? mission.scope.expiresAt,
+        finishedAt: Date.now(),
+        lossy: mission.feed.lossy,
+      });
+
+      // Verified before it is handed over. Serving a record that does not
+      // verify would put the burden of noticing on whoever receives it.
+      const verdict = verifyRecord(built);
+
+      res.writeHead(200, {
+        "content-type": "application/json",
+        "content-disposition": `attachment; filename="scope-city-${mission.id}.json"`,
+      });
+      res.end(JSON.stringify({ ...built, verified: verdict }, null, 2));
       return;
     }
 

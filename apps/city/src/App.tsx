@@ -229,11 +229,12 @@ export function App(): React.JSX.Element {
             expiresIn={mission.expiresIn}
             connection={live.connection}
             lines={mission.log}
-            missionId={mission.missionId}
             gate={mission.gate}
             pendingGateCount={live.active ? live.pendingGateCount : 0}
             onApprove={() => mission.countersign(true)}
             onDeny={() => mission.countersign(false)}
+            missionId={mission.missionId}
+            onExpireNow={() => void mission.expireNow()}
           />
         </div>
       </div>

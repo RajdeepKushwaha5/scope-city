@@ -20,12 +20,16 @@ export function CityConsole(props: {
   expiresIn: number | null;
   connection: "offline" | "connecting" | "live" | "reconnecting";
   lines: readonly LogLine[];
-  /** Null during an offline replay, which has no server-side record. */
+  /**
+   * Null during an offline replay, which has neither a server-side record to
+   * download nor a server-held scope to expire.
+   */
   missionId: string | null;
   gate: GateRequest | null;
   pendingGateCount: number;
   onApprove: () => void;
   onDeny: () => void;
+  onExpireNow: () => void;
 }): React.JSX.Element {
   const total = 10 * 60 * 1000;
   const remaining = props.expiresIn ?? 0;
@@ -73,6 +77,14 @@ export function CityConsole(props: {
             value={remaining / total}
             tone={remaining < total * 0.2 ? "bad" : remaining < total * 0.5 ? "warn" : "good"}
           />
+          {props.missionId ? (
+            /* Closes the limits now rather than waiting out the lease on
+               camera. The server expires the scope through the same path its
+               timer uses, so what follows is the real refusal. */
+            <button className="btn console__expire" type="button" onClick={props.onExpireNow}>
+              Close the limits now
+            </button>
+          ) : null}
         </div>
       )}
 

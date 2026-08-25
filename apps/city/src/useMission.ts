@@ -326,10 +326,11 @@ export function useMission() {
     // scope for the Yard to have examined. Null renders the panel as "runs
     // before the scope is granted", which is the truth for a replay.
     yard: null,
-    // Offline replays are scripted in the browser, so there is no server-side
-    // record to hand over. The panel omits the download rather than offering
-    // one that would 404.
+    // Offline replays run entirely in the browser: there is no server-side
+    // record to hand over and no server-held scope to expire, so the panel
+    // omits both rather than offering controls that would 404.
     missionId: null as string | null,
+    expireNow: async () => undefined,
     treasury,
     inspecting,
     expiresIn,

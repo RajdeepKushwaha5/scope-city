@@ -101,6 +101,30 @@ export function amountMinorIn(text: string): number | null {
   return Number.parseInt(whole ?? "0", 10) * 100 + Number.parseInt(frac.padEnd(2, "0"), 10);
 }
 
+/**
+ * How long the operator said the authority should live.
+ *
+ * A scope is a lease, and the lease term is the operator's to set. Reading it
+ * from the sentence keeps it in the same place as everything else they decided,
+ * rather than making expiry a setting somewhere else that quietly contradicts
+ * what they typed.
+ *
+ * Absent a stated duration the caller's default applies, which is the shortest
+ * of the two -- never the longest. An operator who does not mention time has
+ * not asked for more of it.
+ */
+export function ttlMsIn(text: string): number | null {
+  const m = /\b(?:for|within|next|lasting)?\s*([0-9]+)\s*(second|sec|minute|min|hour|hr)s?\b/i.exec(text);
+  if (!m?.[1] || !m[2]) return null;
+
+  const value = Number.parseInt(m[1], 10);
+  if (!Number.isFinite(value) || value <= 0) return null;
+
+  const unit = m[2].toLowerCase();
+  const ms = unit.startsWith("sec") ? 1_000 : unit.startsWith("min") ? 60_000 : 3_600_000;
+  return value * ms;
+}
+
 export function draftFromText(job: string): RawDerivation {
   const offices = new Set<string>();
   for (const rule of RULES) {
@@ -120,7 +144,8 @@ export function draftFromText(job: string): RawDerivation {
   const maxAmountMinor: Record<string, number> = {};
   if (amount !== null && offices.has("charge.refund")) maxAmountMinor["charge.refund"] = amount;
 
-  return { offices: [...offices], named, maxAmountMinor };
+  const ttlMs = ttlMsIn(job);
+  return { offices: [...offices], named, maxAmountMinor, ...(ttlMs !== null ? { ttlMs } : {}) };
 }
 
 /**

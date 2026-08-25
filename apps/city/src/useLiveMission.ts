@@ -111,6 +111,33 @@ export function useLiveMission() {
     }
   }, [closeSource, connect]);
 
+  /**
+
+   * Closes the city limits now instead of waiting out the lease.
+
+   *
+
+   * The server moves the scope to `expired` through the same path its timer
+
+   * uses, so what happens afterwards is the real refusal rather than a
+
+   * demonstration of one.
+
+   */
+
+  const expireNow = useCallback(async () => {
+
+    if (!missionId) return;
+
+    await fetch(`/api/missions/${missionId}/expire`, { method: "POST" }).catch(
+
+      () => undefined,
+
+    );
+
+  }, [missionId]);
+
+
   const countersign = useCallback(
     async (approved: boolean) => {
       if (!missionId || !state.gate) return;
@@ -187,6 +214,7 @@ export function useLiveMission() {
     denyScope: () => undefined,
     revoke: leave,
     countersign,
+    expireNow,
     runPoisonedTicket: () => undefined,
     runCleanJob: () => undefined,
     runNoScope: () => undefined,

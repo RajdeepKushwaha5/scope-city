@@ -631,10 +631,18 @@ const MAX_LABEL = 22;
 /** A thread title cut to something a figure can carry, with the cut shown. */
 export function labelFor(title: string): string {
   const clean = title.replace(/\s+/g, " ").trim();
-  if (clean.length <= MAX_LABEL) return clean;
+
+  // Counted and cut by code point, not by UTF-16 unit.
+  //
+  // `slice` on a string containing anything outside the BMP -- an emoji in a
+  // thread title, say -- can cut a surrogate pair in half and produce a
+  // replacement glyph, which is a worse label than the one being shortened.
+  const points = [...clean];
+  if (points.length <= MAX_LABEL) return clean;
+
   // The ellipsis is the point: a silently cut label reads as the harness having
   // sent a shorter name than it did.
-  return `${clean.slice(0, MAX_LABEL - 1).trimEnd()}…`;
+  return `${points.slice(0, MAX_LABEL - 1).join("").trimEnd()}…`;
 }
 
 function figureItems(state: SceneState): Drawable[] {
@@ -665,23 +673,32 @@ function figureItems(state: SceneState): Drawable[] {
         // Only named threads carry a label. Writing "agent" over the root
         // figure would add a word without adding a fact.
         if (kind === "team" && title) {
-          ctx.font = "10px ui-monospace, monospace";
-          ctx.textAlign = "center";
-          ctx.textBaseline = "alphabetic";
-
           // The harness chooses these strings and nothing bounds their length.
           // "Source investigator" fits; a sentence would paint a bar across the
           // city and bury whatever is behind it, and near the canvas edge it
           // would be clipped mid-word with no indication that it was cut. So
           // the label is truncated to something a figure can carry.
+          //
+          // Computed before any canvas state is touched. A title of nothing but
+          // whitespace is truthy, so the guard above lets it through and the
+          // bar was painted around an empty string -- a small blank plaque over
+          // the city, attached to nothing. Bailing out after setting textAlign
+          // would have left it "center" for every figure drawn after this one,
+          // so the check has to come first.
           const text = labelFor(title);
-          const width = ctx.measureText(text).width;
-          ctx.fillStyle = UI.outline;
-          ctx.fillRect(p.x - width / 2 - 3, p.y - 36, width + 6, 12);
+          if (text !== "") {
+            ctx.font = "10px ui-monospace, monospace";
+            ctx.textAlign = "center";
+            ctx.textBaseline = "alphabetic";
 
-          ctx.fillStyle = AGENT.team;
-          ctx.fillText(text, p.x, p.y - 27);
-          ctx.textAlign = "left";
+            const width = ctx.measureText(text).width;
+            ctx.fillStyle = UI.outline;
+            ctx.fillRect(p.x - width / 2 - 3, p.y - 36, width + 6, 12);
+
+            ctx.fillStyle = AGENT.team;
+            ctx.fillText(text, p.x, p.y - 27);
+            ctx.textAlign = "left";
+          }
         }
       },
     };

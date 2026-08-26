@@ -44,3 +44,24 @@ describe("subagent figure labels", () => {
     expect(labelFor("   ")).toBe("");
   });
 });
+
+describe("labels that would paint nothing, or paint it wrongly", () => {
+  it("cuts on code points, so an emoji is not split in half", () => {
+    // `slice` works in UTF-16 units. A title carrying anything outside the BMP
+    // can be cut through the middle of a surrogate pair, and the canvas then
+    // draws a replacement glyph -- a worse label than the one being shortened.
+    const label = labelFor("🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️🛰️");
+
+    expect(label).not.toContain("\uFFFD");
+    // Every unit that is half of a pair must have its other half.
+    for (const char of label) expect(char.length === 1 || char.length >= 2).toBe(true);
+    expect(label.endsWith("…")).toBe(true);
+  });
+
+  it("counts a multi-unit character as one, not two", () => {
+    // Twenty-two astral characters is twenty-two code points, so it fits and
+    // must not be truncated for being forty-four UTF-16 units long.
+    const exact = "𝔄".repeat(22);
+    expect(labelFor(exact)).toBe(exact);
+  });
+});

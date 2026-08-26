@@ -76,6 +76,19 @@ export interface Figure {
   readonly u: number;
   readonly v: number;
   readonly kind: "agent" | "team";
+  /**
+   * What this thread was spawned to do, when the harness said.
+   *
+   * TrueForge titles the child threads it creates, and for this mission those
+   * titles come back as "Source investigator" and "Target verifier" -- the two
+   * assignments the brief describes. Dropping them left five identical tokens
+   * standing in a row, which looks like decoration. Showing them is the
+   * difference between claiming the delegation is real and letting someone read
+   * it off the map.
+   *
+   * Absent for the root agent, and for any thread the harness did not name.
+   */
+  readonly title?: string | null;
 }
 
 export interface SceneState {
@@ -608,7 +621,7 @@ function trafficItems(state: SceneState, time: number): Drawable[] {
 
 function figureItems(state: SceneState): Drawable[] {
   return state.figures.map((figure) => {
-    const { u, v, kind } = figure;
+    const { u, v, kind, title } = figure;
     return {
       z: depth(u, v, 20),
       draw: (ctx: CanvasRenderingContext2D) => {
@@ -630,6 +643,22 @@ function figureItems(state: SceneState): Drawable[] {
         ctx.strokeStyle = UI.outline;
         ctx.lineWidth = 1;
         ctx.strokeRect(p.x - 6.5, p.y - 22.5, 13, 23);
+
+        // Only named threads carry a label. Writing "agent" over the root
+        // figure would add a word without adding a fact.
+        if (kind === "team" && title) {
+          ctx.font = "10px ui-monospace, monospace";
+          ctx.textAlign = "center";
+          ctx.textBaseline = "alphabetic";
+
+          const width = ctx.measureText(title).width;
+          ctx.fillStyle = UI.outline;
+          ctx.fillRect(p.x - width / 2 - 3, p.y - 36, width + 6, 12);
+
+          ctx.fillStyle = AGENT.team;
+          ctx.fillText(title, p.x, p.y - 27);
+          ctx.textAlign = "left";
+        }
       },
     };
   });

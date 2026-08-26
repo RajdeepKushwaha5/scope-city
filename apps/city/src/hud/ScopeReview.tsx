@@ -30,14 +30,25 @@ export function ScopeReview(props: {
   onGrant: () => void;
   onDeny: () => void;
   onAsk: (office: string) => Promise<CounterfactualView | null>;
+  /** Draws the annexation on the map while a candidate is being considered. */
+  onPreview: (preview: { office: string; districts: readonly string[] } | null) => void;
 }): React.JSX.Element {
   const [asked, setAsked] = useState<CounterfactualView | null>(null);
   const [asking, setAsking] = useState<string | null>(null);
 
   const ask = async (office: string): Promise<void> => {
     setAsking(office);
-    setAsked(await props.onAsk(office));
+    const answer = await props.onAsk(office);
+    setAsked(answer);
     setAsking(null);
+    // The map annexes what the answer says it would, so the reading and the
+    // drawing come from one place rather than two that could disagree.
+    props.onPreview(answer ? { office, districts: answer.newDistricts } : null);
+  };
+
+  const clear = (): void => {
+    setAsked(null);
+    props.onPreview(null);
   };
 
   const blocking = props.report?.findings.filter((f) => f.severity !== "note") ?? [];
@@ -126,7 +137,7 @@ export function ScopeReview(props: {
                 {f.summary}
               </div>
             ))}
-            <button className="btn review__cf-clear" onClick={() => setAsked(null)}>
+            <button className="btn review__cf-clear" onClick={clear}>
               Clear
             </button>
           </div>
@@ -134,7 +145,16 @@ export function ScopeReview(props: {
       </div>
 
       <div className="review__actions">
-        <button className="btn btn--primary" onClick={props.onGrant}>
+        <button
+          className="btn btn--primary"
+          onClick={() => {
+            // Never grant with a preview still drawn: the operator would press
+            // Grant looking at a boundary wider than the one they are agreeing
+            // to, which is the one confusion this feature must not create.
+            clear();
+            props.onGrant();
+          }}
+        >
           Grant
         </button>
         <button className="btn btn--danger" onClick={props.onDeny}>

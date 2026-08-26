@@ -55,6 +55,7 @@ export function App(): React.JSX.Element {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
+  const [preview, setPreview] = useState<{ office: string; districts: readonly string[] } | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
 
@@ -133,8 +134,9 @@ export function App(): React.JSX.Element {
       scopeState: mission.scopeState,
       buildings: runtimeStates,
       selected: selectedOffice,
+      counterfactual: preview,
     }),
-    [mission, runtimeStates, selectedOffice],
+    [mission, runtimeStates, selectedOffice, preview],
   );
 
   useEffect(() => {
@@ -306,6 +308,7 @@ export function App(): React.JSX.Element {
                 onGrant={() => void live.grant()}
                 onDeny={() => void live.denyScope()}
                 onAsk={live.askCounterfactual}
+                onPreview={setPreview}
               />
             ) : null}
             <BuildingInspector

@@ -1,4 +1,4 @@
-import { UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
+import { TILE_H, TILE_W, UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
 import {
   AGENT,
   COAST,
@@ -50,6 +50,7 @@ import {
   isInScope,
   layOutCity,
   perimeterOf,
+  plotFor,
   roadConnections,
   tileKindAt,
   treeCells,
@@ -97,6 +98,19 @@ export interface SceneState {
   readonly selected?: string | null;
   /** Animation phase, 0..1, for the states that pulse. */
   readonly phase?: number;
+  /**
+   * The office being considered but not granted, and the districts it would
+   * bring inside the limits.
+   *
+   * Drawn as a hypothetical rather than folded into `granted`, because the
+   * whole value of a counterfactual is that it is visibly *not* the scope. An
+   * operator who cannot tell the preview from the grant has been shown
+   * authority they did not give.
+   */
+  readonly counterfactual?: {
+    readonly office: string;
+    readonly districts: readonly string[];
+  } | null;
 }
 
 interface Drawable {
@@ -172,7 +186,10 @@ export function drawScene(
   items.sort((a, b) => a.z - b.z);
   for (const item of items) item.draw(ctx);
 
-  drawScopeWall(ctx, state, time);
+  drawScopeWall(ctx, framed, time);
+  // After the real boundary, so a hypothetical annexation reads as something
+  // laid over the scope rather than part of it.
+  drawCounterfactual(ctx, framed, time);
   drawRefusal(ctx, state, time);
 
   ctx.restore();
@@ -560,6 +577,71 @@ function drawScopeWall(ctx: CanvasRenderingContext2D, state: SceneState, time: n
     UI.wall,
     `rgba(255, 194, 71, ${pulse.toFixed(3)})`,
     state.scopeState === "proposed",
+  );
+}
+
+/**
+ * The city as it would be, drawn over the city as it is.
+ *
+ * Permissions have always been a JSON diff nobody reads. Drawing the annexation
+ * is the one interaction that turns the map from a picture of a decision into
+ * the instrument for making it: granting `customer.list` visibly takes in a
+ * district, and the operator sees the cost before agreeing to it rather than
+ * reading a number that says so.
+ *
+ * Deliberately distinguishable from the real boundary at a glance. The granted
+ * limits are a solid amber line; this is a dashed red one over a translucent
+ * wash, so no still frame of the demo can be mistaken for authority that was
+ * actually handed over.
+ */
+function drawCounterfactual(
+  ctx: CanvasRenderingContext2D,
+  state: SceneState,
+  time: number,
+): void {
+  const preview = state.counterfactual;
+  if (!preview) return;
+
+  // Only the districts the addition would newly reach. Redrawing the whole
+  // proposed boundary would say "all of this is hypothetical" when most of it
+  // is exactly what the operator is already being asked to grant.
+  const granted = new Set(state.scopeState === "proposed" ? state.proposed : state.granted);
+  const annexed = preview.districts.filter((d) => !granted.has(d));
+  if (annexed.length === 0) return;
+
+  const pulse = 0.1 + Math.sin(time / 500) * 0.05;
+
+  ctx.save();
+  for (const district of annexed) {
+    const plot = plotFor(district);
+    if (!plot) continue;
+
+    // A wash over the annexed ground, so the eye lands on the area rather than
+    // hunting for a line.
+    ctx.fillStyle = `rgba(224, 90, 74, ${pulse.toFixed(3)})`;
+    for (let u = plot.u0; u <= plot.u1; u += 1) {
+      for (let v = plot.v0; v <= plot.v1; v += 1) {
+        const c = toScreen(u, v, 0);
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y - TILE_H / 2);
+        ctx.lineTo(c.x + TILE_W / 2, c.y);
+        ctx.lineTo(c.x, c.y + TILE_H / 2);
+        ctx.lineTo(c.x - TILE_W / 2, c.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+
+  drawPerimeter(
+    ctx,
+    perimeterOf(annexed),
+    "rgba(224, 90, 74, 0.9)",
+    `rgba(224, 90, 74, ${(pulse * 1.4).toFixed(3)})`,
+    // Dashed, always. The granted boundary is solid, and the difference has to
+    // survive a screenshot.
+    true,
   );
 }
 

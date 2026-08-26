@@ -493,7 +493,6 @@ body {
   font-size: 13px;
 }
 
-.crew-card__sprite,
 .console__portrait {
   position: relative;
   display: block;
@@ -1358,7 +1357,7 @@ canvas.world:active {
   border: 1px solid var(--hud-rule);
 }
 
-.crew-card__sprite, .console__portrait {
+.console__portrait {
   width: 24px;
   height: 24px;
   display: flex;
@@ -2084,78 +2083,6 @@ canvas.world:active {
   width: 90vw;
 }
 
-.crew-modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.crew-modal__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.crew-modal__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hud-rule);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.crew-modal__item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--hud-dim);
-}
-
-.crew-modal__item--selected {
-  background: rgba(255, 194, 71, 0.08);
-  border-color: #ffc247;
-  box-shadow: 0 0 12px rgba(255, 194, 71, 0.15);
-}
-
-.crew-modal__details {
-  flex: 1;
-}
-
-.crew-modal__top-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2px;
-}
-
-.crew-modal__role {
-  font-size: 9px;
-  color: var(--hud-dim);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.crew-modal__desc {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--hud-text);
-}
-
-.crew-modal__check {
-  color: #ffc247;
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.crew-modal__thinking {
-  margin-top: 12px;
-}
-
 /* ---- THE GATE BEACON ----------------------------------------------------- */
 
 /*
@@ -2397,19 +2324,6 @@ canvas.world:active {
   color: #ffffff;
 }
 
-.crew-modal-v2__body {
-  display: grid;
-  grid-template-columns: 1.15fr 0.85fr;
-  gap: 16px;
-  padding: 18px 20px;
-}
-
-.crew-modal-v2__left {
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
 .crew-modal-v2__card {
   display: grid;
   grid-template-columns: 100px 1fr;
@@ -2422,7 +2336,7 @@ canvas.world:active {
   padding: 0;
 }
 
-.crew-modal-v2__card:hover:not(.crew-modal-v2__card--disabled) {
+.crew-modal-v2__card:hover {
   border-color: rgba(255, 194, 71, 0.6);
   background: #0f1c2e;
 }
@@ -2433,33 +2347,11 @@ canvas.world:active {
   box-shadow: 0 0 16px rgba(255, 194, 71, 0.15);
 }
 
-.crew-modal-v2__card--disabled {
-  opacity: 0.45;
-  cursor: not-allowed;
-  filter: grayscale(0.8);
-}
-
-.crew-modal-v2__card-art {
-  background: #08101a;
-  border-right: 2px solid #1e293b;
-  display: flex;
-  align-items: flex-end;
-  justify-content: center;
-  padding: 8px 4px 4px;
-}
-
 .crew-modal-v2__card-img {
   height: 90px;
   width: auto;
   object-fit: contain;
   image-rendering: pixelated;
-}
-
-.crew-modal-v2__card-info {
-  padding: 8px 12px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
 }
 
 .crew-modal-v2__card-name {
@@ -2469,12 +2361,6 @@ canvas.world:active {
   color: #ffc247;
 }
 
-.crew-modal-v2__card-meta {
-  font-size: 10px;
-  color: #94a3b8;
-  margin: 2px 0 4px;
-}
-
 .crew-modal-v2__card-desc {
   margin: 0;
   font-size: 10px;
@@ -2482,107 +2368,10 @@ canvas.world:active {
   color: #cbd5e1;
 }
 
-.crew-modal-v2__card-status {
-  font-size: 9px;
-  color: #ef4444;
-  margin-top: 4px;
-  font-style: italic;
-}
-
-.crew-modal-v2__right {
-  display: flex;
-  flex-direction: column;
-  border: 3px solid #1e293b;
-  background: #0b1320;
-}
-
-.crew-modal-v2__preview-box {
-  background: #08101a;
-  border-bottom: 3px solid #1e293b;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 16px 12px;
-}
-
-.crew-modal-v2__preview-img {
-  height: 120px;
-  width: auto;
-  object-fit: contain;
-  image-rendering: pixelated;
-}
-
-.crew-modal-v2__preview-name {
-  margin: 8px 0 0;
-  font-family: Silkscreen, monospace;
-  font-size: 13px;
-  color: #ffc247;
-}
-
-.crew-modal-v2__preview-effort {
-  font-size: 10px;
-  color: #94a3b8;
-  margin-top: 2px;
-}
-
-.crew-modal-v2__thinking-section {
-  padding: 14px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
-}
-
-.crew-modal-v2__thinking-title {
-  font-size: 11px;
-  color: #94a3b8;
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .crew-modal-v2__thinking-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   gap: 5px;
-}
-
-.crew-modal-v2__effort-btn {
-  background: #0f1c2e;
-  border: 1px solid #334155;
-  color: #cbd5e1;
-  font-family: inherit;
-  font-size: 9px;
-  font-weight: 700;
-  padding: 6px 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  text-align: center;
-}
-
-.crew-modal-v2__effort-btn:hover:not(.crew-modal-v2__effort-btn--disabled) {
-  border-color: #ffc247;
-  color: #ffffff;
-}
-
-.crew-modal-v2__effort-btn--selected {
-  background: #ffc247 !important;
-  color: #0c1017 !important;
-  border-color: #ffc247 !important;
-  font-weight: 900;
-}
-
-.crew-modal-v2__effort-btn--disabled {
-  opacity: 0.35;
-  cursor: not-allowed;
-  background: #090e17;
-}
-
-.crew-modal-v2__thinking-desc {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.4;
-  color: #94a3b8;
-  min-height: 28px;
 }
 
 .crew-modal-v2__footer {
@@ -2626,7 +2415,4 @@ canvas.world:active {
 }
 
 @media (max-width: 640px) {
-  .crew-modal-v2__body {
-    grid-template-columns: 1fr;
-  }
 }

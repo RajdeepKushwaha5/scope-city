@@ -3,12 +3,9 @@ import { Window } from "./Window.js";
 import { soundEngine } from "./sound-engine.js";
 import {
   CrewModal,
-  CREW_MEMBERS,
-  crewSpriteUrl,
   effortLabel,
-  type CrewId,
+  effortSpriteUrl,
   type EffortLevel,
-  type CrewMember,
 } from "./CrewModal.js";
 
 const DEFAULT_ORDER = "Refund order #184 and notify its owner";
@@ -17,7 +14,7 @@ export function MissionOrder(props: {
   active: boolean;
   connection: "offline" | "connecting" | "live" | "reconnecting";
   error: string | null;
-  onLaunch: (order: string) => Promise<void>;
+  onLaunch: (order: string, effort: EffortLevel) => Promise<void>;
   onStop: () => Promise<void>;
   onPoisonedReplay: () => void;
   onCleanReplay: () => void;
@@ -30,8 +27,9 @@ export function MissionOrder(props: {
 }): React.JSX.Element {
   const [order, setOrder] = useState(DEFAULT_ORDER);
   const [crewOpen, setCrewOpen] = useState(false);
-  const [crewMember, setCrewMember] = useState<CrewMember>(CREW_MEMBERS[1]!);
-  const [thinkingEffort, setThinkingEffort] = useState<EffortLevel>("high");
+  // Medium rather than high. The default is what most runs will use, and high
+  // effort is the first thing to exhaust a free-tier key mid-mission.
+  const [thinkingEffort, setThinkingEffort] = useState<EffortLevel>("medium");
 
   const canDispatch = props.canDispatch ?? true;
 
@@ -39,10 +37,8 @@ export function MissionOrder(props: {
     <>
       <CrewModal
         open={crewOpen}
-        selectedId={crewMember.id}
-        thinkingLevel={thinkingEffort}
-        onSelectSpecialist={(s) => setCrewMember(s)}
-        onSelectThinking={(l) => setThinkingEffort(l)}
+        selected={thinkingEffort}
+        onSelect={(level) => setThinkingEffort(level)}
         onClose={() => setCrewOpen(false)}
       />
 
@@ -62,40 +58,34 @@ export function MissionOrder(props: {
         </div>
 
         <div className="order__row">
-          <span className="hud-label">Crew</span>
-          <div
+          <span className="hud-label">Effort</span>
+          {/* A real button rather than a div wearing role="button". The
+              synthetic version had to reimplement Enter and Space by hand and
+              still missed the parts a button gets for free. */}
+          <button
+            type="button"
             className="crew-card crew-card--clickable"
             onClick={() => {
               soundEngine.playClick();
               setCrewOpen(true);
             }}
-            title="Click to choose your specialist crew and thinking effort"
-            role="button"
-            tabIndex={0}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" || e.key === " ") setCrewOpen(true);
-            }}
+            title="Choose how hard the model thinks on this mission"
           >
             <div className="crew-card__avatar-box">
               <img
-                src={crewSpriteUrl(crewMember.id, thinkingEffort)}
-                alt={crewMember.name}
+                src={effortSpriteUrl(thinkingEffort)}
+                alt=""
                 className="crew-card__avatar-img"
               />
             </div>
-            <div style={{ display: "flex", flexDirection: "column", flex: 1 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
-                <strong>{crewMember.name}</strong>
-                <span className="status-chip status-chip--tiny">
-                  {crewMember.title}
-                </span>
-              </div>
-              <small>
-                {effortLabel(thinkingEffort)} effort &bull; {crewMember.model}
-              </small>
+            <div className="crew-card__body">
+              <strong>{effortLabel(thinkingEffort)} effort</strong>
+              {/* The model is stated because it is fixed, and saying so is the
+                  honest version of the picker this replaced. */}
+              <small>gemini-2.5-flash &bull; 4 rotating keys</small>
             </div>
             <span className="crew-card__edit-btn">&#9998; Change</span>
-          </div>
+          </button>
         </div>
 
         <div className="order__row">
@@ -149,7 +139,7 @@ export function MissionOrder(props: {
               }
               onClick={() => {
                 soundEngine.playClick();
-                void props.onLaunch(order.trim());
+                void props.onLaunch(order.trim(), thinkingEffort);
               }}
             >
               Dispatch

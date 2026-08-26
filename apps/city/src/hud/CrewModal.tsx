@@ -1,52 +1,37 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { soundEngine } from "./sound-engine.js";
 
-export type CrewId = "opus" | "sonnet" | "haiku";
-export type EffortLevel = "low" | "medium" | "high" | "xhigh" | "max";
+/**
+ * How hard the model should think on this mission.
+ *
+ * This dialog began as a crew picker offering Opus, Sonnet and Haiku. None of
+ * them is what runs: missions execute on `gemini-2.5-flash` across four
+ * rotating keys, and the selection never reached the launch request at all --
+ * it changed a portrait and some text in the panel and nothing else.
+ *
+ * That is the precise failure this whole project is an argument against. An
+ * interface stating a capability the system does not have is the gap between
+ * stated and actual authority, and putting one on the first screen would
+ * undercut every claim the city makes behind it.
+ *
+ * So the identities are gone and what remains is real. The three levels here
+ * are the ones the model slots declare in `setup-models.ts`; the choice travels
+ * to `POST /api/missions`, into `model.params.reasoningEffort`, and on to the
+ * provider. TrueForge validates it against what the model declares and refuses
+ * the session with a 422 otherwise -- so an effort that cannot be honoured
+ * fails loudly rather than becoming an effort that is quietly ignored.
+ */
 
-export interface CrewMember {
-  id: CrewId;
-  model: string;
-  name: string;
-  title: string;
-  description: string;
-  available?: boolean;
-}
+export type EffortLevel = "low" | "medium" | "high";
 
-export const CREW_MEMBERS: readonly CrewMember[] = [
-  {
-    id: "opus",
-    model: "opus",
-    name: "Architect",
-    title: "Master planner",
-    description: "Deep reasoning for complex refactors, architecture, and long-horizon builds.",
-    available: false,
-  },
-  {
-    id: "sonnet",
-    model: "sonnet",
-    name: "Worker",
-    title: "Site foreman",
-    description: "Balanced crew for everyday edits, fixes, and steady construction.",
-    available: true,
-  },
-  {
-    id: "haiku",
-    model: "haiku",
-    name: "Runner",
-    title: "Quick hands",
-    description: "Fast passes for small edits, renames, and errands around the city.",
-    available: true,
-  },
-];
-
-export const EFFORT_LEVELS: readonly EffortLevel[] = [
-  "low",
-  "medium",
-  "high",
-  "xhigh",
-  "max",
-];
+/**
+ * Kept in step with `REASONING_EFFORTS` in `apps/demo/src/setup-models.ts`.
+ *
+ * Those are the levels registered against each slot, and the levels the harness
+ * will accept. Adding one here without adding it there produces a dispatch that
+ * is refused at session creation.
+ */
+export const EFFORT_LEVELS: readonly EffortLevel[] = ["low", "medium", "high"];
 
 export function effortLabel(effort: EffortLevel): string {
   switch (effort) {
@@ -56,200 +41,161 @@ export function effortLabel(effort: EffortLevel): string {
       return "Medium";
     case "high":
       return "High";
-    case "xhigh":
-      return "Extra high";
-    case "max":
-      return "Max";
   }
 }
 
 export function effortDescription(effort: EffortLevel): string {
   switch (effort) {
     case "low":
-      return "Quick passes — clipboard only, minimal planning.";
+      return "Fewest thinking tokens. Fastest, and cheapest against a rate-limited key.";
     case "medium":
-      return "Steady pace — pocket notes, moderate thinking.";
+      return "A middle setting for ordinary work.";
     case "high":
-      return "Full tool belt — blueprints out, deep reasoning.";
-    case "xhigh":
-      return "Survey crew — calculators, tape, extended exploration.";
-    case "max":
-      return "Everything on site — tripod, level, no constraints.";
+      return "Most thinking tokens. Slower, and the first to exhaust a free-tier quota.";
   }
 }
 
-export function crewSpriteUrl(crewId: CrewId, effort: EffortLevel = "high"): string {
-  return `/crew/${crewId}-${effort}.png`;
-}
-
-export function getCrewMember(id: CrewId): CrewMember {
-  return CREW_MEMBERS.find((c) => c.id === id) || CREW_MEMBERS[1]!;
+/**
+ * Built from `BASE_URL`, not written as `/crew/...`.
+ *
+ * Judge mode is served from a repository subpath, where an absolute URL 404s.
+ * The same reasoning as `RECORDING_URL` in App.tsx.
+ */
+export function effortSpriteUrl(effort: EffortLevel): string {
+  return `${import.meta.env.BASE_URL}crew/effort-${effort}.png`;
 }
 
 export function CrewModal(props: {
   open: boolean;
-  selectedId: CrewId;
-  thinkingLevel: EffortLevel;
-  onSelectSpecialist: (specialist: CrewMember) => void;
-  onSelectThinking: (level: EffortLevel) => void;
+  selected: EffortLevel;
+  onSelect: (effort: EffortLevel) => void;
   onClose: () => void;
 }): React.JSX.Element | null {
-  const [draftId, setDraftId] = useState<CrewId>(props.selectedId);
-  const [draftEffort, setDraftEffort] = useState<EffortLevel>(props.thinkingLevel);
+  const [draft, setDraft] = useState<EffortLevel>(props.selected);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
+
+  // Reopening shows what is actually set, not what was last abandoned.
+  useEffect(() => {
+    if (props.open) setDraft(props.selected);
+  }, [props.open, props.selected]);
 
   useEffect(() => {
-    if (props.open) {
-      setDraftId(props.selectedId);
-      setDraftEffort(props.thinkingLevel);
-    }
-  }, [props.open, props.selectedId, props.thinkingLevel]);
+    if (!props.open) return;
+    closeRef.current?.focus();
+
+    /*
+     * Escape closes, and Tab stays inside.
+     *
+     * A modal that lets focus walk out behind it leaves a keyboard user tabbing
+     * through a dialog they cannot see and controls they cannot reach, with no
+     * way back. Cycling within the dialog is the whole of the fix.
+     */
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        props.onClose();
+        return;
+      }
+      if (event.key !== "Tab") return;
+
+      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
+        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+      );
+      if (!focusable || focusable.length === 0) return;
+
+      const first = focusable[0]!;
+      const last = focusable[focusable.length - 1]!;
+
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [props.open, props]);
 
   if (!props.open) return null;
-
-  const selectedCrew = getCrewMember(draftId);
-
-  const handleConfirm = () => {
-    soundEngine.playClick();
-    props.onSelectSpecialist(selectedCrew);
-    props.onSelectThinking(draftEffort);
-    props.onClose();
-  };
 
   return (
     <div className="dialogue-overlay" onClick={props.onClose}>
       <div
         className="dialogue-box crew-modal-v2"
-        onClick={(e) => e.stopPropagation()}
+        ref={dialogRef}
         role="dialog"
-        aria-label="Choose your crew"
+        aria-modal="true"
+        aria-labelledby="crew-modal-title"
+        onClick={(e) => e.stopPropagation()}
       >
         <div className="crew-modal-v2__header">
-          <div>
-            <h2 className="crew-modal-v2__title">Choose your crew</h2>
-            <p className="crew-modal-v2__subtitle">
-              Pick a specialist and how hard they should think before dispatch.
-            </p>
-          </div>
+          <h2 id="crew-modal-title" className="crew-modal-v2__title">
+            Thinking effort
+          </h2>
           <button
-            type="button"
             className="crew-modal-v2__close"
-            onClick={() => {
-              soundEngine.playClick();
-              props.onClose();
-            }}
+            ref={closeRef}
+            onClick={props.onClose}
             aria-label="Close"
           >
-            &times;
+            ✕
           </button>
         </div>
 
-        <div className="crew-modal-v2__body">
-          {/* Left column: Crew list */}
-          <div className="crew-modal-v2__left">
-            {CREW_MEMBERS.map((crew) => {
-              const isSelected = crew.id === draftId;
-              const isAvailable = crew.available !== false;
-              const sprite = crewSpriteUrl(crew.id, isSelected ? draftEffort : "high");
+        <p className="crew-modal-v2__subtitle">
+          Sent with the mission and passed to the model. Every run uses{" "}
+          <code>gemini-2.5-flash</code> across four rotating keys; this changes how
+          much it thinks, not which model answers.
+        </p>
 
-              return (
-                <button
-                  key={crew.id}
-                  type="button"
-                  disabled={!isAvailable}
-                  className={`crew-modal-v2__card ${
-                    isSelected ? "crew-modal-v2__card--selected" : ""
-                  } ${!isAvailable ? "crew-modal-v2__card--disabled" : ""}`}
-                  onClick={() => {
-                    soundEngine.playClick();
-                    setDraftId(crew.id);
-                  }}
-                >
-                  <div className="crew-modal-v2__card-art">
-                    <img
-                      src={sprite}
-                      alt={crew.name}
-                      className="crew-modal-v2__card-img"
-                    />
-                  </div>
-                  <div className="crew-modal-v2__card-info">
-                    <h3 className="crew-modal-v2__card-name">{crew.name}</h3>
-                    <span className="crew-modal-v2__card-meta">
-                      {crew.title} &bull; {crew.model}
-                    </span>
-                    <p className="crew-modal-v2__card-desc">{crew.description}</p>
-                    {!isAvailable ? (
-                      <span className="crew-modal-v2__card-status">
-                        Off duty on this server
-                      </span>
-                    ) : null}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-
-          {/* Right column: Selected preview & Thinking Level */}
-          <div className="crew-modal-v2__right">
-            <div className="crew-modal-v2__preview-box">
-              <img
-                src={crewSpriteUrl(draftId, draftEffort)}
-                alt={selectedCrew.name}
-                className="crew-modal-v2__preview-img"
-              />
-              <h3 className="crew-modal-v2__preview-name">{selectedCrew.name}</h3>
-              <span className="crew-modal-v2__preview-effort">
-                {effortLabel(draftEffort)} effort
-              </span>
-            </div>
-
-            <div className="crew-modal-v2__thinking-section">
-              <span className="crew-modal-v2__thinking-title">Thinking level</span>
-              <div className="crew-modal-v2__thinking-grid">
-                {EFFORT_LEVELS.map((level) => {
-                  const isSelected = draftEffort === level;
-                  const isLevelAvailable = level !== "xhigh" && level !== "max";
-                  return (
-                    <button
-                      key={level}
-                      type="button"
-                      disabled={!isLevelAvailable}
-                      className={`crew-modal-v2__effort-btn ${
-                        isSelected ? "crew-modal-v2__effort-btn--selected" : ""
-                      } ${!isLevelAvailable ? "crew-modal-v2__effort-btn--disabled" : ""}`}
-                      onClick={() => {
-                        soundEngine.playClick();
-                        setDraftEffort(level);
-                      }}
-                    >
-                      {effortLabel(level).toUpperCase()}
-                    </button>
-                  );
-                })}
-              </div>
-              <p className="crew-modal-v2__thinking-desc">
-                {effortDescription(draftEffort)}
-              </p>
-            </div>
-          </div>
+        {/* A radiogroup, so the selection is announced rather than implied by
+            colour alone. `aria-checked` is what tells a screen reader which of
+            these is live; the highlight is only the sighted half of that. */}
+        <div className="crew-modal-v2__thinking-grid" role="radiogroup" aria-labelledby="crew-modal-title">
+          {EFFORT_LEVELS.map((level) => {
+            const isSelected = draft === level;
+            return (
+              <button
+                key={level}
+                role="radio"
+                aria-checked={isSelected}
+                className={`crew-modal-v2__card${isSelected ? " crew-modal-v2__card--selected" : ""}`}
+                onClick={() => {
+                  soundEngine.playClick();
+                  setDraft(level);
+                }}
+              >
+                <img
+                  className="crew-modal-v2__card-img"
+                  src={effortSpriteUrl(level)}
+                  alt=""
+                  width={72}
+                  height={72}
+                />
+                <span className="crew-modal-v2__card-name">{effortLabel(level)}</span>
+                <span className="crew-modal-v2__card-desc">{effortDescription(level)}</span>
+              </button>
+            );
+          })}
         </div>
 
         <div className="crew-modal-v2__footer">
-          <button
-            type="button"
-            className="crew-modal-v2__btn-cancel"
-            onClick={() => {
-              soundEngine.playClick();
-              props.onClose();
-            }}
-          >
-            CANCEL
+          <button type="button" className="crew-modal-v2__btn-cancel" onClick={props.onClose}>
+            Cancel
           </button>
           <button
             type="button"
             className="crew-modal-v2__btn-confirm"
-            onClick={handleConfirm}
+            onClick={() => {
+              soundEngine.playClick();
+              props.onSelect(draft);
+              props.onClose();
+            }}
           >
-            CONFIRM CREW
+            Use {effortLabel(draft).toLowerCase()} effort
           </button>
         </div>
       </div>

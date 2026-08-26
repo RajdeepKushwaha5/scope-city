@@ -306,13 +306,24 @@ describe("the brief tells the agent its turn budget", () => {
     const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
 
-    expect(brief).toContain("12 turns");
+    expect(brief).toContain("12 steps");
   });
 
   it("says nothing when no budget was given", async () => {
     // A brief that invents a number would be worse than one that omits it.
     const { missionBrief } = await import("../src/index.js");
-    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/\d+ turns/);
+    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/\d+ steps/);
+  });
+
+  it("does not call them turns, which mean something else in the run loop", async () => {
+    // `maxTurns` counts how many times the session is resumed after a
+    // countersign -- a different budget in a different unit. Using one word for
+    // both told the agent it could count on twelve of something that another
+    // cap limited to eight.
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
+
+    expect(brief).not.toMatch(/\d+ turns/);
   });
 
   it("tells it what to do when the turns run short", async () => {

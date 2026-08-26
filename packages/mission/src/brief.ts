@@ -50,6 +50,12 @@ export interface BriefOptions {
    * ceiling and gets cut off in the middle of the work -- which looks like the
    * agent failing rather than the budget ending. Stating it is the difference
    * between a constraint and an ambush.
+   *
+   * This is the agent's own iteration budget, which is not the same thing as
+   * `maxTurns` in the run loop: that counts how many times the session is
+   * resumed after a countersign, and it is a property of how many gates the
+   * job raises rather than of how hard the agent was asked to think. The brief
+   * says "steps" for exactly that reason -- one word for one budget.
    */
   readonly iterationLimit?: number;
   /**
@@ -153,9 +159,15 @@ export function missionBrief(options: BriefOptions): string {
     "",
     ...(options.iterationLimit !== undefined
       ? [
-          `You have ${options.iterationLimit} turns. Spend them on the job rather`,
-          "than on narrating it, and if you are running short, say what you have",
-          "established and what remains rather than stopping mid-sentence.",
+          // "Steps", not "turns". `maxTurns` in the run loop is a different
+          // budget in a different unit -- how many times the session is resumed
+          // after a countersign -- and telling the agent it has twelve "turns"
+          // when another eight-turn cap governs the resumes gave one word two
+          // meanings and overstated what it could count on.
+          `You have ${options.iterationLimit} steps of your own to work in.`,
+          "Spend them on the job rather than on narrating it, and if you are",
+          "running short, say what you have established and what remains rather",
+          "than stopping mid-sentence.",
           "",
         ]
       : []),

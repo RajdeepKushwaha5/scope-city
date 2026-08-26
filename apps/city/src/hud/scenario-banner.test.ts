@@ -83,8 +83,20 @@ describe("scenario billing", () => {
       // nothing -- a rename of the step helper, or a bad slice, would have
       // silently skipped the check instead of failing it. Both of these
       // scripts do end at a gate today, so both must be seen to.
-      expect(script, `${marker} no longer raises a gate`).toContain("a.gate({");
+      const gateAt = script.indexOf("a.gate({");
+      expect(gateAt, `${marker} no longer raises a gate`).toBeGreaterThan(-1);
       expect(SCENARIO_BILLING[scenario].watchFor).toMatch(/gate/i);
+
+      // "Stops at the Gate" is a claim about the *end* of the run, not about a
+      // gate happening somewhere in it. A script that raised a gate and then
+      // carried on would make the billing wrong in the same way the recorded
+      // run's did, so the gate has to be the last step rather than merely
+      // present.
+      const afterGate = script.slice(gateAt);
+      expect(
+        afterGate.indexOf("run: ("),
+        `${marker} has steps after its gate, so it does not stop there`,
+      ).toBe(-1);
     }
   });
 

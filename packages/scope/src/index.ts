@@ -28,3 +28,10 @@ export {
 export { evaluate } from "./evaluate.js";
 export { detectInjection, project, type ProjectionResult } from "./project.js";
 export { planReadDelegation, type ReadDelegationPlan } from "./delegation.js";
+export {
+  githubIssueNumber,
+  resolveGitHubTicketMetadata,
+  validateGitHubIssueBoundary,
+  type GitHubIssueBoundaryResult,
+  type TicketMetadataResult,
+} from "./github-ticket.js";

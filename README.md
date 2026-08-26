@@ -158,6 +158,26 @@ SQLITE_PATH=/tmp/scope-city-trueforge.sqlite npx @truefoundry/trueforge
 
 ### Real systems, and fixtures
 
+Records talks to **GitHub Issues** when `GITHUB_TOKEN` and
+`GITHUB_REPOSITORY=owner/repo` are set. A ticket id maps directly to an issue
+number (`tkt_7` is issue #7). Give a fine-grained token only Issues read/write
+access to that one repository. Structured resolver metadata comes from labels:
+
+```text
+scope-city:order:ord_184
+scope-city:email:customer@example.test
+```
+
+The issue title and body remain customer-controlled, untrusted prose. They are
+returned intact only after the scope is fixed; pre-grant resolution reads the
+maintainer-controlled labels and never the body.
+
+Create the deliberately poisoned demo issue and print the exact mission text:
+
+```bash
+pnpm seed:github
+```
+
 The Exchequer talks to **Stripe test mode** when `STRIPE_API_KEY` is set. A
 refund issued there is genuinely irreversible in the test ledger, which is the
 property the gate exists to protect — a demo whose "irreversible action" is a
@@ -175,7 +195,7 @@ access to payouts, transfers and top-ups, inherited from a group toggle. Stated
 permissions and actual reach are different things, which is the same argument
 the Yard makes about the agent.
 
-Records and Post House remain fixtures. `SCOPE_FIXTURES=true` forces every
+Post House remains a fixture. `SCOPE_FIXTURES=true` forces every
 district to its fixture regardless of what is configured, so the whole demo
 runs with no accounts at all — and the test suite sets it, so no test can reach
 a payment API by accident.

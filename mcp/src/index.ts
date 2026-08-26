@@ -6,6 +6,11 @@ export {
 } from "./registry.js";
 
 export { fixtureTickets, recordsSystem, type Ticket } from "./systems/records.js";
+export {
+  GitHubRecordsError,
+  githubRecordsSystem,
+  type GitHubRecordsOptions,
+} from "./systems/github-records.js";
 export { exchequerSystem, fixtureCharges, type Charge } from "./systems/exchequer.js";
 export { createOutbox, postHouseSystem, type Outbox, type SentMail } from "./systems/post-house.js";
 export {

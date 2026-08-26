@@ -12,6 +12,7 @@ import { BuildingInspector } from "./hud/BuildingInspector.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { GateBeacon } from "./hud/GateBeacon.js";
+import { ScenarioBanner } from "./hud/ScenarioBanner.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { TopNav } from "./hud/TopNav.js";
@@ -73,6 +74,7 @@ export function App(): React.JSX.Element {
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
   const [flashing, setFlashing] = useState(false);
+  const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeScenario, setActiveScenario] =
     useState<"recorded" | "clean" | "poisoned" | "noscope" | null>(null);
 
@@ -398,6 +400,9 @@ export function App(): React.JSX.Element {
   const runScenario = useCallback(
     (scenario: "recorded" | "clean" | "poisoned" | "noscope") => {
       setActiveScenario(scenario);
+      // A different run is a different claim about what is about to happen, so
+      // dismissing one banner must not suppress the next.
+      setBannerDismissed(false);
       if (scenario === "recorded") void recorded.play(RECORDING_URL);
       else if (scenario === "clean") replay.runCleanJob();
       else if (scenario === "poisoned") replay.runPoisonedTicket();
@@ -583,6 +588,11 @@ export function App(): React.JSX.Element {
             />
           </div>
         </div>
+
+        <ScenarioBanner
+          scenario={bannerDismissed ? null : activeScenario}
+          onDismiss={() => setBannerDismissed(true)}
+        />
 
         <GateBeacon
           gate={mission.gate}

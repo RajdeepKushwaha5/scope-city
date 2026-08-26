@@ -2212,3 +2212,86 @@ canvas.world:active {
     box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 22%, transparent);
   }
 }
+
+/* ---- SCENARIO BILLING ---------------------------------------------------- */
+
+/*
+ * States what the run is meant to show, while it is showing it.
+ *
+ * Sits top centre, under the nav, because that is where the eye starts and
+ * because it must not cover the map or the console. It is prose rather than
+ * chrome, so it is allowed to be wider than the panels and quieter than the
+ * gate.
+ */
+.scenario-banner {
+  position: fixed;
+  top: 62px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 21;
+  max-width: min(760px, calc(100vw - 32px));
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  padding: 7px 10px 7px 12px;
+  background: color-mix(in srgb, var(--panel, #10141c) 92%, transparent);
+  border: 1px solid var(--hud-rule-strong, rgba(255, 255, 255, 0.18));
+  border-left: 2px solid var(--accent);
+  border-radius: 3px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+
+.scenario-banner__name {
+  flex: none;
+  color: var(--accent);
+  text-transform: uppercase;
+  letter-spacing: 0.09em;
+  font-size: 11px;
+}
+
+.scenario-banner__watch {
+  color: var(--ink-dim);
+  min-width: 0;
+}
+
+.scenario-banner__dismiss {
+  flex: none;
+  margin-left: auto;
+  align-self: flex-start;
+  background: none;
+  border: 0;
+  padding: 0 2px;
+  cursor: pointer;
+  color: var(--ink-dim);
+  font-size: 13px;
+  line-height: 1;
+}
+
+.scenario-banner__dismiss:hover {
+  color: var(--ink);
+}
+
+/* Stacking under the nav on a narrow screen, where 760px of prose across the
+   top would cover the city outright. */
+@media (max-width: 700px) {
+  .scenario-banner {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 3px;
+  }
+
+  .scenario-banner__dismiss {
+    position: absolute;
+    top: 6px;
+    right: 8px;
+  }
+}
+
+/* Short screens have the least room to spare and the banner is the least
+   load-bearing thing on them. */
+@media (max-height: 620px) {
+  .scenario-banner {
+    display: none;
+  }
+}

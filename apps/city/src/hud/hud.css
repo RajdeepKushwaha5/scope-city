@@ -55,30 +55,69 @@ body {
 
 /* --- windows ------------------------------------------------------------ */
 
+/*
+ * The HUD is an overlay, so it must not eat the map.
+ *
+ * `pointer-events: none` here and `auto` on the panels is what lets a drag that
+ * starts on empty chrome reach the canvas underneath. Every layer that spans
+ * the viewport has to repeat the pattern or it silently becomes a lid.
+ */
 .hud {
   position: fixed;
   inset: 0;
   pointer-events: none;
-  padding: clamp(12px, 1.25vw, 22px);
   display: flex;
-  gap: clamp(12px, 1vw, 18px);
+  justify-content: space-between;
+  padding: 14px;
+  gap: 14px;
+  z-index: 20;
 }
 
 .hud > * {
   pointer-events: auto;
 }
 
+/*
+ * Transparent, and therefore not clickable.
+ *
+ * This column spans the full height of the map and all the width the console
+ * does not take, but only its top and bottom actually hold anything. Inheriting
+ * `pointer-events: auto` from `.hud > *` turned the empty middle into a lid: a
+ * drag begun there never reached the canvas. The overlay rule has to be
+ * restated at every layer that spans the viewport, because `auto` on a
+ * transparent box is still a hit target.
+ */
 .hud__main {
   min-width: 0;
   flex: 1 1 auto;
   display: flex;
   flex-direction: column;
+  pointer-events: none;
 }
 
+.hud__main > * {
+  pointer-events: auto;
+}
+
+/*
+ * Scrolls rather than overflows.
+ *
+ * Five panels stack here, and on a short screen they ran past the mission order
+ * and off the bottom. A scrollbar was already styled for this element further
+ * down the file, but nothing ever set `overflow`, so it was decoration for a
+ * scroll that could not happen.
+ *
+ * `min-height: 0` is the load-bearing half: a flex child will not shrink below
+ * its content without it, so `overflow-y` alone would have changed nothing.
+ */
 .hud__scan-stack {
   display: grid;
   gap: 10px;
   width: min(430px, 100%);
+  align-content: start;
+  min-height: 0;
+  overflow-y: auto;
+  overflow-x: hidden;
 }
 
 .hud__order {
@@ -677,8 +716,9 @@ body {
 }
 
 @media (max-height: 760px) {
-  .hud__scan-stack > :nth-child(2),
-  .hud__scan-stack > :nth-child(3) { display: none; }
+  /* The scan stack used to hide its second and third panels here, which meant a
+     short screen lost the scope readout -- the one panel the whole product is
+     about. It scrolls now, so nothing needs hiding. */
   .order__brief,
   .order__hint,
   .order__fallbacks { display: none; }
@@ -1152,17 +1192,6 @@ canvas.world:active {
 }
 
 /* ---- HUD MAIN GRID ------------------------------------------------------- */
-
-.hud {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  display: flex;
-  justify-content: space-between;
-  padding: 14px;
-  gap: 14px;
-  z-index: 20;
-}
 
 .hud__scan-stack::-webkit-scrollbar,
 .cmd-list::-webkit-scrollbar,

@@ -124,6 +124,38 @@ describe("proofAuthorises", () => {
   });
 });
 
+describe("the brief and the check agree", () => {
+  it("accepts the verdict shape the brief now asks for", async () => {
+    // The instruction and the enforcement have to want the same thing. An
+    // earlier brief asked only for "a verdict", so a compliant agent printed
+    // one naming the amount and not the charge and was refused at the gate for
+    // having verified something unrelated -- a deadlock reached by doing
+    // exactly as told.
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({
+      scope: {
+        missionId: "m".repeat(20),
+        scopeId: "SC-1",
+        agent: "a",
+        job: "Refund order #184",
+        state: "granted",
+        offices: ["charge.refund"],
+        resources: { charge_ids: ["ch_184"] },
+        limits: { maxAmountMinor: { "charge.refund": 4900 }, maxCalls: {}, maxResponseBytes: 1 },
+        projection: {},
+        countersignRequired: ["charge.refund"],
+        expiresAt: 2,
+        grantedBy: null,
+        grantedAt: null,
+        version: 0,
+      } as never,
+      sandbox: true,
+    });
+
+    expect(brief).toMatch(/must contain the exact identifiers and amounts/i);
+  });
+});
+
 describe("identifyingArguments", () => {
   it("takes ids and amounts", () => {
     expect(identifyingArguments(refundCall)).toEqual(["ch_3U8THZ", "4900"]);

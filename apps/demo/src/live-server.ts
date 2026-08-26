@@ -444,10 +444,15 @@ async function main(): Promise<void> {
         return;
       }
 
-      // Spent here, after the decision has actually landed. A second
-      // irreversible call needs its own working rather than riding on the
-      // first one's, and a decision that never landed must not cost a proof.
-      if (approved) mission.verification = undefined;
+      // Spent on any decision that lands, not only an approval.
+      //
+      // Clearing it only when approved left a denied gate's passing proof
+      // available to authorise a retry with the same arguments -- so refusing
+      // an action and then being asked again would ride on working from before
+      // the refusal. A decision consumes the evidence it was made on, whichever
+      // way it went; a retry needs a fresh check. A decision that never landed
+      // still costs nothing, because this runs after `decide` succeeded.
+      mission.verification = undefined;
       mission.feed.append({
         type: "world",
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },

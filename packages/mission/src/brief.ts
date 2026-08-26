@@ -180,6 +180,22 @@ export function missionBrief(options: BriefOptions): string {
       "  3. asserts the action has not already been performed,",
       "  4. prints a one-line verdict.",
       "",
+      // The verdict has to name the record and the amount, and this is not a
+      // stylistic request.
+      //
+      // The approval endpoint checks the working is about the call being
+      // approved, by looking for that call's identifying arguments in the
+      // sandbox output. An earlier version of this brief asked only for "a
+      // verdict", so a perfectly compliant agent printed one naming the amount
+      // and not the charge, and was then refused at the gate for having
+      // verified something unrelated. The instruction and the check have to ask
+      // for the same thing, or the mission deadlocks with the agent having done
+      // exactly as it was told.
+      "Your verdict line must contain the exact identifiers and amounts of the",
+      "call you are about to request, written as they appear in your authority",
+      "above. A verdict that does not name them cannot be matched to the action",
+      "it is meant to justify, and the request will be refused.",
+      "",
       "Run it, and include its output when you make the request. A human is",
       "about to approve this on the strength of your working, so show it.",
     );

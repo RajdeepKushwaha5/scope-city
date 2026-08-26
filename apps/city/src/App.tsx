@@ -32,8 +32,14 @@ import { useRecordedMission } from "./useRecordedMission.js";
  * Named here rather than inlined at the call site so the deployed asset has
  * one place to change, and so a build that ships a different capture does not
  * need a component edit to find it.
+ *
+ * Built from `BASE_URL` rather than written as `/replays/...`, because judge
+ * mode is served from a subdirectory on GitHub Pages. A root-absolute path
+ * resolves to the wrong host directory there, and the failure is a fetch that
+ * 404s while the city renders perfectly around a replay button that does
+ * nothing.
  */
-const RECORDING_URL = "/replays/refund-184.json";
+const RECORDING_URL = `${import.meta.env.BASE_URL}replays/refund-184.json`;
 
 /**
  * Offices worth asking "what if" about.

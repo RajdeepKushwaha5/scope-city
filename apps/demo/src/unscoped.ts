@@ -1,4 +1,4 @@
-import { OFFICE_SPECS, officeRegistry, type SystemDefinition } from "@scope-city/mcp";
+import { NotFoundError, OFFICE_SPECS, officeRegistry, type SystemDefinition } from "@scope-city/mcp";
 import type { Scope } from "@scope-city/scope";
 
 /**
@@ -91,9 +91,16 @@ async function everything(systems: readonly SystemDefinition[]): Promise<
           if (typeof id === "string") add("charge_ids", id);
         }
       }
-    } catch {
-      // An order with no charge contributes nothing. A broad grant naming a
-      // record that does not exist is still a broad grant.
+    } catch (cause) {
+      // Only a missing record is survivable.
+      //
+      // Swallowing everything meant an auth failure, a timeout or a parse error
+      // produced a *narrow* scope wearing the label "broad access", and the
+      // comparison then showed out-of-scope refusals caused by the enumeration
+      // having failed rather than by the authority being what it claimed. A
+      // demonstration that quietly measures the wrong thing is worse than one
+      // that does not run.
+      if (!(cause instanceof NotFoundError)) throw cause;
     }
   }
 

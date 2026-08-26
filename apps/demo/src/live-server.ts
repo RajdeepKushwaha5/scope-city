@@ -481,6 +481,21 @@ async function main(): Promise<void> {
         return;
       }
 
+      // Re-checked here, not only at proposal.
+      //
+      // Several proposals can wait at once -- proposing costs nothing and
+      // starts nothing -- so checking only that *this* one is awaiting a grant
+      // let two of them be granted in turn, each starting a TrueForge session
+      // through a control plane that assumes one. The singleton has to hold at
+      // the moment authority is actually handed over.
+      const running = [...missions.values()].find(
+        (other) => other.status === "starting" || other.status === "running",
+      );
+      if (running) {
+        json(res, 409, { error: "a mission is already active", missionId: running.id });
+        return;
+      }
+
       // The lease starts now, not when the scope was drafted.
       //
       // `expiresAt` was computed during derivation, so an operator who spent
@@ -527,6 +542,21 @@ async function main(): Promise<void> {
     if (req.method === "POST" && match[2] === "deny") {
       if (mission.status !== "proposed") {
         json(res, 409, { error: "that mission is not awaiting a grant" });
+        return;
+      }
+
+      // Re-checked here, not only at proposal.
+      //
+      // Several proposals can wait at once -- proposing costs nothing and
+      // starts nothing -- so checking only that *this* one is awaiting a grant
+      // let two of them be granted in turn, each starting a TrueForge session
+      // through a control plane that assumes one. The singleton has to hold at
+      // the moment authority is actually handed over.
+      const running = [...missions.values()].find(
+        (other) => other.status === "starting" || other.status === "running",
+      );
+      if (running) {
+        json(res, 409, { error: "a mission is already active", missionId: running.id });
         return;
       }
       // Nothing to revoke: a denied scope was never registered with the proxy

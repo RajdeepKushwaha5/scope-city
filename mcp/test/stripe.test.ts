@@ -193,6 +193,48 @@ describe("charge.refund", () => {
     });
   });
 
+  it("sends an idempotency key derived from the action", async () => {
+    // Without one, a refund Stripe created but whose response was lost looks
+    // like a failure: the proxy releases its quota claim and a retry creates a
+    // *second* refund. Derived rather than random, so the retry of a lost
+    // request sends the same key and Stripe returns the original.
+    let sentKey: string | undefined;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          sentKey = new Headers(init?.headers).get("idempotency-key") ?? undefined;
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: 4900 });
+    expect(sentKey).toBe("scope-city:ch_3U8T0Z:4900");
+  });
+
+  it("sends the same key for the same action, so a retry cannot duplicate", async () => {
+    const keys: (string | undefined)[] = [];
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          keys.push(new Headers(init?.headers).get("idempotency-key") ?? undefined);
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    const call = { charge_id: "ch_3U8T0Z", amount: 4900 };
+    await officeOf(sys, "charge.refund").call(call);
+    await officeOf(sys, "charge.refund").call(call);
+
+    expect(keys[0]).toBe(keys[1]);
+    expect(keys[0]).toBeDefined();
+  });
+
   it("refuses more than remains, before the call goes out", async () => {
     // Stripe would refuse this too, but learning it from a 400 after the quota
     // has been claimed is a worse place to find out.

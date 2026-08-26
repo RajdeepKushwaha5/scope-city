@@ -60,7 +60,7 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
 
   async function api(
     path: string,
-    init?: { method: "POST"; body: Record<string, string> },
+    init?: { method: "POST"; body: Record<string, string>; idempotencyKey?: string },
   ): Promise<Record<string, unknown>> {
     const headers: Record<string, string> = {
       // Basic auth with the key as username and an empty password, which is how
@@ -68,6 +68,7 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
       authorization: `Basic ${Buffer.from(`${options.apiKey}:`).toString("base64")}`,
     };
     if (init) headers["content-type"] = "application/x-www-form-urlencoded";
+    if (init?.idempotencyKey) headers["idempotency-key"] = init.idempotencyKey;
 
     const response = await doFetch(`https://api.stripe.com/v1/${path}`, {
       method: init?.method ?? "GET",
@@ -232,9 +233,24 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
         throw new RangeError(`cannot refund ${amount}; only ${remaining} remains on ${id}`);
       }
 
+      // Idempotent at Stripe, not just here.
+      //
+      // Without a key, a refund that Stripe created but whose response was lost
+      // -- a dropped connection, a timeout -- looks like a failure. The proxy
+      // then releases its quota claim and a retry creates a *second* refund.
+      // The preflight read above cannot close that window: it is a separate
+      // request, so it cannot see a refund that is being created concurrently
+      // with it.
+      //
+      // The key is derived from what identifies the action rather than
+      // randomly generated, so the retry of a lost request sends the same key
+      // and Stripe returns the original refund instead of making another. A
+      // random key would make every attempt a new action, which is exactly the
+      // behaviour being prevented.
       const created = await api("refunds", {
         method: "POST",
         body: { charge: id, amount: String(amount) },
+        idempotencyKey: `scope-city:${id}:${amount}`,
       });
 
       return {

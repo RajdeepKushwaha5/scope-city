@@ -2152,7 +2152,11 @@ canvas.world:active {
  */
 .gate-beacon {
   position: fixed;
-  z-index: 21;
+  /* Below the panels, not above them.
+     At 21 a gated building sitting under the right-hand console put the ring
+     and its label over the countersign prompt -- the marker obscuring the exact
+     decision it exists to point at. It is scenery; the panel is the decision. */
+  z-index: 19;
   pointer-events: none;
   transform: translate(-50%, -50%);
   display: grid;
@@ -2170,6 +2174,11 @@ canvas.world:active {
 }
 
 .gate-beacon__label {
+  /* Belt and braces with the horizontal clamp: on a viewport too narrow for the
+     clamp to keep the whole label on screen, truncate rather than overflow. */
+  max-width: calc(100vw - 24px);
+  overflow: hidden;
+  text-overflow: ellipsis;
   font-size: 12px;
   letter-spacing: 0.09em;
   text-transform: uppercase;

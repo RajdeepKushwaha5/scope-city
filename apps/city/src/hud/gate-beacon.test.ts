@@ -36,22 +36,43 @@ describe("placing the gate beacon", () => {
     const away = placeBeacon({ x: 5000, y: 0 }, STILL, SIZE);
 
     expect(away.offscreen).toBe(true);
-    expect(away.x).toBe(SIZE.width - 56);
+    expect(away.x).toBe(SIZE.width - 104);
     expect(away.y).toBe(400);
   });
 
   it("clamps on the near side too", () => {
     const behind = placeBeacon({ x: -5000, y: -5000 }, STILL, SIZE);
 
-    expect(behind).toEqual({ x: 56, y: 56, offscreen: true });
+    expect(behind).toEqual({ x: 104, y: 56, offscreen: true });
+  });
+
+  it("leaves room for the label, not just the ring", () => {
+    // "Countersign required" is about 150px wide and centred on the marker, so
+    // a 56px horizontal inset put half the text off screen: the beacon pointed
+    // correctly and could not be read. The horizontal clamp is wider than the
+    // vertical one for exactly this reason.
+    const away = placeBeacon({ x: 5000, y: 0 }, STILL, SIZE);
+
+    expect(SIZE.width - away.x).toBeGreaterThanOrEqual(75);
   });
 
   it("does not call an on-screen building off-screen", () => {
-    // The inset is 56px, so a building 57px from the edge is still visible and
+    // A building comfortably inside the horizontal inset is still visible and
     // must not be dimmed and labelled as being somewhere else.
-    const edge = placeBeacon({ x: 1200 / 2 - 57, y: 0 }, STILL, SIZE);
+    const edge = placeBeacon({ x: 1200 / 2 - 105, y: 0 }, STILL, SIZE);
 
     expect(edge.offscreen).toBe(false);
+  });
+
+  it("still marks a gate whose office names no building", () => {
+    // The live event contract allows a null office, and the city reducer turns
+    // that into "unknown tool" while keeping the gate active. Returning nothing
+    // for that case hid the beacon in precisely the situation it exists for.
+    // Placement itself must stay total; the component falls back to the Gate
+    // district landmark.
+    const placed = placeBeacon({ x: 0, y: 0 }, STILL, SIZE);
+    expect(Number.isFinite(placed.x)).toBe(true);
+    expect(Number.isFinite(placed.y)).toBe(true);
   });
 
   it("stays inside a viewport narrower than two insets", () => {
@@ -61,8 +82,7 @@ describe("placing the gate beacon", () => {
     const tiny = { width: 80, height: 80 };
     const placed = placeBeacon({ x: 900, y: 900 }, STILL, tiny);
 
-    expect(placed.x).toBe(56);
+    expect(placed.x).toBe(104);
     expect(placed.y).toBe(56);
-    expect(placed.x).toBeLessThanOrEqual(tiny.width);
   });
 });

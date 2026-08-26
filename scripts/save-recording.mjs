@@ -22,12 +22,43 @@ if (!ID) {
 }
 
 const FINISHED = new Set(["completed", "failed", "cancelled", "denied"]);
-const DEADLINE = Date.now() + 15 * 60 * 1000;
+
+/**
+ * Grace beyond the mission's own lease before this script gives up.
+ *
+ * A fixed fifteen-minute deadline used to live here, chosen when leases were
+ * ten minutes. Leases are now up to thirty, so the script stopped waiting while
+ * the mission was still legally running and then refused to save it for not
+ * having completed -- abandoning a run that was going to succeed, and taking
+ * the model quota and the Stripe charge with it.
+ *
+ * So the bound comes from the mission rather than from a constant: wait until
+ * the authority it was granted has actually expired, plus a little for the
+ * control plane to notice and write the terminal status.
+ */
+const EXPIRY_GRACE_MS = 60_000;
+
+/** Fallback when the record carries no scope yet, as on the very first poll. */
+const FALLBACK_WAIT_MS = 30 * 60 * 1000;
 
 async function record() {
   const response = await fetch(`${BASE}/api/missions/${ID}/record`);
   if (!response.ok) throw new Error(`record ${response.status}`);
   return response.json();
+}
+
+/**
+ * When this mission's authority runs out, read off its own granted scope.
+ *
+ * Reading it from the record rather than recomputing it means the script cannot
+ * drift from the control plane the way the fixed deadline did.
+ */
+function deadlineFrom(entries) {
+  for (const entry of entries ?? []) {
+    const expiresAt = entry.event?.scope?.expiresAt;
+    if (typeof expiresAt === "number") return expiresAt + EXPIRY_GRACE_MS;
+  }
+  return Date.now() + FALLBACK_WAIT_MS;
 }
 
 /** The mission's latest status, read off its own record. */
@@ -41,9 +72,13 @@ function statusOf(entries) {
 
 let latest = await record();
 let status = statusOf(latest.entries ?? []);
-console.log(`mission ${ID} is ${status}, ${latest.entries?.length ?? 0} entries`);
+const deadline = deadlineFrom(latest.entries);
+console.log(
+  `mission ${ID} is ${status}, ${latest.entries?.length ?? 0} entries, ` +
+    `waiting until ${new Date(deadline).toISOString()}`,
+);
 
-while (!FINISHED.has(status) && Date.now() < DEADLINE) {
+while (!FINISHED.has(status) && Date.now() < deadline) {
   await new Promise((resolve) => setTimeout(resolve, 10_000));
   latest = await record();
   const next = statusOf(latest.entries ?? []);

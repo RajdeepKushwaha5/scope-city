@@ -90,4 +90,3 @@ const issue = await github("issues", {
 
 console.log(`Created ${issue.html_url}`);
 console.log(`Use: Refund ticket #${issue.number}, max $49, and notify its owner`);
-

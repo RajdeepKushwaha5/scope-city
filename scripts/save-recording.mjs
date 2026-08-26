@@ -54,11 +54,23 @@ async function record() {
  * drift from the control plane the way the fixed deadline did.
  */
 function deadlineFrom(entries) {
-  for (const entry of entries ?? []) {
-    const expiresAt = entry.event?.scope?.expiresAt;
+  // The granted scope, not the first one seen.
+  //
+  // A record carries `scope.proposed` before `scope.granted`, and the grant
+  // recomputes `expiresAt` from the moment the operator actually approved. So
+  // taking the first scope in the record meant timing the wait against a lease
+  // that was superseded before the mission started -- giving up early, on the
+  // same class of stale bound this function was written to remove.
+  //
+  // Scanned from the end, because grant comes last and a mission may be
+  // re-proposed.
+  const list = entries ?? [];
+  for (let i = list.length - 1; i >= 0; i -= 1) {
+    if (list[i].event?.type !== "scope.granted") continue;
+    const expiresAt = list[i].event?.scope?.expiresAt;
     if (typeof expiresAt === "number") return expiresAt + EXPIRY_GRACE_MS;
   }
-  return Date.now() + FALLBACK_WAIT_MS;
+  return null;
 }
 
 /** The mission's latest status, read off its own record. */
@@ -72,10 +84,16 @@ function statusOf(entries) {
 
 let latest = await record();
 let status = statusOf(latest.entries ?? []);
-const deadline = deadlineFrom(latest.entries);
+
+// Recomputed every poll rather than fixed at the start: a mission polled before
+// its grant has no granted lease to read yet, and pinning the fallback then
+// would keep the shorter bound for the rest of the run.
+let deadline = deadlineFrom(latest.entries) ?? Date.now() + FALLBACK_WAIT_MS;
+let leaseKnown = deadlineFrom(latest.entries) !== null;
 console.log(
   `mission ${ID} is ${status}, ${latest.entries?.length ?? 0} entries, ` +
-    `waiting until ${new Date(deadline).toISOString()}`,
+    `waiting until ${new Date(deadline).toISOString()}` +
+    (leaseKnown ? "" : " (no grant yet; provisional)"),
 );
 
 while (!FINISHED.has(status) && Date.now() < deadline) {
@@ -83,6 +101,13 @@ while (!FINISHED.has(status) && Date.now() < deadline) {
   latest = await record();
   const next = statusOf(latest.entries ?? []);
   if (next !== status) console.log(`  -> ${next} (${latest.entries?.length ?? 0} entries)`);
+
+  const granted = deadlineFrom(latest.entries);
+  if (granted !== null && !leaseKnown) {
+    deadline = granted;
+    leaseKnown = true;
+    console.log(`  lease known: waiting until ${new Date(deadline).toISOString()}`);
+  }
   status = next;
 }
 

@@ -83,11 +83,38 @@ if (!Array.isArray(record.entries) || record.entries.length === 0) {
   fail("record carries no entries");
 }
 
+/*
+ * Read from the scope, not from the top level.
+ *
+ * The genesis hash covers `{ missionId, scopeId, scope }`. It does not cover
+ * the record's top-level `job`, `startedAt`, `finishedAt`, `algorithm` or
+ * `lossy` -- those sit outside the chain entirely, and printing them under a
+ * heading that says the chain is intact would attest to fields nothing
+ * attests to. The scope carries its own job and id, and those are hashed.
+ */
+const scope = record.scope ?? {};
+
 console.log(`\n  ${path}`);
 console.log(`  mission   ${record.missionId}`);
-console.log(`  scope     ${record.scopeId}`);
-console.log(`  job       ${JSON.stringify(record.job)}`);
+console.log(`  scope     ${scope.scopeId ?? "(none sealed)"}`);
+console.log(`  job       ${JSON.stringify(scope.job ?? null)}`);
 console.log(`  entries   ${record.entries.length}`);
+
+// A disagreement here is worth saying out loud. It is not proof of tampering --
+// the top-level copies are convenience, not evidence -- but a record whose
+// unhashed summary contradicts its sealed scope is one to look at twice.
+for (const [field, loose, sealed] of [
+  ["scopeId", record.scopeId, scope.scopeId],
+  ["job", record.job, scope.job],
+]) {
+  if (loose !== undefined && sealed !== undefined && loose !== sealed) {
+    console.log(
+      `\n  NOTE  the top-level ${field} disagrees with the sealed scope:` +
+        `\n          outside the chain  ${JSON.stringify(loose)}` +
+        `\n          inside the chain   ${JSON.stringify(sealed)}`,
+    );
+  }
+}
 
 // --- the chain -------------------------------------------------------------
 
@@ -140,6 +167,31 @@ const worldEvents = record.entries
 const count = (type) => worldEvents.filter((e) => e.type === type).length;
 const threads = new Set(worldEvents.map((e) => e.threadId).filter(Boolean));
 
+/*
+ * Counted two ways, because a record can say it either way.
+ *
+ * `gate.abandoned` is written when a mission is retired with questions still
+ * standing, but only records produced after that event existed carry it -- and
+ * a run killed outright may never have written its retirement at all. A gate
+ * that was raised and never cleared is the older, structural evidence of the
+ * same thing, so both are counted and the larger is reported. Reading only the
+ * explicit event would report zero unanswered gates for exactly the records
+ * where nobody was there to answer.
+ */
+const clearedIds = new Set(
+  worldEvents.filter((e) => e.type === "gate.cleared").map((e) => e.toolCallId),
+);
+const abandonedIds = new Set(
+  worldEvents.filter((e) => e.type === "gate.abandoned").map((e) => e.toolCallId),
+);
+const raisedIds = worldEvents
+  .filter((e) => e.type === "gate.raised")
+  .map((e) => e.toolCallId);
+
+const unanswered = new Set(
+  raisedIds.filter((id) => !clearedIds.has(id)).concat([...abandonedIds]),
+).size;
+
 let status = "unknown";
 for (let i = record.entries.length - 1; i >= 0; i -= 1) {
   const event = record.entries[i].event;
@@ -156,10 +208,9 @@ console.log(`    threads          ${threads.size}${threads.size > 1 ? " (subagen
 console.log(`    gates raised     ${count("gate.raised")}`);
 console.log(`    countersigned    ${worldEvents.filter((e) => e.type === "gate.cleared" && e.approved).length}`);
 console.log(`    refused at gate  ${worldEvents.filter((e) => e.type === "gate.cleared" && !e.approved).length}`);
-console.log(`    left unanswered  ${count("gate.abandoned")}`);
+console.log(`    left unanswered  ${unanswered}`);
 console.log(`    sandbox checks   ${count("yard.verified")}`);
 
-const scope = record.scope ?? {};
 console.log(`\n  the authority it was granted`);
 console.log(`    offices          ${(scope.offices ?? []).join(", ") || "none"}`);
 console.log(`    countersign      ${(scope.countersignRequired ?? []).join(", ") || "none"}`);
@@ -168,7 +219,11 @@ if (scope.grantedAt && scope.expiresAt) {
 }
 
 console.log(
-  `\n  Tamper-evidence, not a signature: this shows the entries were not edited,\n` +
-    `  reordered, or dropped from the end since they were hashed. Compare the head\n` +
-    `  against another copy to confirm you are both holding the same record.\n`,
+  `\n  The chain covers the entries and the sealed scope. It does not cover the` +
+    `\n  record's top-level job, timestamps, algorithm or lossy flag, which sit` +
+    `\n  outside it -- so those are reported above from the scope where possible.` +
+    `\n\n  Tamper-evidence, not a signature: nothing here is signed, so anyone able` +
+    `\n  to rewrite the whole file can produce a consistent chain. Compare the head` +
+    `\n  against another copy to confirm you are both holding the same record.\n`,
 );
+

@@ -1,6 +1,10 @@
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { createHash } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, writeFileSync } from "node:fs";
+import { tmpdir } from "node:os";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { canonical } from "../src/canonical.js";
 
@@ -80,22 +84,133 @@ describe("the standalone verifier hashes the same way this package does", () => 
 
     expect(sha256(theirs(entry))).toBe(sha256(canonical(entry)));
   });
+});
 
-  it("checks the algorithm the record names rather than assuming one", () => {
-    // A record naming an algorithm the script does not implement must not be
-    // reported as verified against a different one.
-    expect(script).toContain('record.algorithm !== "sha256"');
+/**
+ * The failure paths, exercised rather than read.
+ *
+ * These used to assert that certain strings appeared in the script's source,
+ * which would have passed just as happily against validation that was broken,
+ * unreachable, or commented out. The only way to know a verifier refuses a bad
+ * record is to hand it one.
+ */
+describe("the verifier refuses records it should refuse", () => {
+  const script = fileURLToPath(new URL("../../../scripts/verify-record.mjs", import.meta.url));
+
+  function run(record: unknown): { code: number; out: string } {
+    const file = join(mkdtempSync(join(tmpdir(), "scope-verify-")), "record.json");
+    writeFileSync(file, JSON.stringify(record));
+    const result = spawnSync(process.execPath, [script, file], { encoding: "utf8" });
+    return { code: result.status ?? -1, out: `${result.stdout}${result.stderr}` };
+  }
+
+  /** A minimal record whose chain actually checks out. */
+  function sound() {
+    const scope = { scopeId: "SC-1", job: "do the thing", offices: ["charge.get"] };
+    const missionId = "m_" + "a".repeat(10);
+    let previous = createHash("sha256")
+      .update(canonical({ missionId, scopeId: scope.scopeId, scope }))
+      .digest("hex");
+
+    const entries = [{ sequence: 1, at: 1, event: { type: "mission.status", status: "completed" } }].map(
+      (entry) => {
+        const hash = createHash("sha256")
+          .update(canonical({ previous, sequence: entry.sequence, at: entry.at, event: entry.event }))
+          .digest("hex");
+        previous = hash;
+        return { ...entry, hash };
+      },
+    );
+
+    return { missionId, scopeId: scope.scopeId, job: scope.job, scope, entries, head: previous, algorithm: "sha256", lossy: false };
+  }
+
+  it("accepts a sound record", () => {
+    const { code, out } = run(sound());
+    expect(code, out).toBe(0);
+    expect(out).toContain("chain intact");
+  });
+
+  it("rejects an altered entry and names it", () => {
+    const record = sound();
+    record.entries[0]!.event = { type: "mission.status", status: "failed" };
+
+    const { code, out } = run(record);
+    expect(code).toBe(1);
+    expect(out).toContain("does not match the chain");
+  });
+
+  it("rejects a head that does not match, which is how truncation shows", () => {
+    const record = sound();
+    record.head = "0".repeat(64);
+
+    const { code, out } = run(record);
+    expect(code).toBe(1);
+    expect(out).toContain("head does not match");
   });
 
   it("refuses a lossy record instead of calling an intact chain complete", () => {
-    // The chain over a truncated history verifies perfectly. Reporting that as
-    // verified is the most misleading thing the script could print.
-    expect(script).toContain("record.lossy");
+    const record = sound();
+    record.lossy = true;
+
+    const { code, out } = run(record);
+    expect(code).toBe(1);
+    expect(out).toContain("not a complete history");
   });
 
-  it("exits non-zero when a record does not verify", () => {
-    // It is meant to be usable in a pipeline, where a verdict nobody can act on
-    // is not a verdict.
-    expect(script).toContain("process.exit(1)");
+  it("refuses an algorithm it does not implement rather than checking a different one", () => {
+    const record = sound();
+    record.algorithm = "sha512";
+
+    const { code, out } = run(record);
+    expect(code).toBe(1);
+    expect(out).toContain("only checks sha256");
+  });
+
+  it("refuses a record with no entries", () => {
+    const record = { ...sound(), entries: [] };
+
+    const { code, out } = run(record);
+    expect(code).toBe(1);
+    expect(out).toContain("no entries");
+  });
+
+  it("reports the sealed job, not the loose one, and says when they differ", () => {
+    // The top-level copy sits outside the chain. Printing it as though the
+    // chain covered it would attest to a field nothing attests to.
+    const record = sound();
+    record.job = "something else entirely";
+
+    const { code, out } = run(record);
+    expect(code).toBe(0);
+    expect(out).toContain("do the thing");
+    expect(out).toContain("disagrees with the sealed scope");
+  });
+
+  it("counts a raised gate with no clear as unanswered", () => {
+    // The explicit `gate.abandoned` event only exists in records written after
+    // it did. A gate raised and never cleared is the same fact, structurally.
+    const scope = { scopeId: "SC-1", job: "j", offices: [] };
+    const missionId = "m_" + "b".repeat(10);
+    let previous = createHash("sha256")
+      .update(canonical({ missionId, scopeId: scope.scopeId, scope }))
+      .digest("hex");
+
+    const raw = [
+      { sequence: 1, at: 1, event: { type: "world", event: { type: "gate.raised", threadId: "main", toolCallId: "tc_1", office: "charge.refund", args: {}, at: 1 } } },
+      { sequence: 2, at: 2, event: { type: "mission.status", status: "cancelled" } },
+    ];
+    const entries = raw.map((entry) => {
+      const hash = createHash("sha256")
+        .update(canonical({ previous, sequence: entry.sequence, at: entry.at, event: entry.event }))
+        .digest("hex");
+      previous = hash;
+      return { ...entry, hash };
+    });
+
+    const { code, out } = run({ missionId, scopeId: scope.scopeId, job: scope.job, scope, entries, head: previous, algorithm: "sha256", lossy: false });
+
+    expect(code, out).toBe(0);
+    expect(out).toMatch(/left unanswered\s+1/);
   });
 });

@@ -13,6 +13,14 @@ export function MissionOrder(props: {
   onCleanReplay: () => void;
   onNoScopeReplay: () => void;
   onResetView: () => void;
+  /**
+   * False when no control plane is reachable, as on the published static site.
+   *
+   * Dispatch is disabled rather than hidden: a judge should see that live
+   * missions exist and understand why this deployment cannot run one, not be
+   * shown a smaller product and left to assume that is all there is.
+   */
+  canDispatch: boolean;
   onRecordedReplay: () => void;
   recordedPlaying: boolean;
   /** Shown so the chain check is visible rather than merely claimed. */
@@ -81,13 +89,30 @@ export function MissionOrder(props: {
         ) : (
           <button
             className="btn btn--primary order__dispatch"
-            disabled={!order.trim()}
+            disabled={!order.trim() || !props.canDispatch}
+            title={
+              props.canDispatch
+                ? undefined
+                : "Needs a local control plane, a TrueForge instance and a model key"
+            }
             onClick={() => void props.onLaunch(order.trim())}
           >
             Dispatch
           </button>
         )}
       </div>
+
+      {props.canDispatch ? null : (
+        /* Said plainly rather than left as a dead button. What is running here
+           is the replay, and the reason a live mission is not is that it needs
+           credentials that have no business in a public build. */
+        <div className="order__offline">
+          No control plane on this deployment. A live mission needs a TrueForge
+          instance, a model key and a Stripe test key, none of which belong in a
+          public build — so what you can watch here is a recording of one that
+          actually ran.
+        </div>
+      )}
 
       {props.error ? <div className="order__error">{props.error}</div> : null}
 

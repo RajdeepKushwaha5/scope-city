@@ -16,6 +16,7 @@ import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
 import { useRecordedMission } from "./useRecordedMission.js";
+import { useControlPlane } from "./use-control-plane.js";
 
 /**
  * The city.
@@ -32,8 +33,14 @@ import { useRecordedMission } from "./useRecordedMission.js";
  * Named here rather than inlined at the call site so the deployed asset has
  * one place to change, and so a build that ships a different capture does not
  * need a component edit to find it.
+ *
+ * Built from `BASE_URL` rather than written as `/replays/...`, because judge
+ * mode is served from a subdirectory on GitHub Pages. A root-absolute path
+ * resolves to the wrong host directory there, and the failure is a fetch that
+ * 404s while the city renders perfectly around a replay button that does
+ * nothing.
  */
-const RECORDING_URL = "/replays/refund-184.json";
+const RECORDING_URL = `${import.meta.env.BASE_URL}replays/refund-184.json`;
 
 /**
  * Offices worth asking "what if" about.
@@ -62,6 +69,7 @@ export function App(): React.JSX.Element {
   const replay = useMission();
   const live = useLiveMission();
   const recorded = useRecordedMission();
+  const controlPlane = useControlPlane();
 
   // Live wins, then a recorded run, then the scripted replays. Ordered by how
   // much each one proves: a live mission is happening, a recording happened,
@@ -333,6 +341,7 @@ export function App(): React.JSX.Element {
               onNoScopeReplay={replay.runNoScope}
               onResetView={() => setCamera(fitCamera(size))}
               onRecordedReplay={() => void recorded.play(RECORDING_URL)}
+              canDispatch={controlPlane === "available"}
               recordedPlaying={recorded.playing}
               recordedVerdict={recorded.verdict}
             />

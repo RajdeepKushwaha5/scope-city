@@ -1,0 +1,78 @@
+name: judge mode
+
+# Publishes the city as a static site so a judge can open it with no install,
+# no credentials, and no server.
+#
+# Only the city is deployed. The control plane needs a TrueForge instance, a
+# model key and a Stripe key, none of which belong in a public build; what a
+# visitor gets instead is the recorded mission, which replays through the same
+# reducer the live stream drives and carries a hash chain they can check.
+
+on:
+  push:
+    branches: [main]
+  # Manual runs matter more than usual here: a demo URL that can only be
+  # refreshed by pushing to main is a URL nobody dares refresh before a
+  # deadline.
+  workflow_dispatch:
+
+# Read the repo, write the Pages deployment, and mint the token Pages needs.
+# Nothing wider: this workflow publishes a static directory.
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# One deployment at a time, and never cancel one that is in flight. Cancelling
+# a half-finished deploy is how a site ends up serving assets from two builds.
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # The tests run before the deploy, including the ones asserting the
+      # shipped recording is complete and free of mojibake. Publishing a broken
+      # recording to the one URL a judge visits is worse than not publishing.
+      - name: Verify
+        run: |
+          pnpm typecheck
+          pnpm test
+
+      - name: Build the city
+        # Pages serves a project site from /<repo>/, so the base path has to
+        # match or every asset URL 404s and the page renders blank.
+        env:
+          SCOPE_BASE_PATH: /${{ github.event.repository.name }}/
+        run: pnpm --filter @scope-city/city build
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: apps/city/dist
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

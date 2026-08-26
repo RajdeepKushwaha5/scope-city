@@ -1028,3 +1028,13 @@ body {
   flex-direction: column;
   gap: 2px;
 }
+
+.order__offline {
+  margin-top: 8px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.18));
+  background: rgba(255, 255, 255, 0.02);
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--hud-dim, #7f8c9b);
+}

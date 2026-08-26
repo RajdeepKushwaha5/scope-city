@@ -9,6 +9,9 @@ attack go out of scope and stop at the line.
 Built on [TrueForge](https://github.com/truefoundry/trueforge), the open-source
 agent harness.
 
+> **We don't give agents a bigger sandbox. We turn the environment into a
+> sandbox with walls.**
+
 ---
 
 ## The problem
@@ -243,6 +246,47 @@ The tests that matter most:
 - `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
 - `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
 - `packages/proxy` — the poisoned ticket refused end to end, and the countersign
+### Checking the record yourself
+
+The recording the city replays is a hash-chained mission record, and you do not
+have to take its word for anything:
+
+```bash
+node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
+```
+
+```
+  entries   49
+
+  chain intact, head 455e7a3c925ecb19…
+
+  what it attests to
+    ended            completed
+    gates raised     1
+    countersigned    1
+    left unanswered  0
+    sandbox checks   2
+
+  the authority it was granted
+    offices          charge.find_by_order, charge.get, charge.refund
+    countersign      charge.refund
+    lease            30 minutes
+```
+
+It re-implements the hashing rather than importing it, on purpose: a verifier
+sharing a canonicaliser with the writer would cancel out a bug in it and pass a
+record nobody else could reproduce. `packages/mission/test/verifier-parity.test.ts`
+pins the two implementations to each other so they cannot drift apart quietly.
+
+Edit any entry and it names the first broken link. Delete entries from the end --
+the one edit that leaves every remaining hash individually valid -- and the head
+gives it away. It exits non-zero either way.
+
+This is tamper-evidence, not a signature. Nothing here is signed, so anyone able
+to rewrite the whole file can produce a consistent chain over whatever they like.
+What it gives you is a stable identity you can quote and compare against a copy
+someone else holds.
+
 ## Qodo Code Review Evidence
 
 Every change reaches `main` through a pull request that Qodo reviews first. Nothing

@@ -13,6 +13,7 @@ import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { GateBeacon } from "./hud/GateBeacon.js";
 import { ScenarioBanner } from "./hud/ScenarioBanner.js";
+import { placeTooltip } from "./hud/tooltip-placement.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { TopNav } from "./hud/TopNav.js";
@@ -135,7 +136,16 @@ export function App(): React.JSX.Element {
   // --- canvas sizing ----------------------------------------------------
 
   useEffect(() => {
-    const measure = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    const measure = () => {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+      // The hover carries client coordinates captured when the pointer last
+      // moved. A resize does not move the pointer, so those coordinates now
+      // describe a position in the old viewport -- and the tooltip would be
+      // placed from them against the new one, deciding which way to flip on
+      // stale numbers. The pointer is somewhere else relative to the city now
+      // anyway, so the honest state is no hover until it moves again.
+      setHovered(null);
+    };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);
@@ -384,6 +394,9 @@ export function App(): React.JSX.Element {
   );
 
   const hoveredState = hovered ? runtimeStates.get(hovered.office) : null;
+  // Flipped to the other side of the cursor near an edge, so a building at the
+  // city limits does not describe itself off the screen.
+  const tooltipAt = placeTooltip(hovered ?? { x: 0, y: 0 }, size);
 
   const dismissIntro = useCallback(() => {
     setIntroOpen(false);
@@ -491,7 +504,7 @@ export function App(): React.JSX.Element {
       {hovered && hoveredState ? (
         <div
           className={`map-tooltip map-tooltip--${hoveredState.activity}`}
-          style={{ left: hovered.x + 14, top: hovered.y + 14 }}
+          style={{ left: tooltipAt.left, top: tooltipAt.top }}
           role="status"
         >
           <strong>{hovered.office}</strong>

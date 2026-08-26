@@ -91,3 +91,50 @@ describe("live city event fold", () => {
     expect(state.gate).toBeNull();
   });
 });
+
+describe("subagent figures carry the assignment the harness gave them", () => {
+  const joined = (threadId: string, title: string | null, at: number) =>
+    ({ type: "world", event: { type: "field.joined", threadId, title, at } }) as never;
+
+  it("keeps the thread title on the figure", () => {
+    // TrueForge names the child threads it spawns, and on a real run those
+    // names come back as the two assignments the brief describes. Dropping
+    // them left identical tokens standing in a row, which reads as decoration
+    // rather than as delegation that actually happened.
+    const state = reduceLiveCity(
+      initialLiveCityState,
+      joined("thread-a", "Source investigator", 1),
+    );
+
+    const figure = state.figures.find((f) => f.id === "thread-a");
+    expect(figure?.kind).toBe("team");
+    expect(figure?.title).toBe("Source investigator");
+  });
+
+  it("tolerates a thread the harness did not name", () => {
+    const state = reduceLiveCity(initialLiveCityState, joined("thread-b", null, 1));
+    expect(state.figures.find((f) => f.id === "thread-b")?.title).toBeNull();
+  });
+
+  it("gives each concurrent subagent its own plot rather than stacking them", () => {
+    // Five threads were observed on one real run. Overlapping them would show
+    // one figure where there are five.
+    let state = initialLiveCityState;
+    state = reduceLiveCity(state, joined("a", "Source investigator", 1));
+    state = reduceLiveCity(state, joined("b", "Target verifier", 2));
+
+    const team = state.figures.filter((f) => f.kind === "team");
+    expect(team).toHaveLength(2);
+    expect(team[0]!.u).not.toBe(team[1]!.u);
+  });
+
+  it("removes the figure when its thread ends", () => {
+    let state = reduceLiveCity(initialLiveCityState, joined("a", "Target verifier", 1));
+    state = reduceLiveCity(state, {
+      type: "world",
+      event: { type: "field.left", threadId: "a", at: 2 },
+    } as never);
+
+    expect(state.figures.some((f) => f.id === "a")).toBe(false);
+  });
+});

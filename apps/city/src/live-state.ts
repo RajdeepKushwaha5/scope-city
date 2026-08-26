@@ -307,6 +307,10 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
             u: plot.landmark.u + 1 + index,
             v: plot.landmark.v + 2,
             kind: "team",
+            // The harness names the threads it spawns, and those names are the
+            // assignments from the brief. Carried through so the map can say
+            // which figure is doing what.
+            title: event.title,
           },
         ],
       };

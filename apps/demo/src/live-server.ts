@@ -8,7 +8,14 @@ import {
   missionAgentSpec,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
-import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
+import {
+  buildRecord,
+  verifyRecord,
+  proofAuthorises,
+  CountersignBook,
+  missionBrief,
+  type CityFeedEvent,
+} from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
@@ -403,23 +410,25 @@ async function main(): Promise<void> {
       // check, so demanding evidence of one would refuse every approval on a
       // build that is running exactly as configured.
       if (approved && SANDBOX_AVAILABLE.value) {
-        const check = mission.verification;
-        if (!check) {
+        // Bound to *this* call, and spent once used.
+        //
+        // Keeping only the most recent verification meant any passing check
+        // authorised any pending gate: the shipped recording shows a refund
+        // being verified and then a `mail.send` approved on the strength of it,
+        // with nothing ever checked about the mail. That is the same drift the
+        // countersign fingerprint exists to catch, one layer up.
+        const pending = mission.gates.pending(toolCallId);
+        const verdict = proofAuthorises(mission.verification, pending?.args ?? {});
+        if (!verdict.ok) {
           json(res, 428, {
-            error: "no sandbox verification for this call",
-            detail:
-              "The agent has not shown its working. An irreversible action is " +
-              "not approvable until the check it was asked to run has run.",
+            error: verdict.reason,
+            ...(verdict.detail ? { detail: verdict.detail } : {}),
           });
           return;
         }
-        if (!check.passed) {
-          json(res, 428, {
-            error: "the sandbox check did not pass",
-            detail: check.output.slice(0, 400),
-          });
-          return;
-        }
+        // Consumed, so a second irreversible call needs its own working rather
+        // than riding on the first one's.
+        mission.verification = undefined;
       }
 
       if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {

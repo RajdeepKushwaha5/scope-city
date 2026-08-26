@@ -44,6 +44,29 @@ export interface LiveCityState {
   } | null;
 }
 
+/**
+ * Whether the scope is still conferring anything.
+ *
+ * One definition, used by everything that draws authority, because the
+ * alternative is several: the building states treated any retained scope as
+ * granted while the city view had already closed it, so after expiry or
+ * cancellation the map fogged over and every building still reported its old
+ * limits and its countersign.
+ *
+ * A closed scope is not a smaller scope. Expired, revoked, denied, or simply
+ * finished, the authority is gone, and anything still describing it is
+ * describing what the agent *used to* be able to do.
+ */
+export function scopeIsOpen(state: LiveCityState): boolean {
+  if (state.proposedScope === null) return false;
+  if (state.scopeExpired) return false;
+  return (
+    state.status === "proposed" ||
+    state.status === "starting" ||
+    state.status === "running"
+  );
+}
+
 export interface OfficeActivity {
   /** Calls the ledger has settled here. */
   readonly calls: number;
@@ -216,7 +239,15 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
   }
 
   if (feed.type === "scope.denied") {
-    return addLog(state, "SCOPE DENIED  the agent was never dispatched", "refused", feed.at);
+    // Closed, not merely logged. A denial that left the scope effective would
+    // keep the limits drawn and the lease counting down for authority nobody
+    // granted -- the most misleading thing this reducer could do.
+    return addLog(
+      { ...state, scopeExpired: true },
+      "SCOPE DENIED  the agent was never dispatched",
+      "refused",
+      feed.at,
+    );
   }
 
   if (feed.type === "yard.report") {

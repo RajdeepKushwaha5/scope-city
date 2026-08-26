@@ -3,9 +3,10 @@ import { buildingStates } from "./building-state.js";
 import { initialLiveCityState, reduceLiveCity, type LiveCityState } from "./live-state.js";
 
 const OFFICES = [
-  { office: "charge.get", district: "exchequer" },
-  { office: "charge.refund", district: "exchequer" },
-  { office: "customer.list", district: "exchequer" },
+  { office: "charge.get", district: "exchequer", consumes: ["charge_ids"] },
+  { office: "charge.refund", district: "exchequer", consumes: ["charge_ids"] },
+  { office: "mail.send", district: "post-house", consumes: ["mail_to"] },
+  { office: "customer.list", district: "exchequer", consumes: [] },
 ];
 
 const scope = {
@@ -14,8 +15,8 @@ const scope = {
   agent: "a",
   job: "Refund order #184",
   state: "granted",
-  offices: ["charge.get", "charge.refund"],
-  resources: { charge_ids: ["ch_184"] },
+  offices: ["charge.get", "charge.refund", "mail.send"],
+  resources: { charge_ids: ["ch_184"], mail_to: ["buyer@example.test"] },
   limits: { maxAmountMinor: { "charge.refund": 4900 }, maxCalls: { "charge.refund": 1 } },
   countersignRequired: ["charge.refund"],
   expiresAt: 2_000_000,
@@ -71,6 +72,30 @@ describe("authority", () => {
     const states = buildingStates(granted(), OFFICES);
     expect(states.get("charge.get")?.resources).toEqual(["ch_184"]);
     expect(states.get("customer.list")?.resources).toEqual([]);
+  });
+
+  it("reports only the classes an office takes an argument for", () => {
+    // Flattening every granted resource onto every building was wrong in the
+    // worst direction: charge.refund claimed it could reach an email address it
+    // has no argument for, overstating authority on the one screen whose entire
+    // job is stating it precisely.
+    const states = buildingStates(granted(), OFFICES);
+    expect(states.get("charge.refund")?.resources).toEqual(["ch_184"]);
+    expect(states.get("mail.send")?.resources).toEqual(["buyer@example.test"]);
+  });
+
+  it("closes every building once the scope expires", () => {
+    // A closed scope is not a smaller scope. Buildings reporting their old
+    // limits after expiry describe what the agent *used to* be able to do.
+    const expired = granted({ scopeExpired: true });
+    for (const office of OFFICES) {
+      expect(buildingStates(expired, OFFICES).get(office.office)?.authority).toBe("absent");
+    }
+  });
+
+  it("closes every building once the mission has finished", () => {
+    const done = granted({ status: "completed" });
+    expect(buildingStates(done, OFFICES).get("charge.refund")?.authority).toBe("absent");
   });
 });
 

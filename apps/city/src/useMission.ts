@@ -61,16 +61,29 @@ interface StepApi {
 
 const ALL_DISTRICTS = ["records", "exchequer", "post-house", "yard", "gate"] as const;
 
+/**
+ * The offices the city draws, and which resource classes each one consumes.
+ *
+ * `consumes` mirrors the arg bindings in the server's office registry. Without
+ * it the inspector flattened every granted resource onto every building, so
+ * `charge.refund` claimed it could reach ticket ids and email addresses it has
+ * no argument for -- overstating authority on the one screen whose job is
+ * stating it precisely.
+ *
+ * An office consuming nothing cannot be narrowed by id at all: it is granted
+ * wholesale or withheld, which is exactly what makes `customer.list` the
+ * instructive counterfactual.
+ */
 export const OFFICES = [
-  { office: "ticket.get", district: "records" },
-  { office: "ticket.reply", district: "records" },
-  { office: "ticket.close", district: "records" },
-  { office: "charge.get", district: "exchequer" },
-  { office: "charge.find_by_order", district: "exchequer" },
-  { office: "charge.refund", district: "exchequer" },
-  { office: "customer.list", district: "exchequer" },
-  { office: "mail.send", district: "post-house" },
-  { office: "mail.list", district: "post-house" },
+  { office: "ticket.get", district: "records", consumes: ["ticket_ids"] },
+  { office: "ticket.reply", district: "records", consumes: ["ticket_ids"] },
+  { office: "ticket.close", district: "records", consumes: ["ticket_ids"] },
+  { office: "charge.get", district: "exchequer", consumes: ["charge_ids"] },
+  { office: "charge.find_by_order", district: "exchequer", consumes: ["order_ids"] },
+  { office: "charge.refund", district: "exchequer", consumes: ["charge_ids"] },
+  { office: "customer.list", district: "exchequer", consumes: [] },
+  { office: "mail.send", district: "post-house", consumes: ["mail_to"] },
+  { office: "mail.list", district: "post-house", consumes: [] },
 ];
 
 const NARROW_SCOPE: ScopeView = {

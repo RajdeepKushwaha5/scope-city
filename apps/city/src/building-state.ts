@@ -1,4 +1,4 @@
-import type { LiveCityState } from "./live-state.js";
+import { scopeIsOpen, type LiveCityState } from "./live-state.js";
 
 /**
  * What a building is, right now.
@@ -66,10 +66,13 @@ const EMPTY: readonly string[] = [];
  */
 export function buildingStates(
   state: LiveCityState,
-  offices: readonly { office: string; district: string }[],
+  offices: readonly { office: string; district: string; consumes?: readonly string[] }[],
 ): ReadonlyMap<string, BuildingState> {
   const scope = state.proposedScope;
-  const granted = scope !== null;
+  // Shared with the city view rather than judged again here. Two definitions of
+  // "still granted" drift, and the drift shows as a building claiming authority
+  // the fogged ground around it says has gone.
+  const granted = scopeIsOpen(state);
   const inScope = new Set(scope?.offices ?? []);
   const gated = new Set(scope?.countersignRequired ?? []);
 
@@ -80,7 +83,7 @@ export function buildingStates(
   const waitingOn = state.gate?.office ?? null;
   const map = new Map<string, BuildingState>();
 
-  for (const { office } of offices) {
+  for (const { office, consumes } of offices) {
     const authority: BuildingAuthority = !granted || !inScope.has(office)
       ? "absent"
       : pending
@@ -109,7 +112,7 @@ export function buildingStates(
       callsUsed: record?.calls ?? 0,
       callBudget: scope?.limits.maxCalls?.[office] ?? null,
       maxAmountMinor: scope?.limits.maxAmountMinor?.[office] ?? null,
-      resources: resourcesFor(scope, office),
+      resources: resourcesFor(scope, office, consumes ?? []),
       refusal: record?.refusal ?? null,
     });
   }
@@ -118,17 +121,22 @@ export function buildingStates(
 }
 
 /**
- * The record ids this office can reach.
+ * The record ids this office can actually reach.
  *
- * Flattened across resource classes because an operator reading a single
+ * Only the classes it takes an argument for. Flattening every granted resource
+ * onto every building was quietly wrong in the worst direction: `charge.refund`
+ * reported that it could reach ticket ids and email addresses, overstating
+ * authority on the one screen whose entire job is stating it precisely.
+ *
+ * Classes are flattened *within* that filter, because an operator reading one
  * building does not care which class an id belongs to -- they care whether the
- * list is one charge or every charge, which is the entire difference the
- * product is about.
+ * list is one charge or every charge.
  */
 function resourcesFor(
   scope: LiveCityState["proposedScope"],
   office: string,
+  consumes: readonly string[],
 ): readonly string[] {
   if (!scope || !scope.offices.includes(office)) return EMPTY;
-  return Object.values(scope.resources).flat();
+  return consumes.flatMap((cls) => scope.resources[cls] ?? []);
 }

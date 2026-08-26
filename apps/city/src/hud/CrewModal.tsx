@@ -84,6 +84,7 @@ export function CrewModal(props: {
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
   const openerRef = useRef<Element | null>(null);
+  const optionRefs = useRef(new Map<EffortLevel, HTMLButtonElement>());
 
   // Held in a ref so the key handler can read the latest without the effect
   // depending on it. See the note on the effect below.
@@ -123,16 +124,17 @@ export function CrewModal(props: {
   }, [props.open]);
 
   /*
-   * Escape closes, Tab stays inside, and the arrows move between options.
+   * Escape closes and Tab stays inside.
+   *
+   * The arrows are deliberately *not* here. Handled on `window` they fired
+   * wherever the operator's focus happened to be -- pressing Down while tabbed
+   * to Cancel silently changed the effort. They belong to the group that claims
+   * the radio role, so they live on its own handler.
    *
    * A modal that lets focus walk out behind it leaves a keyboard user tabbing
    * through a dialog they cannot see and controls they cannot reach, with no
    * way back.
    *
-   * The arrow keys are not decoration either: `role="radio"` is a promise that
-   * a screen-reader user can move through the group with the arrows and Tab
-   * past it as one stop. Declaring the role without honouring the keyboard
-   * contract makes the dialog harder to use than plain buttons would have been.
    */
   useEffect(() => {
     if (!props.open) return;
@@ -140,17 +142,6 @@ export function CrewModal(props: {
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
         onCloseRef.current();
-        return;
-      }
-
-      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
-        event.preventDefault();
-        setDraft((current) => step(current, 1));
-        return;
-      }
-      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
-        event.preventDefault();
-        setDraft((current) => step(current, -1));
         return;
       }
 
@@ -212,12 +203,46 @@ export function CrewModal(props: {
         {/* A radiogroup, so the selection is announced rather than implied by
             colour alone. `aria-checked` is what tells a screen reader which of
             these is live; the highlight is only the sighted half of that. */}
-        <div className="crew-modal-v2__thinking-grid" role="radiogroup" aria-labelledby="crew-modal-title">
+        {/*
+          The arrows belong here, not on the window.
+          `role="radio"` promises that a screen-reader user moves through the
+          group with the arrows and tabs past it as one stop, so the handler is
+          scoped to the group that made the promise. On `window` it fired
+          wherever focus happened to be, and Down while tabbed to Cancel changed
+          the effort with nothing to show it had.
+        */}
+        <div
+          className="crew-modal-v2__thinking-grid"
+          role="radiogroup"
+          aria-labelledby="crew-modal-title"
+          onKeyDown={(event) => {
+            const delta =
+              event.key === "ArrowRight" || event.key === "ArrowDown"
+                ? 1
+                : event.key === "ArrowLeft" || event.key === "ArrowUp"
+                  ? -1
+                  : 0;
+            if (delta === 0) return;
+
+            event.preventDefault();
+            const next = step(draft, delta);
+            setDraft(next);
+            // Roving tabindex takes the tab stop away from the option that just
+            // lost the selection, so without moving focus with it the keyboard
+            // user is left on an element that is no longer reachable and the
+            // next arrow press goes nowhere.
+            optionRefs.current.get(next)?.focus();
+          }}
+        >
           {EFFORT_LEVELS.map((level) => {
             const isSelected = draft === level;
             return (
               <button
                 key={level}
+                ref={(node) => {
+                  if (node) optionRefs.current.set(level, node);
+                  else optionRefs.current.delete(level);
+                }}
                 role="radio"
                 aria-checked={isSelected}
                 // One tab stop for the whole group, which is the other half of

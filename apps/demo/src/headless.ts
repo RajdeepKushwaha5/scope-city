@@ -263,7 +263,7 @@ async function main(): Promise<void> {
             proxyName,
             gatedTools: [...IRREVERSIBLE_OFFICES],
             sandbox: SANDBOX,
-            instructions: missionBrief({ scope, sandbox: SANDBOX }),
+            instructions: missionBrief({ scope, sandbox: SANDBOX, registry: officeRegistry() }),
           }),
         );
         line(c.green("session"), attemptSessionId);

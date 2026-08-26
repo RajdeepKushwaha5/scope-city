@@ -1,4 +1,4 @@
-import type { Scope } from "@scope-city/scope";
+import { planReadDelegation, type OfficeRegistry, type Scope } from "@scope-city/scope";
 
 /**
  * What the agent is told to do.
@@ -38,6 +38,8 @@ import type { Scope } from "@scope-city/scope";
 export interface BriefOptions {
   /** The granted scope. The brief describes exactly this and nothing else. */
   readonly scope: Scope;
+  /** Authoritative office capabilities used to choose safe read assignments. */
+  readonly registry?: OfficeRegistry;
   /** Whether a sandbox is available. Without one, the verification step is a lie. */
   readonly sandbox: boolean;
   /**
@@ -56,23 +58,6 @@ export interface BriefOptions {
 /** `order_ids` -> `order id`, for a sentence rather than a schema. */
 function readable(resourceClass: string): string {
   return resourceClass.replace(/_ids$/, " id").replace(/_/g, " ");
-}
-
-/** Two read-only assignments that can safely run in parallel. */
-export function delegationAssignments(scope: Scope): readonly string[] {
-  // A max-call entry is how the sealed envelope marks a mutating office. Those
-  // stay with the root: delegating one would let workers race for one quota.
-  const reads = scope.offices.filter((office) => scope.limits.maxCalls[office] === undefined);
-  if (reads.length < 2) return [];
-
-  const source = reads.includes("ticket.get")
-    ? "ticket.get"
-    : reads.includes("charge.find_by_order")
-      ? "charge.find_by_order"
-      : reads[0];
-  const target = reads.find((office) => office === "charge.get") ?? reads.find((office) => office !== source);
-  if (!source || !target || source === target) return [];
-  return [source, target];
 }
 
 export function missionBrief(options: BriefOptions): string {
@@ -158,21 +143,23 @@ export function missionBrief(options: BriefOptions): string {
     "",
   );
 
-  const assignments = delegationAssignments(scope);
-  if (assignments.length === 2) {
+  const delegation = options.registry ? planReadDelegation(scope, options.registry) : null;
+  if (delegation) {
     lines.push(
       "## Delegate the investigation",
       "",
-      "Before any mutating call, you MUST use TrueForge dynamic subagents for",
-      "these two independent read-only assignments:",
+      "Use TrueForge dynamic subagents for these two independent read-only",
+      "assignments before deciding what action to request:",
       "",
-      `  1. Source investigator — use ${assignments[0]} and return factual findings.`,
-      `  2. Target verifier — use ${assignments[1]} and report amount and prior-action state.`,
+      `  1. Source investigator — use ${delegation.source} and return factual findings.`,
+      `  2. Target verifier — use ${delegation.target} and report amount and prior-action state.`,
       "",
       "Create two real child threads and wait for both results. Do not simulate",
       "delegation in prose and do not repeat their reads in the root thread.",
-      "Subagents must not mutate, request approvals, or run the sandbox. The",
-      "root combines their evidence, verifies it, and alone requests actions.",
+      "Keep both assignments read-only. TrueForge children share the session's",
+      "tools, so this is task separation rather than a capability boundary; the",
+      "sealed proxy scope and atomic ledger still police every thread. Combine",
+      "both results in the root before deciding what action to request.",
       "",
     );
   }

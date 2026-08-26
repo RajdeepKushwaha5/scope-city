@@ -733,6 +733,7 @@ async function main(): Promise<void> {
               instructions: missionBrief({
                 scope: live.scope,
                 sandbox,
+                registry: officeRegistry(),
                 plain: live.scope.scopeId === "NO-SCOPE",
               }),
             }),

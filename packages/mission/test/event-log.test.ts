@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { WorldEvent } from "@scope-city/harness";
+import { buildRegistry } from "@scope-city/scope";
 import { MissionEventLog, MissionOrchestrator } from "../src/index.js";
 
 const NOW = 1_700_000_000_000;
@@ -197,7 +198,14 @@ describe("the mission brief", () => {
     expect(missionBrief({ scope: briefScope, sandbox: true })).toMatch(/Verify before you ask/);
   });
 
-  it("requires two real child threads when independent reads are available", async () => {
+  it("does not invent child threads without two proven read contracts", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(
+      /Create two real child threads/,
+    );
+  });
+
+  it("requires two real child threads when independent compatible reads are available", async () => {
     const { missionBrief } = await import("../src/index.js");
     const scope = {
       ...briefScope,
@@ -205,19 +213,26 @@ describe("the mission brief", () => {
       limits: { ...briefScope.limits, maxCalls: { "charge.refund": 1 } },
     } as never;
 
-    const brief = missionBrief({ scope, sandbox: true });
-    expect(brief).toMatch(/MUST use TrueForge dynamic subagents/);
+    const registry = buildRegistry([
+      { office: "ticket.get", district: "records", mutating: false, args: {}, responseFields: ["id"], freeTextFields: [] },
+      {
+        office: "charge.get",
+        district: "exchequer",
+        mutating: false,
+        args: {},
+        responseFields: ["id", "amount", "refunded"],
+        freeTextFields: [],
+      },
+      { office: "charge.refund", district: "exchequer", mutating: true, args: {}, responseFields: ["id"], freeTextFields: [] },
+    ]);
+    const brief = missionBrief({ scope, sandbox: true, registry });
+    expect(brief).toMatch(/Use TrueForge dynamic subagents/);
     expect(brief).toContain("Source investigator — use ticket.get");
     expect(brief).toContain("Target verifier — use charge.get");
     expect(brief).toMatch(/Create two real child threads/);
-    expect(brief).toMatch(/root combines their evidence/i);
-  });
-
-  it("does not invent child threads for a one-read mission", async () => {
-    const { missionBrief } = await import("../src/index.js");
-    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(
-      /Create two real child threads/,
-    );
+    const flat = brief.replace(/\s+/g, " ");
+    expect(flat).toMatch(/Combine both results in the root/i);
+    expect(flat).toMatch(/rather than a capability boundary/i);
   });
 });
 

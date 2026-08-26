@@ -76,14 +76,20 @@ describe("placing the gate beacon", () => {
   });
 
   it("stays inside a viewport narrower than two insets", () => {
-    // The clamp bounds cross over when width < 2 * inset. Without guarding the
-    // upper bound, `Math.min` then wins against `Math.max` and pins the marker
-    // to the opposite edge from the one it should be on.
+    // The clamp bounds cross over when the axis is smaller than two insets.
+    //
+    // This used to assert x === 104 on an 80px-wide viewport, which is outside
+    // the viewport: the guard kept the arithmetic sane but still held an inset
+    // the screen could not afford. Both insets now shrink to half their axis,
+    // so the marker lands at the centre of a viewport too small to offset it
+    // within -- which is the only place left that is actually on screen.
     const tiny = { width: 80, height: 80 };
     const placed = placeBeacon({ x: 900, y: 900 }, STILL, tiny);
 
-    expect(placed.x).toBe(104);
-    expect(placed.y).toBe(56);
+    expect(placed.x).toBe(40);
+    expect(placed.y).toBe(40);
+    expect(placed.x).toBeLessThanOrEqual(tiny.width);
+    expect(placed.y).toBeLessThanOrEqual(tiny.height);
   });
 });
 

@@ -390,6 +390,9 @@ async function main(): Promise<void> {
     if (req.method === "POST" && match[2] === "decisions") {
       const body = await readJson(req);
       const toolCallId = typeof body.toolCallId === "string" ? body.toolCallId : "";
+      // Set only if this decision is checked against a proof, so the clear
+      // below cannot touch a proof belonging to a different pending gate.
+      let spendsProof = false;
       const approved = body.approved === true;
       const reason = typeof body.reason === "string" ? body.reason : undefined;
       if (!toolCallId) {
@@ -409,7 +412,10 @@ async function main(): Promise<void> {
       // Only when a sandbox exists. Without one the brief never asked for a
       // check, so demanding evidence of one would refuse every approval on a
       // build that is running exactly as configured.
-      if (approved && SANDBOX_AVAILABLE.value) {
+      // Checked for a denial too, so a refusal spends the proof it was made on
+      // rather than leaving it for a retry -- but only that proof, and only if
+      // it was about this call.
+      if (SANDBOX_AVAILABLE.value) {
         // Bound to *this* call, and spent only once the approval lands.
         //
         // Keeping only the most recent verification meant any passing check
@@ -430,13 +436,18 @@ async function main(): Promise<void> {
         }
 
         const verdict = proofAuthorises(mission.verification, pending.args);
-        if (!verdict.ok) {
+
+        // An approval needs the working. A denial does not -- refusing an
+        // action nobody verified is always allowed, and demanding proof to say
+        // no would trap the operator into approving.
+        if (approved && !verdict.ok) {
           json(res, 428, {
             error: verdict.reason,
             ...(verdict.detail ? { detail: verdict.detail } : {}),
           });
           return;
         }
+        spendsProof = verdict.ok;
       }
 
       if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {
@@ -444,15 +455,18 @@ async function main(): Promise<void> {
         return;
       }
 
-      // Spent on any decision that lands, not only an approval.
+      // Spent only when this decision was actually made on that proof.
       //
-      // Clearing it only when approved left a denied gate's passing proof
-      // available to authorise a retry with the same arguments -- so refusing
-      // an action and then being asked again would ride on working from before
-      // the refusal. A decision consumes the evidence it was made on, whichever
-      // way it went; a retry needs a fresh check. A decision that never landed
-      // still costs nothing, because this runs after `decide` succeeded.
-      mission.verification = undefined;
+      // Two failures to avoid at once. Clearing on approval alone left a denied
+      // gate's passing check available to authorise a retry with the same
+      // arguments -- refuse an action, be asked again, and it rides on working
+      // from before the refusal. But clearing on *every* decision was worse:
+      // several gates can be pending together, so denying gate A destroyed the
+      // proof that had arrived for gate B, and B's approval then failed for
+      // missing working nobody had spent.
+      //
+      // A proof is consumed by the decision it justified, and by nothing else.
+      if (spendsProof) mission.verification = undefined;
       mission.feed.append({
         type: "world",
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
@@ -681,7 +695,14 @@ async function main(): Promise<void> {
             missionAgentSpec({
               model,
               proxyName,
-              gatedTools: [...IRREVERSIBLE_OFFICES],
+              // From the scope, not a constant.
+              //
+              // The scope decides what stops for a human; passing a fixed list
+              // meant the comparison run -- whose whole point is that nothing
+              // stops to ask -- still raised a TrueForge approval for every
+              // irreversible office. It demonstrated the opposite of what it
+              // claimed, which is worse than not demonstrating it.
+              gatedTools: [...live.scope.countersignRequired],
               sandbox,
               // The comparison run is briefed as an ordinary integration is,
               // without our framing about untrusted content or limited reach.

@@ -82,7 +82,19 @@ export async function unscopedScope(params: {
   readonly ttlMs?: number;
 }): Promise<Scope> {
   const registry = officeRegistry();
-  const offices = OFFICE_SPECS.map((spec) => spec.office).sort();
+
+  // Only offices something actually implements.
+  //
+  // Granting every declared office advertised `customer.list` in Stripe mode,
+  // where no system implements it: the proxy listed a tool that threw the
+  // moment the agent called it. A broad grant is meant to show what an ordinary
+  // integration reaches, not to hand the agent a door with nothing behind it --
+  // and a crash mid-comparison reads as the demo breaking rather than as the
+  // point being made.
+  const implemented = new Set(params.systems.flatMap((s) => s.offices.map((o) => o.office)));
+  const offices = OFFICE_SPECS.map((spec) => spec.office)
+    .filter((office) => implemented.has(office))
+    .sort();
 
   // Everything the offices can return, unfiltered. A normal integration has no
   // response layer at all: whatever the API sends back lands in the model's

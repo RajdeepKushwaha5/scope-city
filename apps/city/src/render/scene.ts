@@ -56,6 +56,7 @@ import {
   treeCells,
   type Building,
 } from "./world.js";
+import { planActivityRoutes, segmentActivityRoute } from "./activity-routes.js";
 
 /**
  * Draws one frame.
@@ -96,6 +97,8 @@ export interface SceneState {
   readonly buildings?: ReadonlyMap<string, { authority: string; activity: string }>;
   /** The office the operator has selected, if any. */
   readonly selected?: string | null;
+  /** The office under the pointer. Kept separate from locked selection. */
+  readonly hovered?: string | null;
   /** Animation phase, 0..1, for the states that pulse. */
   readonly phase?: number;
   /**
@@ -176,6 +179,7 @@ export function drawScene(
     ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
+    ...activityRouteItems(buildings, state, time),
     ...buildingItems(buildings, state),
     ...landmarkItems(framed),
     ...trafficItems(framed, time),
@@ -441,10 +445,78 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
             drawBuildingMarker(ctx, u, v, height, markerFor(runtime), state.phase ?? 0);
           }
           if (state.selected === building.office) drawSelection(ctx, u, v, height);
+          else if (state.hovered === building.office) {
+            ctx.save();
+            ctx.globalAlpha = 0.62;
+            drawSelection(ctx, u, v, height);
+            ctx.restore();
+          }
         }
       },
     };
   });
+}
+
+/**
+ * A live tool call is traffic with a destination, not background decoration.
+ * The route joins the district landmark to the exact office building whose
+ * state says it is working or waiting; recorded and live missions therefore
+ * animate through the same path without timers authored for a demo.
+ */
+function activityRouteItems(
+  buildings: readonly Building[],
+  state: SceneState,
+  time: number,
+): Drawable[] {
+  const items: Drawable[] = [];
+  for (const route of planActivityRoutes(buildings, state.buildings)) {
+    const { activity, from, to } = route;
+    const progress = activity === "refused" ? 0.48 : (time / 1350) % 1;
+    const u = from.u + (to.u - from.u) * progress;
+    const v = from.v + (to.v - from.v) * progress;
+    const colour =
+      activity === "waiting"
+        ? TRAFFIC_COLOURS.amber
+        : activity === "refused"
+          ? TRAFFIC_COLOURS.red
+          : TRAFFIC_COLOURS.sky;
+
+    for (const segment of segmentActivityRoute(route)) {
+      const midpoint = {
+        u: (segment.from.u + segment.to.u) / 2,
+        v: (segment.from.v + segment.to.v) / 2,
+      };
+      items.push({
+        z: depth(midpoint.u, midpoint.v, 0.02),
+        draw: (ctx) => {
+          const a = toScreen(segment.from.u, segment.from.v, 0.02);
+          const b = toScreen(segment.to.u, segment.to.v, 0.02);
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = colour;
+          ctx.globalAlpha = 0.52;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+          ctx.restore();
+        },
+      });
+    }
+    items.push({
+      z: depth(u, v, 0.5),
+      draw: (ctx) =>
+        drawVehicle(
+          ctx,
+          u,
+          v,
+          Math.abs(to.u - from.u) >= Math.abs(to.v - from.v) ? "u" : "v",
+          colour,
+          false,
+        ),
+    });
+  }
+  return items;
 }
 
 /** Every district keeps a visible civic landmark, even before MCP connects. */

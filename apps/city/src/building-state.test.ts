@@ -156,4 +156,28 @@ describe("activity", () => {
     });
     expect(buildingStates(state, OFFICES).get("charge.refund")?.activity).toBe("waiting");
   });
+
+  it("shows every queued approval as waiting, not working", () => {
+    const state: LiveCityState = granted({
+      gate: {
+        toolCallId: "call-1",
+        office: "charge.refund",
+        district: "exchequer",
+        args: {},
+      },
+      pendingGates: [{
+        toolCallId: "call-2",
+        office: "mail.send",
+        district: "post-house",
+        args: {},
+      }],
+      officeActivity: {
+        "charge.refund": { calls: 0, busy: true, refusal: null },
+        "mail.send": { calls: 0, busy: true, refusal: null },
+      },
+    });
+
+    expect(buildingStates(state, OFFICES).get("charge.refund")?.activity).toBe("waiting");
+    expect(buildingStates(state, OFFICES).get("mail.send")?.activity).toBe("waiting");
+  });
 });

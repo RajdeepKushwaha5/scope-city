@@ -1,7 +1,8 @@
-import { initialLiveCityState } from "./live-state.js";
+import type { OfficeActivity } from "./live-state.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Figure } from "./render/scene.js";
 import { plotFor } from "./render/world.js";
+import { scriptedRawState } from "./scripted-state.js";
 
 /**
  * Mission state for the city.
@@ -48,9 +49,10 @@ interface Step {
 
 interface StepApi {
   log: (what: string, kind?: LogLine["kind"]) => void;
-  moveTo: (district: string) => void;
+  arrive: (office: string) => void;
+  settle: (office: string) => void;
   gate: (gate: GateRequest) => void;
-  refuse: (district: string, why: string) => void;
+  refuse: (office: string, why: string) => void;
   online: (districts: readonly string[]) => void;
   team: (count: number) => void;
   sandbox: (open: boolean) => void;
@@ -120,6 +122,7 @@ export function useMission() {
   const [inspecting, setInspecting] = useState<string | null>(null);
   const [expiresAt, setExpiresAt] = useState<number | null>(null);
   const [expiresIn, setExpiresIn] = useState<number | null>(null);
+  const [officeActivity, setOfficeActivity] = useState<Readonly<Record<string, OfficeActivity>>>({});
 
   const timers = useRef<number[]>([]);
 
@@ -176,7 +179,9 @@ export function useMission() {
         ...lines,
         { at: new Date().toLocaleTimeString(undefined, { hour12: false }), what, kind },
       ]),
-    moveTo: (district) => {
+    arrive: (office) => {
+      const district = OFFICES.find((candidate) => candidate.office === office)?.district;
+      if (!district) return;
       const plot = plotFor(district);
       if (!plot) return;
       setFigures((current) => {
@@ -186,14 +191,50 @@ export function useMission() {
           ...rest,
         ];
       });
+      setOfficeActivity((current) => ({
+        ...Object.fromEntries(
+          Object.entries(current).map(([id, record]) => [id, { ...record, busy: false }]),
+        ),
+        [office]: {
+          ...(current[office] ?? { calls: 0, refusal: null }),
+          busy: true,
+        },
+      }));
+    },
+    settle: (office) => {
+      setOfficeActivity((current) => ({
+        ...current,
+        [office]: {
+          calls: (current[office]?.calls ?? 0) + 1,
+          busy: false,
+          refusal: null,
+        },
+      }));
     },
     gate: (request) => {
       setGate(request);
       setPhase("awaiting_countersign");
+      setOfficeActivity((current) => ({
+        ...current,
+        [request.office]: {
+          ...(current[request.office] ?? { calls: 0, refusal: null }),
+          busy: true,
+        },
+      }));
     },
-    refuse: (district, why) => {
+    refuse: (office, why) => {
+      const district = OFFICES.find((candidate) => candidate.office === office)?.district;
+      if (!district) return;
       const plot = plotFor(district);
       if (plot) setRefusedAt({ u: plot.landmark.u - 2, v: plot.landmark.v });
+      setOfficeActivity((current) => ({
+        ...current,
+        [office]: {
+          ...(current[office] ?? { calls: 0 }),
+          busy: false,
+          refusal: why,
+        },
+      }));
       api.log(why, "refused");
       // The flash is brief on purpose: a permanent marker would read as damage
       // rather than as something that was prevented.
@@ -245,6 +286,7 @@ export function useMission() {
     setSandboxOpen(false);
     setTreasury(0);
     setExpiresAt(null);
+    setOfficeActivity({});
   }, [clearTimers]);
 
   /* ---------------------------------------------------------------- scope */
@@ -294,10 +336,19 @@ export function useMission() {
       setPhase("running");
 
       if (!approved) {
+        setOfficeActivity((current) => ({
+          ...current,
+          [request.office]: {
+            ...(current[request.office] ?? { calls: 0 }),
+            busy: false,
+            refusal: "Countersign refused",
+          },
+        }));
         api.log(`Countersign refused — ${request.office} did not run`, "refused");
         return;
       }
 
+      api.settle(request.office);
       api.log(`Countersigned ${request.office}`, "allowed");
       schedule(() => {
         api.log("$49.00 refunded on ch_184", "allowed");
@@ -323,6 +374,21 @@ export function useMission() {
     reset();
     play(NO_SCOPE);
   }, [play, reset]);
+
+  const rawState = scriptedRawState({
+    phase,
+    scope,
+    scopeState,
+    online,
+    figures,
+    gate,
+    log,
+    refusedAt,
+    sandboxOpen,
+    expiresAt,
+    officeActivity,
+    now: Date.now(),
+  });
 
   return {
     phase,
@@ -350,7 +416,7 @@ export function useMission() {
     proposedScope: null,
     report: null,
     verification: null,
-    rawState: initialLiveCityState,
+    rawState,
     askCounterfactual: async () => null,
     expireNow: async () => undefined,
     treasury,
@@ -380,8 +446,8 @@ const POISONED_TICKET: readonly Step[] = [
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
   { after: 700, run: (a) => a.log("5 districts online via MCP") },
   { after: 1200, run: (a) => a.phase("running") },
-  { after: 1400, run: (a) => a.moveTo("records") },
-  { after: 1600, run: (a) => a.log("ticket.get tkt_184", "allowed") },
+  { after: 1400, run: (a) => a.arrive("ticket.get") },
+  { after: 1600, run: (a) => { a.settle("ticket.get"); a.log("ticket.get tkt_184", "allowed"); } },
   {
     after: 2400,
     run: (a) =>
@@ -390,10 +456,10 @@ const POISONED_TICKET: readonly Step[] = [
   { after: 3000, run: (a) => a.team(2) },
   { after: 3200, run: (a) => a.sandbox(true) },
   { after: 3400, run: (a) => a.log("The Yard: generated probe validating the amount", "plain") },
-  { after: 4200, run: (a) => a.moveTo("exchequer") },
-  { after: 4400, run: (a) => a.log("charge.get ch_184 — history redacted by projection", "allowed") },
-  { after: 5200, run: (a) => a.refuse("exchequer", "OUT OF SCOPE  charge.refund ch_185 — not a granted charge") },
-  { after: 6000, run: (a) => a.refuse("post-house", "OUT OF SCOPE  mail.send attacker@example.test") },
+  { after: 4200, run: (a) => a.arrive("charge.get") },
+  { after: 4400, run: (a) => { a.settle("charge.get"); a.log("charge.get ch_184 — history redacted by projection", "allowed"); } },
+  { after: 5200, run: (a) => a.refuse("charge.refund", "OUT OF SCOPE  charge.refund ch_185 — not a granted charge") },
+  { after: 6000, run: (a) => a.refuse("mail.send", "OUT OF SCOPE  mail.send attacker@example.test") },
   {
     after: 7000,
     run: (a) =>
@@ -412,10 +478,10 @@ const CLEAN_JOB: readonly Step[] = [
   { after: 100, run: (a) => a.log("Mission opened — clean job") },
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
   { after: 900, run: (a) => a.phase("running") },
-  { after: 1100, run: (a) => a.moveTo("records") },
-  { after: 1300, run: (a) => a.log("ticket.get tkt_184", "allowed") },
-  { after: 2100, run: (a) => a.moveTo("exchequer") },
-  { after: 2300, run: (a) => a.log("charge.get ch_184", "allowed") },
+  { after: 1100, run: (a) => a.arrive("ticket.get") },
+  { after: 1300, run: (a) => { a.settle("ticket.get"); a.log("ticket.get tkt_184", "allowed"); } },
+  { after: 2100, run: (a) => a.arrive("charge.get") },
+  { after: 2300, run: (a) => { a.settle("charge.get"); a.log("charge.get ch_184", "allowed"); } },
   {
     after: 3200,
     run: (a) =>
@@ -433,14 +499,14 @@ const NO_SCOPE: readonly Step[] = [
   { after: 100, run: (a) => a.log("Mission opened — NO SCOPE, standing access", "refused") },
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
   { after: 900, run: (a) => a.phase("running") },
-  { after: 1100, run: (a) => a.moveTo("records") },
-  { after: 1300, run: (a) => a.log("ticket.get tkt_184", "allowed") },
+  { after: 1100, run: (a) => a.arrive("ticket.get") },
+  { after: 1300, run: (a) => { a.settle("ticket.get"); a.log("ticket.get tkt_184", "allowed"); } },
   { after: 2000, run: (a) => a.log("Injected instruction obeyed — nothing to stop it", "refused") },
-  { after: 2600, run: (a) => a.moveTo("exchequer") },
-  { after: 2800, run: (a) => a.log("charge.refund ch_185 $399.00 — SUCCEEDED", "refused") },
+  { after: 2600, run: (a) => a.arrive("charge.refund") },
+  { after: 2800, run: (a) => { a.settle("charge.refund"); a.log("charge.refund ch_185 $399.00 — SUCCEEDED", "refused"); } },
   { after: 3600, run: (a) => a.log("customer.list — 3 records exfiltrated", "refused") },
-  { after: 4400, run: (a) => a.moveTo("post-house") },
-  { after: 4600, run: (a) => a.log("mail.send attacker@example.test — SENT", "refused") },
+  { after: 4400, run: (a) => a.arrive("mail.send") },
+  { after: 4600, run: (a) => { a.settle("mail.send"); a.log("mail.send attacker@example.test — SENT", "refused"); } },
   { after: 5400, run: (a) => a.phase("failed") },
   { after: 5600, run: (a) => a.log("Mission ended. Three irreversible actions, none authorised.", "refused") },
 ];

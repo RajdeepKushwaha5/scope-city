@@ -80,7 +80,13 @@ export function buildingStates(
   // `allowed` would tell the operator they had granted something they have not.
   const pending = state.status === "proposed";
 
-  const waitingOn = state.gate?.office ?? null;
+  // Every queued approval is waiting, not only the one currently displayed in
+  // the operator gate. Concurrent requests remain busy in the reducer while
+  // queued, so checking only `gate` mislabels later requests as working.
+  const waitingOn = new Set([
+    ...(state.gate ? [state.gate.office] : []),
+    ...state.pendingGates.map((gate) => gate.office),
+  ]);
   const map = new Map<string, BuildingState>();
 
   for (const { office, consumes } of offices) {
@@ -95,7 +101,7 @@ export function buildingStates(
     const record = state.officeActivity[office];
 
     const activity: BuildingActivity =
-      waitingOn === office
+      waitingOn.has(office)
         ? "waiting"
         : record?.refusal
           ? "refused"

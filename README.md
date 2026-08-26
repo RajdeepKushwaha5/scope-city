@@ -9,6 +9,9 @@ attack go out of scope and stop at the line.
 Built on [TrueForge](https://github.com/truefoundry/trueforge), the open-source
 agent harness.
 
+> **We don't give agents a bigger sandbox. We turn the environment into a
+> sandbox with walls.**
+
 ---
 
 ## The problem

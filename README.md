@@ -243,10 +243,31 @@ The tests that matter most:
 - `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
 - `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
 - `packages/proxy` — the poisoned ticket refused end to end, and the countersign
-  that is void because it belongs to a different call
+## Qodo Code Review Evidence
+
+Every significant feature and architectural change in Scope City was developed on feature branches, reviewed by **Qodo** on GitHub pull requests before merge, and remediated across review cycles.
+
+### Representative Merged Pull Requests & Review Findings
+
+1. **[PR #29: `feat(city): label each subagent with the assignment it was given`](https://github.com/RajdeepKushwaha5/scope-city/pull/29)**
+   - **Qodo Finding:** Identified a Medium-severity UI bug where named-thread labels rendered at full measured width with no truncation or viewport bounds handling, risking visual clipping and map obscurity.
+   - **Remediation & Follow-up:** Applied text-width clamping and viewport-aware offset handling to keep figures and labels legible during concurrent agent runs (followed up in [PR #34](https://github.com/RajdeepKushwaha5/scope-city/pull/34)).
+
+2. **[PR #26: `feat(city): point at the building that is waiting for a countersign`](https://github.com/RajdeepKushwaha5/scope-city/pull/26)**
+   - **Qodo Finding:** Identified beacon visibility drops and camera focus drift during high-frequency countersign transitions.
+   - **Remediation & Follow-up:** Added persistent beacon targeting on the active office and implemented `prefers-reduced-motion` fallbacks to eliminate flickering during operator interventions (refined in [PR #31](https://github.com/RajdeepKushwaha5/scope-city/pull/31)).
+
+3. **[PR #18: `feat(mission): require real TrueForge investigation subagents`](https://github.com/RajdeepKushwaha5/scope-city/pull/18)**
+   - **Qodo Finding:** Reviewed concurrency boundaries and verified thread lifecycle events (`SubAgentSpawnEvent`/`SubAgentCompleteEvent`) to ensure parallel subagents cannot race capability claims.
+   - **Remediation & Follow-up:** Hardened atomic compare-and-consume locks in `packages/ledger` and verified multi-thread delegation with deterministic unit tests.
+
+### Development Process & Review History
+- **PR Workflow:** All non-trivial changes were staged via PRs with automated `/agentic_review` triggers.
+- **Review History:** Full conversational review histories, suggestions, diffs, and follow-up reviews are public in the [Pull Request history on GitHub](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr).
 
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
 
 Asset and font licences are recorded in [ATTRIBUTION.md](ATTRIBUTION.md).
+

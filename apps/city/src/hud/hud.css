@@ -2139,3 +2139,76 @@ canvas.world:active {
 .crew-modal__thinking {
   margin-top: 12px;
 }
+
+/* ---- THE GATE BEACON ----------------------------------------------------- */
+
+/*
+ * A pointer on the map, not a second prompt.
+ *
+ * The countersign prompt is in the console, bottom right; the operator is
+ * looking at the map. This marks the building that is waiting so the eye goes
+ * to the right place. It never carries the call or its arguments -- those live
+ * once, in the panel that owns the decision.
+ */
+.gate-beacon {
+  position: fixed;
+  z-index: 21;
+  pointer-events: none;
+  transform: translate(-50%, -50%);
+  display: grid;
+  justify-items: center;
+  gap: 8px;
+}
+
+.gate-beacon__ring {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: 2px solid var(--danger);
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent);
+  animation: gate-beacon-pulse 1.6s ease-out infinite;
+}
+
+.gate-beacon__label {
+  font-size: 12px;
+  letter-spacing: 0.09em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  padding: 4px 9px;
+  color: var(--danger);
+  background: color-mix(in srgb, var(--panel, #10141c) 88%, transparent);
+  border: 1px solid var(--danger);
+  border-radius: 3px;
+}
+
+.gate-beacon__away {
+  color: var(--ink-dim);
+}
+
+/* Clamped to the viewport edge because the building is off screen. Dimmer, so
+   it reads as "over there" rather than "here". */
+.gate-beacon--offscreen .gate-beacon__ring {
+  opacity: 0.55;
+}
+
+@keyframes gate-beacon-pulse {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 60%, transparent);
+  }
+  70% {
+    box-shadow: 0 0 0 18px color-mix(in srgb, var(--danger) 0%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--danger) 0%, transparent);
+  }
+}
+
+/* The gate is the one moment this interface raises its voice, and a pulsing
+   ring is exactly what a reduced-motion setting is asking us not to do. The
+   marker stays; only the motion goes. */
+@media (prefers-reduced-motion: reduce) {
+  .gate-beacon__ring {
+    animation: none;
+    box-shadow: 0 0 0 6px color-mix(in srgb, var(--danger) 22%, transparent);
+  }
+}

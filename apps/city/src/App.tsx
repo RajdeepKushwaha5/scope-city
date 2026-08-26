@@ -11,6 +11,7 @@ import { ScopeReview } from "./hud/ScopeReview.js";
 import { BuildingInspector } from "./hud/BuildingInspector.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
+import { GateBeacon } from "./hud/GateBeacon.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { TopNav } from "./hud/TopNav.js";
@@ -582,6 +583,13 @@ export function App(): React.JSX.Element {
             />
           </div>
         </div>
+
+        <GateBeacon
+          gate={mission.gate}
+          offices={mission.offices}
+          camera={camera}
+          size={size}
+        />
 
         <div className="hud__console">
           <CityConsole

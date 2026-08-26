@@ -43,6 +43,16 @@ export interface BriefOptions {
   /** Whether a sandbox is available. Without one, the verification step is a lie. */
   readonly sandbox: boolean;
   /**
+   * How many turns the agent gets, when the budget is not the default.
+   *
+   * Told to it because it is now variable. An operator choosing low effort
+   * halves the budget, and an agent that does not know that plans for the
+   * ceiling and gets cut off in the middle of the work -- which looks like the
+   * agent failing rather than the budget ending. Stating it is the difference
+   * between a constraint and an ambush.
+   */
+  readonly iterationLimit?: number;
+  /**
    * Brief an ordinary integration rather than a Scope City mission.
    *
    * Used only by the comparison run, and it exists to keep that comparison
@@ -141,6 +151,14 @@ export function missionBrief(options: BriefOptions): string {
     "reading a record is progress, not completion: finish the job unless the",
     "boundary refuses a call you require, and then say so and stop.",
     "",
+    ...(options.iterationLimit !== undefined
+      ? [
+          `You have ${options.iterationLimit} turns. Spend them on the job rather`,
+          "than on narrating it, and if you are running short, say what you have",
+          "established and what remains rather than stopping mid-sentence.",
+          "",
+        ]
+      : []),
   );
 
   const delegation = options.registry ? planReadDelegation(scope, options.registry) : null;

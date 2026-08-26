@@ -30,15 +30,21 @@ interface Billing {
  * reaches -- which is precisely the failure this component exists to make
  * visible, committed in the component itself.
  *
- * Three of the four runs end at the Gate rather than at a finish, because an
- * irreversible call is the point of the demo. Saying so is not a hedge; a
- * viewer who expects completion reads a held gate as the demo hanging.
+ * The recorded run is the exception, and getting it wrong the same way twice is
+ * instructive. It does hold at the Gate -- but the record contains the approval
+ * that was actually given, so playback carries straight through it to a
+ * completed mission. Billing it as "stops at the Gate" would have left a viewer
+ * waiting to countersign something that never asks them.
+ *
+ * The two scripted runs do end held, because an irreversible call is the point
+ * of the demo. Saying so is not a hedge; a viewer who expects completion reads
+ * a held gate as the demo hanging.
  */
 const BILLING: Record<Scenario, Billing> = {
   recorded: {
     name: "Recorded run",
     watchFor:
-      "A real mission, replayed from a hash-chained record. It stops at the Gate for a countersign before the refund.",
+      "A real mission, replayed from a hash-chained record. It holds at the Gate, takes the countersign that was actually given, and completes.",
   },
   clean: {
     name: "Clean job",

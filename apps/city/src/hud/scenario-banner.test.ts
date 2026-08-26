@@ -71,13 +71,42 @@ describe("scenario billing", () => {
       ["poisoned", "const POISONED"],
     ] as const) {
       const start = source.indexOf(marker);
-      expect(start).toBeGreaterThan(-1);
-      const script = source.slice(start, source.indexOf("];", start));
+      expect(start, `${marker} not found`).toBeGreaterThan(-1);
 
-      if (script.includes("a.gate({")) {
-        expect(SCENARIO_BILLING[scenario].watchFor).toMatch(/gate/i);
-      }
+      const end = source.indexOf("];", start);
+      expect(end, `${marker} has no terminator`).toBeGreaterThan(start);
+
+      const script = source.slice(start, end);
+
+      // Asserted, not branched on. Guarding the real assertion behind
+      // `if (script.includes(...))` made this test able to pass by finding
+      // nothing -- a rename of the step helper, or a bad slice, would have
+      // silently skipped the check instead of failing it. Both of these
+      // scripts do end at a gate today, so both must be seen to.
+      expect(script, `${marker} no longer raises a gate`).toContain("a.gate({");
+      expect(SCENARIO_BILLING[scenario].watchFor).toMatch(/gate/i);
     }
+  });
+
+  it("says the recorded run completes, because the record carries its approval", () => {
+    // The same mistake, made twice. Correcting "the clean job finishes" to
+    // "stops at the Gate" was then applied to the recorded run, which does hold
+    // at the gate -- and then carries straight through it, because the record
+    // contains the approval that was actually given. Billing it as stopping
+    // would leave a viewer waiting to countersign something that never asks.
+    const recording = JSON.parse(
+      readFileSync(
+        fileURLToPath(new URL("../../public/replays/refund-184.json", import.meta.url)),
+        "utf8",
+      ),
+    ) as { entries: readonly { event?: { type?: string; status?: string } }[] };
+
+    const final = [...recording.entries]
+      .reverse()
+      .find((entry) => entry.event?.type === "mission.status")?.event?.status;
+
+    expect(final).toBe("completed");
+    expect(SCENARIO_BILLING.recorded.watchFor).toMatch(/complete/i);
   });
 
   it("tells the viewer the no-scope run fails rather than stopping", () => {

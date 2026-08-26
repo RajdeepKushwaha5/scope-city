@@ -1,5 +1,7 @@
+import { useEffect, useState } from "react";
 import { Meter, Stat, Window } from "./Window.js";
 import type { GateRequest, LogLine } from "../useMission.js";
+import { soundEngine } from "./sound-engine.js";
 
 const PHASE_LABEL: Record<string, string> = {
   drafting: "DRAFTING",
@@ -30,12 +32,10 @@ export function CityConsole(props: {
   onApprove: () => void;
   onDeny: () => void;
   onExpireNow: () => void;
+  onOpenCommand?: () => void;
+  onResetView?: () => void;
   /**
    * The agent's working from the sandbox, when it ran one.
-   *
-   * Shown beside the gate rather than in the log, because an operator asked to
-   * approve an irreversible transfer on the strength of a check they cannot
-   * see is not really checking.
    */
   verification: {
     readonly script: string;
@@ -45,20 +45,53 @@ export function CityConsole(props: {
 }): React.JSX.Element {
   const total = 10 * 60 * 1000;
   const remaining = props.expiresIn ?? 0;
+  const [sfxOn, setSfxOn] = useState(soundEngine.isEnabled());
+
+  useEffect(() => {
+    if (props.gate) {
+      soundEngine.playGateAlert();
+    }
+  }, [props.gate]);
+
+  const toggleSound = () => {
+    const next = soundEngine.toggle();
+    setSfxOn(next);
+    if (next) soundEngine.playClick();
+  };
 
   return (
     <Window
       title="Scope City"
       right={
-        <span className={`status-chip status-chip--${props.connection}`}>
-          <span className="status-chip__dot" />
-          {props.connection}
-        </span>
+        <div style={{ display: "flex", alignItems: "center", gap: "6px" }}>
+          {props.onOpenCommand ? (
+            <button
+              type="button"
+              className="btn btn--mini"
+              title="Command palette (Ctrl+K)"
+              onClick={props.onOpenCommand}
+            >
+              &#8984;K
+            </button>
+          ) : null}
+          <button
+            type="button"
+            className="btn btn--mini"
+            title={sfxOn ? "Sound on (click to mute)" : "Sound muted (click to enable)"}
+            onClick={toggleSound}
+          >
+            {sfxOn ? "SFX \u25CF" : "SFX \u25CB"}
+          </button>
+          <span className={`status-chip status-chip--${props.connection}`}>
+            <span className="status-chip__dot" />
+            {props.connection}
+          </span>
+        </div>
       }
     >
       <div className="console__masthead">
         <div className="console__name">SCOPE CITY</div>
-        <div className="console__branch">MAIN CITY · OPERATOR CONSOLE</div>
+        <div className="console__branch">MAIN CITY &bull; OPERATOR CONSOLE</div>
       </div>
 
       <div className="console__crew">
@@ -75,7 +108,7 @@ export function CityConsole(props: {
 
       <div className="console__job">{props.job}</div>
 
-      <Stat label="In the field">{props.fieldSize || "—"}</Stat>
+      <Stat label="In the field">{props.fieldSize || "-"}</Stat>
       <Stat label="The Yard">{props.sandboxOpen ? "open" : "closed"}</Stat>
       <Stat label="Treasury">${props.treasury.toFixed(4)}</Stat>
 
@@ -90,10 +123,14 @@ export function CityConsole(props: {
             tone={remaining < total * 0.2 ? "bad" : remaining < total * 0.5 ? "warn" : "good"}
           />
           {props.missionId ? (
-            /* Closes the limits now rather than waiting out the lease on
-               camera. The server expires the scope through the same path its
-               timer uses, so what follows is the real refusal. */
-            <button className="btn console__expire" type="button" onClick={props.onExpireNow}>
+            <button
+              className="btn console__expire"
+              type="button"
+              onClick={() => {
+                soundEngine.playRefusal();
+                props.onExpireNow();
+              }}
+            >
               Close the limits now
             </button>
           ) : null}
@@ -101,9 +138,6 @@ export function CityConsole(props: {
       )}
 
       {props.gate && props.verification ? (
-        /* The working, next to the decision it justifies.
-           An operator asked to approve an irreversible transfer on the strength
-           of a check they cannot see is not really checking. */
         <div className={`proof proof--${props.verification.passed ? "pass" : "fail"}`}>
           <div className="proof__head">
             <span>Daytona sandbox</span>
@@ -121,8 +155,8 @@ export function CityConsole(props: {
       {props.gate ? (
         <div className="console__permit">
           <div className="console__permit-title">
-            <span>⚠ Permit · {props.gate.office}</span>
-            <span>HELD{props.pendingGateCount ? ` · ${props.pendingGateCount} QUEUED` : ""}</span>
+            <span>&#9888; Permit &bull; {props.gate.office}</span>
+            <span>HELD{props.pendingGateCount ? ` \u2022 ${props.pendingGateCount} QUEUED` : ""}</span>
           </div>
           <pre className="gate__call">
 {props.gate.office}({Object.entries(props.gate.args)
@@ -130,8 +164,24 @@ export function CityConsole(props: {
   .join(", ")})
           </pre>
           <div className="gate__actions">
-            <button className="btn btn--primary" onClick={props.onApprove}>Countersign</button>
-            <button className="btn btn--danger" onClick={props.onDeny}>Refuse</button>
+            <button
+              className="btn btn--primary"
+              onClick={() => {
+                soundEngine.playCountersign();
+                props.onApprove();
+              }}
+            >
+              Countersign
+            </button>
+            <button
+              className="btn btn--danger"
+              onClick={() => {
+                soundEngine.playRefusal();
+                props.onDeny();
+              }}
+            >
+              Refuse
+            </button>
           </div>
         </div>
       ) : null}
@@ -156,26 +206,21 @@ export function CityConsole(props: {
       </div>
 
       <div className="console__footer">
-        <span>Permits · operator</span>
+        <span>Permits &bull; operator</span>
         <span>{props.structureCount} structures</span>
       </div>
 
-      {/* The record, and a way to take it away.
-          Not a convenience: a mission that stops when the tab closes has
-          produced no evidence, and "what was the agent actually able to touch"
-          is the question nobody can answer after an incident. A plain link
-          rather than a fetch-and-blob, so the browser saves the same bytes the
-          server verified with nothing in between to reshape them. */}
       {props.missionId ? (
         <div className="record__footer">
           <a
             className="btn record__download"
             href={`/api/missions/${props.missionId}/record`}
             download
+            onClick={() => soundEngine.playClick()}
           >
             Download the record
           </a>
-          <span className="record__hint">Hash-chained · includes the granted scope</span>
+          <span className="record__hint">Hash-chained &bull; includes granted scope</span>
         </div>
       ) : null}
     </Window>

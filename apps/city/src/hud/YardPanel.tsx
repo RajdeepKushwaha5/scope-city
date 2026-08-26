@@ -7,11 +7,6 @@ import { Window } from "./Window.js";
  * Placed above the record rather than beside it because the ordering is the
  * argument: these findings were known *before* the grant, which is the only
  * time they could have changed the decision.
- *
- * A clean report is rendered as loudly as a dirty one. "No holes in 46 probes"
- * is the sentence that makes every other panel believable, and hiding it when
- * nothing is wrong would leave the operator unable to tell a scope that is
- * sound from one that was never examined.
  */
 export function YardPanel(props: { report: BacktestReport | null }): React.JSX.Element {
   const report = props.report;
@@ -33,7 +28,7 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
       ) : (
         <>
           <div className="yard__probes">
-            {report.probesRun} adversarial probes · nothing called, nothing spent
+            {report.probesRun} adversarial probes &bull; nothing called, nothing spent
           </div>
 
           {report.findings.length === 0 ? (
@@ -50,7 +45,7 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
                   </div>
                   <div className="yard__summary">{finding.summary}</div>
                   {finding.detail && finding.detail.length > 0 ? (
-                    <div className="yard__detail">{finding.detail.join(" · ")}</div>
+                    <div className="yard__detail">{finding.detail.join(" \u2022 ")}</div>
                   ) : null}
                   {finding.remedy ? <div className="yard__remedy">{finding.remedy}</div> : null}
                 </div>

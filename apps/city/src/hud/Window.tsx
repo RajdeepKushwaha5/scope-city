@@ -1,4 +1,5 @@
 import { useState, type ReactNode } from "react";
+import { soundEngine } from "./sound-engine.js";
 
 /**
  * One HUD window.
@@ -19,20 +20,26 @@ export function Window(props: {
   if (props.tone === "gate") classes.push("gate");
   if (collapsed) classes.push("window--collapsed");
 
+  const handleToggle = () => {
+    soundEngine.playClick();
+    setCollapsed((c) => !c);
+  };
+
   return (
     <section className={classes.join(" ")}>
       <header className="window__bar">
-        <span>{props.title}</span>
+        <span className="window__title">{props.title}</span>
         <span className="window__rule" />
         {props.right}
         {props.collapsible === false ? null : (
           <button
-            className="btn"
-            style={{ padding: "1px 5px" }}
-            onClick={() => setCollapsed((c) => !c)}
+            className="btn window__toggle-btn"
+            style={{ padding: "2px 6px", fontSize: "10px", lineHeight: "1" }}
+            onClick={handleToggle}
             aria-label={collapsed ? "Expand" : "Collapse"}
+            title={collapsed ? "Expand panel" : "Collapse panel"}
           >
-            {collapsed ? "▸" : "▾"}
+            {collapsed ? "+" : "-"}
           </button>
         )}
       </header>

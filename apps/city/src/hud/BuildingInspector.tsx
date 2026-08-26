@@ -1,5 +1,6 @@
 import type { BuildingState } from "../building-state.js";
 import { Window } from "./Window.js";
+import { soundEngine } from "./sound-engine.js";
 
 /**
  * What one building is, and what it may do.
@@ -21,7 +22,7 @@ const AUTHORITY_LABEL: Record<BuildingState["authority"], string> = {
   absent: "not in scope",
   proposed: "proposed",
   allowed: "granted",
-  gated: "granted · countersign",
+  gated: "granted \u2022 countersign",
 };
 
 const ACTIVITY_LABEL: Record<BuildingState["activity"], string> = {
@@ -48,8 +49,16 @@ export function BuildingInspector(props: {
     <Window
       title={building.office}
       right={
-        <button className="btn inspector__close" onClick={props.onClose} aria-label="Close">
-          ✕
+        <button
+          className="btn inspector__close"
+          onClick={() => {
+            soundEngine.playClick();
+            props.onClose();
+          }}
+          aria-label="Close"
+          title="Close details"
+        >
+          &times;
         </button>
       }
     >
@@ -84,7 +93,7 @@ export function BuildingInspector(props: {
             <div className="inspector__row">
               <span className="hud-label">Ceiling</span>
               <span className="inspector__value">
-                {building.maxAmountMinor} minor · {asMajor(building.maxAmountMinor)}
+                {building.maxAmountMinor} minor &bull; {asMajor(building.maxAmountMinor)}
               </span>
             </div>
           ) : null}
@@ -93,7 +102,7 @@ export function BuildingInspector(props: {
             <span className="hud-label">Calls</span>
             <span className="inspector__value">
               {building.callsUsed}
-              {building.callBudget !== null ? ` of ${building.callBudget}` : " · no budget"}
+              {building.callBudget !== null ? ` of ${building.callBudget}` : " \u2022 no budget"}
             </span>
           </div>
 

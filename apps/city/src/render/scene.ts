@@ -171,8 +171,12 @@ export function drawScene(
 
   const { buildings, trees, fountains } = cityFor(framed.offices);
 
+  const terrain = terrainItems(framed);
+  terrain.sort((a, b) => a.z - b.z);
+  for (const item of terrain) item.draw(ctx);
+
   const items: Drawable[] = [
-    ...groundItems(framed),
+    ...lampItems(),
     ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
@@ -180,7 +184,7 @@ export function drawScene(
     ...landmarkItems(framed),
     ...trafficItems(framed, time),
     ...maritimeItems(time),
-    ...figureItems(framed),
+    ...figureItems(framed, time),
   ];
 
   items.sort((a, b) => a.z - b.z);
@@ -221,7 +225,7 @@ function groundMaterial(
 /** How far a road sits below the pavement around it. */
 const ROAD_DROP = 0.09;
 
-function groundItems(state: SceneState): Drawable[] {
+function terrainItems(state: SceneState): Drawable[] {
   const items: Drawable[] = [];
   const scoped = (u: number, v: number) => isInScope({ u, v }, state.granted);
 
@@ -277,7 +281,12 @@ function groundItems(state: SceneState): Drawable[] {
     }
   }
 
-  // Lamps along pavements, spaced out.
+  return items;
+}
+
+/** Lamps along pavements, spaced out as vertical entities. */
+function lampItems(): Drawable[] {
+  const items: Drawable[] = [];
   for (let u = 2; u <= ISLAND_W - 2; u += 1) {
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "pavement") continue;
@@ -287,7 +296,6 @@ function groundItems(state: SceneState): Drawable[] {
       items.push({ z: depth(cu, cv, 1), draw: (ctx) => drawLamp(ctx, cu, cv) });
     }
   }
-
   return items;
 }
 
@@ -534,7 +542,7 @@ function trafficItems(state: SceneState, time: number): Drawable[] {
   });
 }
 
-function figureItems(state: SceneState): Drawable[] {
+function figureItems(state: SceneState, time: number): Drawable[] {
   return state.figures.map((figure) => {
     const { u, v, kind } = figure;
     return {
@@ -546,18 +554,37 @@ function figureItems(state: SceneState): Drawable[] {
         const body = kind === "agent" ? AGENT.body : AGENT.team;
         const shade = kind === "agent" ? AGENT.bodyShade : AGENT.teamShade;
 
-        // Deliberately a marker, not a character. A person-shaped sprite
-        // invites the eye to read intent into its posture; a token does not.
+        // Subtle step cadence animation so agents feel active in the field
+        const step = Math.sin(time / 160) * 1.5;
+        const yOff = p.y - Math.abs(step);
+
         ctx.fillStyle = shade;
-        ctx.fillRect(p.x - 6, p.y - 22, 12, 22);
+        ctx.fillRect(p.x - 6, yOff - 22, 12, 22);
         ctx.fillStyle = body;
-        ctx.fillRect(p.x - 6, p.y - 22, 8, 22);
+        ctx.fillRect(p.x - 6, yOff - 22, 8, 22);
         ctx.fillStyle = AGENT.mark;
-        ctx.fillRect(p.x - 4, p.y - 18, 5, 5);
+        ctx.fillRect(p.x - 4, yOff - 18, 5, 5);
 
         ctx.strokeStyle = UI.outline;
         ctx.lineWidth = 1;
-        ctx.strokeRect(p.x - 6.5, p.y - 22.5, 13, 23);
+        ctx.strokeRect(p.x - 6.5, yOff - 22.5, 13, 23);
+
+        // Active state mini beacon tag above head
+        if (state.gates.length > 0) {
+          ctx.fillStyle = "#ff5e7e";
+          ctx.fillRect(p.x - 12, yOff - 34, 24, 8);
+          ctx.fillStyle = "#0c1017";
+          ctx.font = "6px Silkscreen, monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("GATE", p.x, yOff - 28);
+        } else if (state.refusedAt) {
+          ctx.fillStyle = "#ff5e7e";
+          ctx.fillRect(p.x - 16, yOff - 34, 32, 8);
+          ctx.fillStyle = "#0c1017";
+          ctx.font = "6px Silkscreen, monospace";
+          ctx.textAlign = "center";
+          ctx.fillText("REFUSED", p.x, yOff - 28);
+        }
       },
     };
   });

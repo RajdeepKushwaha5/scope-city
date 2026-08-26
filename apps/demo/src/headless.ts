@@ -52,7 +52,7 @@ const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
  */
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
-const MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "gemini-a/flash-a")
+const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);
@@ -100,6 +100,19 @@ async function main(): Promise<void> {
     return;
   }
   line(c.green("harness"), "reachable");
+
+  // An empty override means discover what setup-models actually registered.
+  // Pinning every optional slot in .env is unsafe: a blank key makes setup skip
+  // that provider, and selecting its nonexistent model later is a terminal
+  // session-creation error rather than a rate limit the pool can rotate past.
+  const models = PINNED_MODELS.length > 0 ? PINNED_MODELS : await driver.listModels();
+  if (models.length === 0) {
+    console.error(c.red("  TrueForge has no configured models."));
+    console.error(c.dim("  Add a key to .env and run: pnpm demo:models"));
+    process.exitCode = 1;
+    return;
+  }
+  line(c.green("models"), `${models.join(", ")} (${PINNED_MODELS.length > 0 ? "pinned" : "discovered"})`);
 
   /* 2. the systems behind the districts ---------------------------------- */
 
@@ -249,7 +262,7 @@ async function main(): Promise<void> {
 
     /* 5. run the mission ------------------------------------------------- */
 
-    const pool = new ModelPool(MODELS.map((model, priority) => ({ model, priority })));
+    const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
     let lastError: unknown;
     let completed: MissionResult | undefined;
 

@@ -28,7 +28,7 @@ export interface ModelListEntry {
  * should degrade to a working pool rather than an empty one.
  *
  * `model_id` is deliberately never read. It is the *underlying* model and is
- * not provider-qualified, so three keys registered against the same Gemini
+ * not provider-qualified, so several keys registered against the same Gemini
  * model would yield three indistinguishable "gemini-2.5-flash" entries -- a
  * pool that looks healthy and rotates onto the same rate-limited credential
  * every time.

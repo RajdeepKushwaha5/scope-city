@@ -15,8 +15,14 @@
  * a manual chore.
  *
  *   node scripts/seed-stripe.mjs
- *   pnpm --filter @scope-city/demo dev      # in another terminal
+ *   pnpm --filter @scope-city/demo serve    # in another terminal
  *   node scripts/capture-recording.mjs
+ *
+ * `serve`, not `dev`. The dev script runs `tsx watch`, which restarts the
+ * control plane when any source file changes -- including a file touched by
+ * switching branches while a capture is running. The mission then dies
+ * mid-flight with the countersign already given, which wastes both the model
+ * quota and the Stripe charge it had consumed.
  */
 import { writeFileSync } from "node:fs";
 

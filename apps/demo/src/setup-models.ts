@@ -72,6 +72,15 @@ const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta
  * about swapping capability mid-mission. An agent that becomes cleverer or
  * stupider when a quota runs out is a demo that cannot be reasoned about.
  */
+/**
+ * The effort levels these slots accept.
+ *
+ * `custom` providers may declare any of TrueForge's seven; these three are the
+ * ones Google itself advertises for its reasoning-capable Gemini models, so
+ * offering more would be claiming a range the provider does not describe.
+ */
+export const REASONING_EFFORTS = ["low", "medium", "high"] as const;
+
 const SLOTS: readonly Slot[] = [
   {
     provider: "gemini-a",
@@ -133,6 +142,15 @@ async function main(): Promise<void> {
             properties: {
               contextLength: slot.contextLength,
               maxOutputTokens: 8192,
+              // Declared, or the effort is refused rather than ignored.
+              //
+              // TrueForge validates `model.params.reasoningEffort` against what
+              // the registered model says it supports, and a model that
+              // declares nothing rejects every effort with a 422 reading
+              // "does not support configurable reasoning effort". Registering
+              // the levels is what makes the operator's choice reach the
+              // provider instead of being an unused control.
+              reasoningEfforts: REASONING_EFFORTS,
             },
           },
         ],

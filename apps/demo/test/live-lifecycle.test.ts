@@ -12,7 +12,7 @@ function mission(): ManagedLiveMission {
     id: "m_test",
     status: "running",
     feed: { append: vi.fn() },
-    gates: { cancelAll: vi.fn() },
+    gates: { cancelAll: vi.fn(() => []) },
   };
 }
 
@@ -21,7 +21,10 @@ describe("retireMission", () => {
     it(`revokes registry access before publishing ${status}`, () => {
       const live = mission();
       const order: string[] = [];
-      live.gates.cancelAll = vi.fn(() => order.push("gates"));
+      live.gates.cancelAll = vi.fn(() => {
+        order.push("gates");
+        return [];
+      });
       live.feed.append = vi.fn(() => order.push("status"));
       const registry = { forget: vi.fn(() => order.push("registry")) };
 

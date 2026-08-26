@@ -138,3 +138,127 @@ describe("subagent figures carry the assignment the harness gave them", () => {
     expect(state.figures.some((f) => f.id === "a")).toBe(false);
   });
 });
+
+describe("a gate that nobody answered", () => {
+  const raised = {
+    type: "world",
+    event: {
+      type: "gate.raised",
+      threadId: "main",
+      toolCallId: "tc_1",
+      office: "charge.refund",
+      args: { charge_id: "ch_184", amount: 4900 },
+      at: 1,
+    },
+  } as never;
+
+  const abandoned = {
+    type: "world",
+    event: {
+      type: "gate.abandoned",
+      toolCallId: "tc_1",
+      office: "charge.refund",
+      waitedMs: 92_000,
+      reason: "scope expired",
+      at: 2,
+    },
+  } as never;
+
+  it("stops holding for a countersign that is never coming", () => {
+    // Left pending, the city shows a finished run still waiting on a human,
+    // which is the opposite of what the record says happened.
+    const held = reduceLiveCity(initialLiveCityState, raised);
+    expect(held.phase).toBe("awaiting_countersign");
+
+    const released = reduceLiveCity(held, abandoned);
+    expect(released.gate).toBeNull();
+    expect(released.pendingGates).toHaveLength(0);
+  });
+
+  it("says the question went unanswered rather than that it was refused", () => {
+    // "Refused" would credit an operator with a decision nobody made. The run
+    // ended with the question still standing, which is a fact about the people
+    // rather than about the agent.
+    const state = reduceLiveCity(reduceLiveCity(initialLiveCityState, raised), abandoned);
+    const line = state.log[state.log.length - 1]!;
+
+    expect(line.what).toMatch(/unanswered/i);
+    expect(line.what).toContain("charge.refund");
+    expect(line.what).toMatch(/nothing ran/i);
+    expect(line.what).not.toMatch(/\brefused\b/i);
+  });
+
+  it("reports how long it stood, in seconds", () => {
+    const state = reduceLiveCity(reduceLiveCity(initialLiveCityState, raised), abandoned);
+    expect(state.log[state.log.length - 1]!.what).toContain("92s");
+  });
+
+  it("promotes the next gate rather than showing none", () => {
+    // The looser version of this test only checked that tc_2 was still
+    // somewhere in state. It was -- sitting in `pendingGates` while `gate` was
+    // null, so the city displayed no gate at all and stayed in
+    // awaiting_countersign for a question it had stopped showing.
+    const second = {
+      type: "world",
+      event: {
+        type: "gate.raised",
+        threadId: "main",
+        toolCallId: "tc_2",
+        office: "mail.send",
+        args: {},
+        at: 2,
+      },
+    } as never;
+
+    let state = reduceLiveCity(initialLiveCityState, raised);
+    state = reduceLiveCity(state, second);
+    state = reduceLiveCity(state, abandoned);
+
+    expect(state.gate?.toolCallId).toBe("tc_2");
+    expect(state.pendingGates).toHaveLength(0);
+    expect(state.phase).toBe("awaiting_countersign");
+  });
+
+  it("returns to running when the abandoned gate was the last one", () => {
+    const state = reduceLiveCity(reduceLiveCity(initialLiveCityState, raised), abandoned);
+
+    expect(state.gate).toBeNull();
+    expect(state.phase).toBe("running");
+  });
+
+  it("does not disturb the active gate when a queued one is abandoned", () => {
+    // The other direction: abandoning something further down the queue must
+    // leave whatever the operator is currently looking at exactly where it is.
+    const second = {
+      type: "world",
+      event: {
+        type: "gate.raised",
+        threadId: "main",
+        toolCallId: "tc_2",
+        office: "mail.send",
+        args: {},
+        at: 2,
+      },
+    } as never;
+
+    const abandonSecond = {
+      type: "world",
+      event: {
+        type: "gate.abandoned",
+        toolCallId: "tc_2",
+        office: "mail.send",
+        waitedMs: 1_000,
+        reason: "scope expired",
+        at: 3,
+      },
+    } as never;
+
+    let state = reduceLiveCity(initialLiveCityState, raised);
+    state = reduceLiveCity(state, second);
+    state = reduceLiveCity(state, abandonSecond);
+
+    expect(state.gate?.toolCallId).toBe("tc_1");
+    expect(state.pendingGates).toHaveLength(0);
+    expect(state.phase).toBe("awaiting_countersign");
+  });
+});

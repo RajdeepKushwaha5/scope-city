@@ -26,6 +26,35 @@ export type WorldEvent =
       readonly at: number;
     }
   | { readonly type: "gate.cleared"; readonly toolCallId: string; readonly approved: boolean; readonly at: number }
+  /**
+   * The Gate came down with nobody having answered it.
+   *
+   * A distinct fact from a refusal, and the distinction is the whole reason
+   * this event exists. `gate.cleared { approved: false }` says a human looked
+   * at an irreversible call and said no -- the control working. This says the
+   * authority ran out with the question still open, so no one looked at all.
+   *
+   * Both end with the call not happening, which is why it is tempting to record
+   * them the same way. For anyone reading the record afterwards they mean
+   * opposite things: one is a control that fired, the other is a control that
+   * was never exercised, and the second is usually a fact about the operators
+   * rather than about the agent. An agent working at 2am against approvers who
+   * are asleep produces a clean-looking log full of nothing happening.
+   *
+   * Previously this was inferable only from absence -- a `gate.raised` with no
+   * matching `gate.cleared` -- which asks a reader to notice something that is
+   * not there.
+   */
+  | {
+      readonly type: "gate.abandoned";
+      readonly toolCallId: string;
+      readonly office: string | null;
+      /** How long the question stood unanswered, in ms. */
+      readonly waitedMs: number;
+      /** Why the mission ended, in the words the lifecycle used. */
+      readonly reason: string;
+      readonly at: number;
+    }
   | { readonly type: "yard.opened"; readonly sandboxId: string; readonly at: number }
   /**
    * What the agent ran in the sandbox, and what came back.

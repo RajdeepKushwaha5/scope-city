@@ -158,6 +158,7 @@ async function main(): Promise<void> {
     console.log("  One key works. More independent keys make the live demo resilient to rate limits.");
   }
   console.log(`\n  SCOPE_MODELS=${configured.join(",")}\n`);
+  console.log("  Leave SCOPE_MODELS empty to discover these automatically, or copy the line above to pin the order.\n");
 }
 
 main().catch((error: unknown) => {

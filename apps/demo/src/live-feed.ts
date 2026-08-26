@@ -60,6 +60,15 @@ interface WaitingGate {
   readonly gate: GateRequest;
   readonly resolve: (decision: GateDecision) => void;
   readonly promise: Promise<GateDecision>;
+  /** When the question went up, so the record can say how long it stood. */
+  readonly raisedAt: number;
+}
+
+/** A gate the mission ended without anyone having answered. */
+export interface AbandonedGate {
+  readonly toolCallId: string;
+  readonly office: string | null;
+  readonly waitedMs: number;
 }
 
 /** A visible operator decision, not an automatic approval disguised as one. */
@@ -74,7 +83,12 @@ export class OperatorGateQueue {
     const promise = new Promise<GateDecision>((resolve) => {
       settle = resolve;
     });
-    this.#waiting.set(gate.toolCallId, { gate, resolve: settle, promise });
+    this.#waiting.set(gate.toolCallId, {
+      gate,
+      resolve: settle,
+      promise,
+      raisedAt: Date.now(),
+    });
     return promise;
   }
 
@@ -91,11 +105,32 @@ export class OperatorGateQueue {
     return true;
   }
 
-  cancelAll(reason = "mission cancelled"): void {
+  /**
+   * Refuse everything still waiting, and say what was waiting.
+   *
+   * Returning the abandoned gates rather than swallowing them is the point.
+   * These calls end up refused, exactly as a human refusal would, and until now
+   * that was the only trace: the record showed a `gate.raised` and then a
+   * cancelled mission, leaving a reader to infer from a missing `gate.cleared`
+   * that nobody had answered. The caller owns the feed, so it writes the fact
+   * down rather than this queue growing a dependency on one.
+   */
+  cancelAll(reason = "mission cancelled", at = Date.now()): readonly AbandonedGate[] {
+    const abandoned: AbandonedGate[] = [];
+
     for (const [toolCallId, waiting] of this.#waiting) {
       this.#waiting.delete(toolCallId);
+      abandoned.push({
+        toolCallId,
+        office: waiting.gate.office,
+        // Clamped at zero: a clock that steps backwards mid-mission should not
+        // put a negative duration into the record.
+        waitedMs: Math.max(0, at - waiting.raisedAt),
+      });
       waiting.resolve({ approved: false, reason });
     }
+
+    return abandoned;
   }
 
   list(): readonly GateRequest[] {

@@ -350,6 +350,40 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
         pendingGates: state.pendingGates.filter((gate) => gate.toolCallId !== event.toolCallId),
       };
     }
+    case "gate.abandoned": {
+      // Logged as a refusal, because that is what happened to the call, and
+      // worded so nobody reads it as one. "Refused" would credit an operator
+      // with a decision they never made; the run ended with the question still
+      // standing, which is a fact about the people rather than the agent.
+      const seconds = Math.round(event.waitedMs / 1000);
+
+      // Promoted the same way a decision promotes, because abandonment removes
+      // a gate exactly as a decision does. Nulling the active one without
+      // pulling the next up left the city showing no gate at all while another
+      // was still waiting -- and still in `awaiting_countersign`, holding for a
+      // question it had stopped displaying.
+      const remaining = state.pendingGates.filter(
+        (gate) => gate.toolCallId !== event.toolCallId,
+      );
+      const wasActive = state.gate?.toolCallId === event.toolCallId;
+      const [next, ...rest] = remaining;
+
+      const cleared = wasActive
+        ? {
+            ...state,
+            gate: next ?? null,
+            pendingGates: rest,
+            phase: next ? ("awaiting_countersign" as const) : ("running" as const),
+          }
+        : { ...state, pendingGates: remaining };
+
+      return addLog(
+        cleared,
+        `THE GATE  ${event.office ?? "unknown tool"} — unanswered after ${seconds}s, nothing ran`,
+        "refused",
+        event.at,
+      );
+    }
     case "yard.verified":
       // Stored as well as logged. The gate needs it beside the decision it
       // justifies; the log needs it in sequence, so the record shows the

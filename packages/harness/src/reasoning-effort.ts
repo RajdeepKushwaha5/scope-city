@@ -49,3 +49,26 @@ export function parseReasoningEffort(value: unknown): EffortParse {
     reason: `effort must be one of ${REASONING_EFFORTS.join(", ")}`,
   };
 }
+
+/**
+ * How many turns the agent gets, by effort.
+ *
+ * Without this, effort was a hint to the provider and nothing else: an agent
+ * asked for "low" still had the same twenty-four iterations to grind through
+ * the job, so the label described the thinking and not the work. A budget that
+ * does not move when the setting does is the gap between stated and actual all
+ * over again, in the one control an operator is given.
+ *
+ * The ceiling stays where it was, so "high" behaves exactly as every run has
+ * until now and only the lower settings mean anything new.
+ */
+const ITERATION_BUDGET: Record<ReasoningEffort, number> = {
+  low: 12,
+  medium: 18,
+  high: 24,
+};
+
+/** The turn budget for an effort, or the ceiling when none was chosen. */
+export function iterationLimitFor(effort: ReasoningEffort | null | undefined): number {
+  return effort ? ITERATION_BUDGET[effort] : ITERATION_BUDGET.high;
+}

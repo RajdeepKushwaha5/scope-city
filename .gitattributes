@@ -1,0 +1,19 @@
+# Line endings.
+#
+# The shell scripts here are run inside WSL, because that is where TrueForge
+# runs. A Windows checkout with `core.autocrlf=true` rewrites them to CRLF, and
+# bash then reads the carriage return as part of the command:
+#
+#   scripts/trueforge-up.sh: line 9: $'\r': command not found
+#   scripts/trueforge-up.sh: line 18: syntax error: unexpected end of file
+#
+# The file looks perfect in every editor. Nothing in the repo is wrong. It is
+# purely an artifact of how it was checked out, which makes it exactly the kind
+# of failure someone hits on a fresh clone and cannot explain -- and the fresh
+# clone is the case that matters, since it is how this project gets judged.
+#
+# So the scripts are pinned to LF regardless of platform or git config.
+* text=auto
+
+*.sh text eol=lf
+*.mjs text eol=lf

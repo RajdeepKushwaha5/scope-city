@@ -47,6 +47,28 @@ export interface DerivedScope {
 }
 
 /**
+ * The longest lease this operator may hand out.
+ *
+ * Thirty minutes, not ten. A lease has to outlast the work it authorises. Ten
+ * was chosen when a mission was a handful of quick turns; with rate-limited
+ * keys a single turn can wait a minute for a cooldown before it even starts,
+ * and a mission that had already been countersigned was cancelled mid-flight
+ * for running out of time. Expiring an authority the operator granted, before
+ * the work they approved has happened, is the lease failing at its job rather
+ * than doing it.
+ *
+ * Still a ceiling, and still short enough to mean something: the operator can
+ * ask for less, and anything they do not ask for defaults to this rather than
+ * to forever.
+ *
+ * Exported because the shipped recording is evidence, and evidence that the
+ * current code could not have produced is worse than no evidence. A test holds
+ * this against the lease in `refund-184.json`, so lowering it below what the
+ * recording needs fails the build rather than going unnoticed.
+ */
+export const LEASE_CEILING_MS = 30 * 60 * 1000;
+
+/**
  * The operator's own ceilings.
  *
  * Deliberately not model-supplied and not per-request. These are the limits of
@@ -58,7 +80,7 @@ const BOUNDS = {
   alwaysCountersign: IRREVERSIBLE_OFFICES,
   maxAmountMinorCeiling: 50_000,
   maxCallsCeiling: 3,
-  maxTtlMs: 10 * 60 * 1000,
+  maxTtlMs: LEASE_CEILING_MS,
 } as const;
 
 /**

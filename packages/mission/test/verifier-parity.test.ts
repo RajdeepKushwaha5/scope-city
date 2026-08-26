@@ -167,12 +167,47 @@ describe("the verifier refuses records it should refuse", () => {
     expect(out).toContain("only checks sha256");
   });
 
-  it("refuses a record with no entries", () => {
-    const record = { ...sound(), entries: [] };
+  it("accepts an empty record whose head is the genesis hash", () => {
+    // A scope sealed and nothing done: denied at the grant screen, or cancelled
+    // while still proposed. Refusing that reported a legitimate record as
+    // broken, and made "nothing happened" indistinguishable from "somebody
+    // removed everything" -- which the head check already tells apart.
+    const scope = { scopeId: "SC-EMPTY", job: "denied before anything ran", offices: [] };
+    const missionId = "m_" + "c".repeat(10);
+    const head = createHash("sha256")
+      .update(canonical({ missionId, scopeId: scope.scopeId, scope }))
+      .digest("hex");
 
-    const { code, out } = run(record);
+    const { code, out } = run({
+      missionId,
+      scopeId: scope.scopeId,
+      job: scope.job,
+      scope,
+      entries: [],
+      head,
+      algorithm: "sha256",
+      lossy: false,
+    });
+
+    expect(code, out).toBe(0);
+    expect(out).toContain("chain intact");
+  });
+
+  it("still refuses an empty record whose head claims entries once existed", () => {
+    // The other half. Emptying the entries and leaving the head is exactly the
+    // tampering the head exists to catch, and must not be waved through as an
+    // ordinary empty record.
+    const { code, out } = run({ ...sound(), entries: [] });
+
     expect(code).toBe(1);
-    expect(out).toContain("no entries");
+    expect(out).toContain("head does not match");
+  });
+
+  it("refuses a record with no entries array at all", () => {
+    const { code, out } = run({ ...sound(), entries: undefined });
+
+    expect(code).toBe(1);
+    expect(out).toContain("no entries array");
   });
 
   it("reports the sealed job, not the loose one, and says when they differ", () => {

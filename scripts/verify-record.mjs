@@ -79,9 +79,20 @@ try {
 if (record.algorithm !== "sha256") {
   fail(`record states algorithm "${record.algorithm}", and this script only checks sha256`);
 }
-if (!Array.isArray(record.entries) || record.entries.length === 0) {
-  fail("record carries no entries");
+if (!Array.isArray(record.entries)) {
+  fail("record carries no entries array");
 }
+
+/*
+ * An empty record is not a malformed one.
+ *
+ * A scope can be sealed and the mission end before anything happens -- denied
+ * at the grant screen, or cancelled while still proposed. The chain over zero
+ * entries is just the genesis hash, and the head check below confirms it. This
+ * used to refuse the case outright, which reported a legitimate record as
+ * broken and would have made "nothing happened" indistinguishable from
+ * "somebody removed everything".
+ */
 
 /*
  * Read from the scope, not from the top level.

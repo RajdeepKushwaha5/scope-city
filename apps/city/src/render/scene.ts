@@ -619,6 +619,24 @@ function trafficItems(state: SceneState, time: number): Drawable[] {
   });
 }
 
+/**
+ * The longest thread title a figure may carry, in characters.
+ *
+ * The two the harness actually produces are "Source investigator" and "Target
+ * verifier", so this fits both without truncating either. It exists for what a
+ * harness might send tomorrow, not for what it sends today.
+ */
+const MAX_LABEL = 22;
+
+/** A thread title cut to something a figure can carry, with the cut shown. */
+export function labelFor(title: string): string {
+  const clean = title.replace(/\s+/g, " ").trim();
+  if (clean.length <= MAX_LABEL) return clean;
+  // The ellipsis is the point: a silently cut label reads as the harness having
+  // sent a shorter name than it did.
+  return `${clean.slice(0, MAX_LABEL - 1).trimEnd()}…`;
+}
+
 function figureItems(state: SceneState): Drawable[] {
   return state.figures.map((figure) => {
     const { u, v, kind, title } = figure;
@@ -651,12 +669,18 @@ function figureItems(state: SceneState): Drawable[] {
           ctx.textAlign = "center";
           ctx.textBaseline = "alphabetic";
 
-          const width = ctx.measureText(title).width;
+          // The harness chooses these strings and nothing bounds their length.
+          // "Source investigator" fits; a sentence would paint a bar across the
+          // city and bury whatever is behind it, and near the canvas edge it
+          // would be clipped mid-word with no indication that it was cut. So
+          // the label is truncated to something a figure can carry.
+          const text = labelFor(title);
+          const width = ctx.measureText(text).width;
           ctx.fillStyle = UI.outline;
           ctx.fillRect(p.x - width / 2 - 3, p.y - 36, width + 6, 12);
 
           ctx.fillStyle = AGENT.team;
-          ctx.fillText(title, p.x, p.y - 27);
+          ctx.fillText(text, p.x, p.y - 27);
           ctx.textAlign = "left";
         }
       },

@@ -15,9 +15,45 @@ import { describe, expect, it } from "vitest";
 const css = readFileSync(fileURLToPath(new URL("./hud.css", import.meta.url)), "utf8");
 const NL = String.fromCharCode(10);
 
-/** Top-level selectors only: anything indented is inside a media query. */
+/**
+ * Every top-level selector, including the members of a grouped rule.
+ *
+ * `.a,` on its own line followed by `.b {` is one rule declaring two selectors,
+ * and matching only the line that carries the brace missed the rest. A second
+ * definition of `.hud__main` hidden inside a group would then have evaded the
+ * uniqueness check entirely, which is the one thing that check exists to catch.
+ */
 function topLevelSelectors(): string[] {
-  return [...css.matchAll(/^(\S[^{@\n]*)\{/gm)].map((m) => m[1]!.trim()).filter(Boolean);
+  const out: string[] = [];
+  let pending: string[] = [];
+
+  // Split on either ending. A Windows checkout leaves CRLF in the working tree
+  // while CI checks out LF, and a test that quietly matches nothing on one of
+  // them is worse than no test at all.
+  for (const raw of css.split(/\r?\n/)) {
+    const text = raw.trim();
+
+    // Indented lines are inside a media query or a keyframe block.
+    if (raw !== text) continue;
+    if (text === "" || text.startsWith("*") || text.startsWith("/")) continue;
+
+    if (text.endsWith(",")) {
+      pending.push(text.slice(0, -1).trim());
+      continue;
+    }
+
+    const brace = text.indexOf("{");
+    if (brace === -1) {
+      pending = [];
+      continue;
+    }
+
+    const head = text.slice(0, brace).trim();
+    if (!head.startsWith("@")) out.push(...pending, ...(head ? [head] : []));
+    pending = [];
+  }
+
+  return out.filter(Boolean);
 }
 
 /**
@@ -34,6 +70,17 @@ function propertiesOf(selector: string): string {
 }
 
 describe("the HUD stylesheet", () => {
+  it("finds the selectors it claims to check", () => {
+    // The parser above is the thing every other test here leans on. If it ever
+    // matches nothing -- a line-ending change did exactly that once -- the
+    // uniqueness check silently passes over an empty list.
+    const all = topLevelSelectors();
+    expect(all.length).toBeGreaterThan(50);
+    expect(all).toContain(".hud");
+    expect(all).toContain(".hud__main");
+    expect(all).toContain(".hud__scan-stack");
+  });
+
   it("defines each layout container exactly once", () => {
     // A second block wins silently over the first. `.hud` was defined twice and
     // the later block quietly replaced its padding and gap, which is the
@@ -75,7 +122,7 @@ describe("the HUD stylesheet", () => {
 
   it("keeps the scroll container clickable, so its scrollbar works", () => {
     // Guards a revert. Making the scan stack transparent closed the 10px gaps
-    // between panels, and cost the scrollbar with them: `pointer-events: none`
+    // between panels and cost the scrollbar with them: `pointer-events: none`
     // on a scroll container makes the bar undraggable in Firefox and kills
     // hover-triggered overlay scrollbars. A short screen could then see that
     // panels continue below the fold and have no way to reach them.

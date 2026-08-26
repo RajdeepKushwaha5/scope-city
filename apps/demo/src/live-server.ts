@@ -36,6 +36,8 @@ import {
 } from "./live-lifecycle.js";
 
 const CONTROL_PORT = Number(process.env.SCOPE_CONTROL_PORT ?? 8787);
+/** Where the city is served from, for the signpost on `/`. Display only. */
+const CITY_DEV_PORT = Number(process.env.SCOPE_CITY_PORT ?? 5180);
 const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
@@ -202,6 +204,35 @@ async function main(): Promise<void> {
 
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+
+    /*
+     * The root says what this port is, because someone will open it.
+     *
+     * This is the control plane, and it serves `/api/*` only -- so visiting `/`
+     * answered `{"error":"not found"}`, which is true and useless. The city
+     * runs on a different port, and a bare 404 gives no way to work that out.
+     * A signpost costs nothing and saves the guess.
+     */
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/api")) {
+      json(res, 200, {
+        service: "Scope City control plane",
+        note: "This is the API. The city itself runs on the Vite dev server, not this port.",
+        city: `http://127.0.0.1:${CITY_DEV_PORT}`,
+        routes: [
+          "GET  /api/health",
+          "POST /api/missions",
+          "POST /api/missions/:id/grant",
+          "POST /api/missions/:id/deny",
+          "POST /api/missions/:id/decisions",
+          "POST /api/missions/:id/cancel",
+          "POST /api/missions/:id/expire",
+          "POST /api/missions/:id/counterfactual",
+          "GET  /api/missions/:id/events",
+          "GET  /api/missions/:id/record",
+        ],
+      });
+      return;
+    }
 
     if (req.method === "GET" && url.pathname === "/api/health") {
       const harness = await driver.reachable();

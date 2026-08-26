@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { toScreen } from "../iso/projection.js";
 import { isMeaningful } from "../render/pick.js";
 import { cityFor } from "../render/scene.js";
+import { plotFor } from "../render/world.js";
 import type { GateRequest } from "../useMission.js";
 
 /**
@@ -27,6 +28,16 @@ import type { GateRequest } from "../useMission.js";
 /** How far inside the viewport a clamped beacon sits, in px. */
 const EDGE_INSET = 56;
 
+/**
+ * Wider than the vertical inset, because the label is wider than the ring.
+ *
+ * "Countersign required" is about 150px at this size, so a marker clamped 56px
+ * from the edge had half its label off screen -- the beacon pointed correctly
+ * and could not be read. The horizontal clamp keeps the text on screen, not
+ * just the ring.
+ */
+const EDGE_INSET_X = 104;
+
 export interface BeaconPlacement {
   readonly x: number;
   readonly y: number;
@@ -51,10 +62,44 @@ export function placeBeacon(
   // `Math.max(.. , EDGE_INSET)` on the upper bound keeps the clamp sane on a
   // viewport narrower than two insets, where the bounds would otherwise cross
   // and the marker would be pinned to the wrong edge.
-  const clampedX = Math.min(Math.max(x, EDGE_INSET), Math.max(size.width - EDGE_INSET, EDGE_INSET));
-  const clampedY = Math.min(Math.max(y, EDGE_INSET), Math.max(size.height - EDGE_INSET, EDGE_INSET));
+  // On a viewport too narrow to hold two insets, holding the inset anyway would
+  // push the marker off the side it was meant to be pulled back from. The inset
+  // shrinks to half the axis instead, so the beacon stays inside the viewport
+  // and the label is as central as the space allows.
+  const insetX = Math.min(EDGE_INSET_X, size.width / 2);
+  const insetY = Math.min(EDGE_INSET, size.height / 2);
+
+  const clampedX = Math.min(Math.max(x, insetX), Math.max(size.width - insetX, insetX));
+  const clampedY = Math.min(Math.max(y, insetY), Math.max(size.height - insetY, insetY));
 
   return { x: clampedX, y: clampedY, offscreen: clampedX !== x || clampedY !== y };
+}
+
+/** The Gate district's own landmark, for a gate that names no building. */
+export function gateLandmark(): { u: number; v: number; height: number } | null {
+  const plot = plotFor("gate");
+  if (!plot) return null;
+  // The plot's own declared height, not a guess. Hardcoding 2 here against a
+  // landmark rendered at 3.0 put the marker 32px below its roof, because the
+  // projection subtracts `height * UNIT_H` and UNIT_H is 32. A beacon that
+  // points at the pavement in front of the building is a beacon that has to be
+  // interpreted.
+  return { u: plot.landmark.u, v: plot.landmark.v, height: plot.landmarkHeight };
+}
+
+/**
+ * Where the marker should sit: the gated building, or the Gate itself.
+ *
+ * Split out so the fallback can be tested. It was previously inline in a
+ * `useMemo` inside the component, which meant the branch that matters most --
+ * the one taken when a gate names no building -- had no test reaching it at
+ * all, only a test asserting that placement maths stayed finite.
+ */
+export function targetCell(
+  building: { cell: { u: number; v: number }; height: number } | undefined,
+): { u: number; v: number; height: number } | null {
+  if (building) return { u: building.cell.u, v: building.cell.v, height: building.height };
+  return gateLandmark();
 }
 
 export function GateBeacon(props: {
@@ -71,14 +116,23 @@ export function GateBeacon(props: {
     const building = cityFor(props.offices).buildings.find(
       (candidate) => isMeaningful(candidate) && candidate.office === gate.office,
     );
-    if (!building) return null;
+
+    // A gate whose office does not name a building still holds the mission.
+    //
+    // The live event contract allows a null office, and `reduceLiveCity` turns
+    // that into the literal string "unknown tool" while keeping the gate
+    // active. An exact-match lookup finds no building for it, and returning
+    // null here meant the beacon vanished in precisely the case it exists for:
+    // a countersign is being waited on and the map says nothing.
+    //
+    // The Gate district is the honest fallback. It cannot say which office,
+    // because nothing knows, but it can say that something is being held and
+    // where the operator should look.
+    const cell = targetCell(building);
+    if (!cell) return null;
 
     // The inverse of App's `toWorld`: world space through the camera.
-    return placeBeacon(
-      toScreen(building.cell.u, building.cell.v, building.height),
-      camera,
-      size,
-    );
+    return placeBeacon(toScreen(cell.u, cell.v, cell.height), camera, size);
   }, [gate, props.offices, camera, size]);
 
   if (!gate || !placed) return null;

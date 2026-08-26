@@ -196,6 +196,29 @@ describe("the mission brief", () => {
     expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/sandbox/i);
     expect(missionBrief({ scope: briefScope, sandbox: true })).toMatch(/Verify before you ask/);
   });
+
+  it("requires two real child threads when independent reads are available", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    const scope = {
+      ...briefScope,
+      offices: ["ticket.get", "charge.get", "charge.refund"],
+      limits: { ...briefScope.limits, maxCalls: { "charge.refund": 1 } },
+    } as never;
+
+    const brief = missionBrief({ scope, sandbox: true });
+    expect(brief).toMatch(/MUST use TrueForge dynamic subagents/);
+    expect(brief).toContain("Source investigator — use ticket.get");
+    expect(brief).toContain("Target verifier — use charge.get");
+    expect(brief).toMatch(/Create two real child threads/);
+    expect(brief).toMatch(/root combines their evidence/i);
+  });
+
+  it("does not invent child threads for a one-read mission", async () => {
+    const { missionBrief } = await import("../src/index.js");
+    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(
+      /Create two real child threads/,
+    );
+  });
 });
 
 describe("readVerdict — an unreadable check is a failed check", () => {

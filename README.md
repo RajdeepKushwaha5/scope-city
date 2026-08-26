@@ -56,6 +56,12 @@ The response surface matters as much as the request surface. An allowed
 filtering *what you may call* without filtering *what comes back* leaks exactly
 the data you thought you had fenced off.
 
+For missions with two independent read paths, the brief requires two real
+TrueForge dynamic subagents: a source investigator and a target verifier. Only
+their actual `thread.created` events add workers to the city. Mutations,
+sandbox verification and approval remain with the root agent, so delegation
+adds parallel evidence without creating competing irreversible actors.
+
 ### Two refusals, deliberately different
 
 | | The Gate | The city limits |

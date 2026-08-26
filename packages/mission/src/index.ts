@@ -17,6 +17,7 @@ export {
 } from "./event-log.js";
 
 export {
+  delegationAssignments,
   missionBrief,
   type BriefOptions,
 } from "./brief.js";

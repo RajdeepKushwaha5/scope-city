@@ -56,7 +56,7 @@ import {
   treeCells,
   type Building,
 } from "./world.js";
-import { planActivityRoutes } from "./activity-routes.js";
+import { planActivityRoutes, segmentActivityRoute } from "./activity-routes.js";
 
 /**
  * Draws one frame.
@@ -481,22 +481,28 @@ function activityRouteItems(
           ? TRAFFIC_COLOURS.red
           : TRAFFIC_COLOURS.sky;
 
-    items.push({
-      z: depth((from.u + to.u) / 2, (from.v + to.v) / 2, 0.02),
-      draw: (ctx) => {
-        const a = toScreen(from.u, from.v, 0.02);
-        const b = toScreen(to.u, to.v, 0.02);
-        ctx.save();
-        ctx.setLineDash([4, 4]);
-        ctx.strokeStyle = colour;
-        ctx.globalAlpha = 0.52;
-        ctx.beginPath();
-        ctx.moveTo(a.x, a.y);
-        ctx.lineTo(b.x, b.y);
-        ctx.stroke();
-        ctx.restore();
-      },
-    });
+    for (const segment of segmentActivityRoute(route)) {
+      const midpoint = {
+        u: (segment.from.u + segment.to.u) / 2,
+        v: (segment.from.v + segment.to.v) / 2,
+      };
+      items.push({
+        z: depth(midpoint.u, midpoint.v, 0.02),
+        draw: (ctx) => {
+          const a = toScreen(segment.from.u, segment.from.v, 0.02);
+          const b = toScreen(segment.to.u, segment.to.v, 0.02);
+          ctx.save();
+          ctx.setLineDash([4, 4]);
+          ctx.strokeStyle = colour;
+          ctx.globalAlpha = 0.52;
+          ctx.beginPath();
+          ctx.moveTo(a.x, a.y);
+          ctx.lineTo(b.x, b.y);
+          ctx.stroke();
+          ctx.restore();
+        },
+      });
+    }
     items.push({
       z: depth(u, v, 0.5),
       draw: (ctx) =>

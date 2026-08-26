@@ -18,6 +18,7 @@ import { useLiveMission } from "./useLiveMission.js";
 import { useRecordedMission } from "./useRecordedMission.js";
 import { useControlPlane } from "./use-control-plane.js";
 import { toScreen } from "./iso/projection.js";
+import { nextOfficeIndex } from "./map-keyboard.js";
 
 /**
  * The city.
@@ -107,6 +108,10 @@ export function App(): React.JSX.Element {
     () => layOutCity(mission.offices).length + DISTRICT_PLOTS.length + 15,
     [mission.offices],
   );
+  const officeBuildings = useMemo(
+    () => cityFor(mission.offices).buildings.filter((building) => isMeaningful(building)),
+    [mission.offices],
+  );
 
   // --- canvas sizing ----------------------------------------------------
 
@@ -131,8 +136,23 @@ export function App(): React.JSX.Element {
     // From whichever mission is on screen. Deriving from the live state while a
     // recording played meant judge mode drew the idle live mission -- every
     // office "not in scope" -- beside a replay showing the opposite.
-    () => buildingStates(live.active ? live.rawState : recorded.state, mission.offices),
-    [live.active, live.rawState, recorded.state, mission.offices],
+    () => buildingStates(
+      live.active
+        ? live.rawState
+        : recorded.playing || recorded.record
+          ? recorded.state
+          : replay.rawState,
+      mission.offices,
+    ),
+    [
+      live.active,
+      live.rawState,
+      recorded.playing,
+      recorded.record,
+      recorded.state,
+      replay.rawState,
+      mission.offices,
+    ],
   );
 
   const scene: SceneState = useMemo(
@@ -296,18 +316,48 @@ export function App(): React.JSX.Element {
     [toWorld, mission],
   );
 
+  const focusBuilding = useCallback(
+    (building: (typeof officeBuildings)[number]) => {
+      const point = toScreen(building.cell.u, building.cell.v, building.height / 2);
+      const zoom = Math.max(camera.zoom, 1.35);
+      setSelectedOffice(building.office!);
+      mission.inspect(building.district!);
+      setCamera({ x: -point.x * zoom, y: -point.y * zoom, zoom });
+    },
+    [camera.zoom, mission],
+  );
+
   const onDoubleClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
       const world = toWorld(e.clientX, e.clientY);
       const { building } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
-      if (!isMeaningful(building)) return;
-      const point = toScreen(building.cell.u, building.cell.v, building.height / 2);
-      const zoom = Math.max(camera.zoom, 1.35);
-      setSelectedOffice(building.office);
-      mission.inspect(building.district);
-      setCamera({ x: -point.x * zoom, y: -point.y * zoom, zoom });
+      if (isMeaningful(building)) focusBuilding(building);
     },
-    [camera.zoom, mission, toWorld],
+    [focusBuilding, mission.offices, toWorld],
+  );
+
+  const onMapKeyDown = useCallback(
+    (event: React.KeyboardEvent<HTMLCanvasElement>) => {
+      if (officeBuildings.length === 0) return;
+      const current = officeBuildings.findIndex((building) => building.office === selectedOffice);
+      if ((event.key === "Enter" || event.key === " ") && current >= 0) {
+        event.preventDefault();
+        focusBuilding(officeBuildings[current]!);
+        return;
+      }
+
+      const next = nextOfficeIndex(event.key, current, officeBuildings.length);
+      if (next === null) {
+        return;
+      }
+
+      event.preventDefault();
+      const building = officeBuildings[next]!;
+      setSelectedOffice(building.office!);
+      setHovered(null);
+      mission.inspect(building.district!);
+    },
+    [focusBuilding, mission, officeBuildings, selectedOffice],
   );
 
   const hoveredState = hovered ? runtimeStates.get(hovered.office) : null;
@@ -319,7 +369,7 @@ export function App(): React.JSX.Element {
         className="world"
         style={{ width: size.width, height: size.height, cursor: hovered ? "pointer" : "grab" }}
         tabIndex={0}
-        aria-label="Interactive Scope City map. Drag to pan, scroll to zoom, click a building to inspect it."
+        aria-label={`Interactive Scope City map. Use arrow keys to inspect offices and Enter to focus.${selectedOffice ? ` Selected office: ${selectedOffice}.` : ""}`}
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
@@ -328,6 +378,7 @@ export function App(): React.JSX.Element {
         onWheel={onWheel}
         onClick={onClick}
         onDoubleClick={onDoubleClick}
+        onKeyDown={onMapKeyDown}
       />
 
       {hovered && hoveredState ? (

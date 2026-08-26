@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { planActivityRoutes } from "./activity-routes.js";
+import { planActivityRoutes, segmentActivityRoute } from "./activity-routes.js";
 import type { Building } from "./world.js";
 
 const buildings: readonly Building[] = [
@@ -35,5 +35,23 @@ describe("activity routes", () => {
 
   it("draws no invented traffic before runtime state arrives", () => {
     expect(planActivityRoutes(buildings, undefined)).toEqual([]);
+  });
+
+  it("splits long routes into locally sortable ground segments", () => {
+    const [route] = planActivityRoutes(
+      buildings,
+      new Map([["ticket.get", { activity: "working" }]]),
+    );
+    const segments = segmentActivityRoute(route!);
+
+    expect(segments.length).toBeGreaterThan(1);
+    expect(segments[0]?.from).toEqual(route?.from);
+    expect(segments.at(-1)?.to).toEqual(route?.to);
+    expect(segments.every((segment) =>
+      Math.max(
+        Math.abs(segment.to.u - segment.from.u),
+        Math.abs(segment.to.v - segment.from.v),
+      ) <= 0.5,
+    )).toBe(true);
   });
 });

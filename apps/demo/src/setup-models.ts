@@ -3,8 +3,8 @@
  *
  * Free tiers are generous but small, and a demo that dies on a 429 halfway
  * through a refusal is worse than no demo. TrueForge lets the same provider
- * type be registered more than once under different names, so three free keys
- * become three independently-quota'd models the pool can fall between.
+ * type be registered more than once under different names, so four free keys
+ * become four independently-quota'd models the pool can fall between.
  *
  *   1. copy .env.example to .env and paste your keys
  *   2. pnpm demo:models
@@ -58,15 +58,15 @@ interface Slot {
  *
  * Registered as `custom` rather than `google-gemini` for one structural
  * reason: GoogleGeminiModelProvider has no `name`, so TrueForge holds exactly
- * one entry per provider type and three keys cannot coexist. CustomModelProvider
+ * one entry per provider type and four keys cannot coexist. CustomModelProvider
  * does take a name, and Gemini serves an OpenAI-shaped API including tool
- * calling, so three named custom providers give three independently-quota'd
+ * calling, so four named custom providers give four independently-quota'd
  * models -- which is the whole point of rotating.
  */
 const GEMINI_OPENAI_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai";
 
 /**
- * Three slots against the same upstream model.
+ * Four slots against the same upstream model.
  *
  * Same model deliberately: rotation is about which key pays for the call, not
  * about swapping capability mid-mission. An agent that becomes cleverer or
@@ -89,6 +89,12 @@ const SLOTS: readonly Slot[] = [
     provider: "gemini-c",
     model: "flash-c",
     envKey: "GEMINI_API_KEY_C",
+    contextLength: 1_000_000,
+  },
+  {
+    provider: "gemini-d",
+    model: "flash-d",
+    envKey: "GEMINI_API_KEY_D",
     contextLength: 1_000_000,
   },
 ];
@@ -149,7 +155,7 @@ async function main(): Promise<void> {
   console.log(`\n  Configured ${configured.length} model(s): ${configured.join(", ")}`);
   if (skipped.length > 0) {
     console.log(`  Not set: ${skipped.join(", ")}`);
-    console.log("  One key works. Three means a rate limit does not end the demo.");
+    console.log("  One key works. More independent keys make the live demo resilient to rate limits.");
   }
   console.log(`\n  SCOPE_MODELS=${configured.join(",")}\n`);
 }

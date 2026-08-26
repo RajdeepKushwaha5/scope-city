@@ -2,7 +2,7 @@
  * Rotation across several models, so a free-tier quota does not end a demo.
  *
  * Open-source TrueForge has no fallback chain of its own -- that lives in
- * TrueFoundry's hosted AI Gateway -- so this is ours. Three keys on three free
+ * TrueFoundry's hosted AI Gateway -- so this is ours. Several keys on independent free
  * tiers behave like one workable allowance, provided something notices a 429
  * and moves on.
  *

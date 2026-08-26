@@ -61,7 +61,7 @@ const POOL_WAIT_BUDGET_MS = 4 * 60 * 1000;
  * Models to rotate across, pinned by configuration if anyone asked.
  *
  * Empty means "use whatever the harness has", which is the better default:
- * three keys were registered, this fell back to one hard-coded model, and a
+ * several keys were registered, this fell back to one hard-coded model, and a
  * rate limit ended the mission with two untouched keys sitting right there.
  */
 const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "")
@@ -685,7 +685,7 @@ async function main(): Promise<void> {
       //
       // `pool.available()` taken once meant that if every model happened to be
       // cooling at that instant the loop body never ran and the mission failed
-      // outright. On free-tier keys that is not an edge case: three keys
+      // outright. On free-tier keys that is not an edge case: several keys
       // rate-limiting within a few seconds of each other is the normal way a
       // busy afternoon goes, and giving up while every one of them is sixty
       // seconds from working again wastes the whole mission.

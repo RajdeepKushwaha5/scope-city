@@ -81,6 +81,13 @@ function retryMarker(idempotencyKey: string): string {
   return `<!-- scope-city-operation:${encodeURIComponent(idempotencyKey)} -->`;
 }
 
+function responseObject(value: unknown): Record<string, unknown> {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new GitHubRecordsError(502, "The requested ticket operation could not be completed");
+  }
+  return value as Record<string, unknown>;
+}
+
 export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefinition {
   const repository = options.repository.trim();
   if (!/^[^/\s]+\/[^/\s]+$/.test(repository)) {
@@ -111,7 +118,9 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
   }
 
   async function read(ticketId: string): Promise<GitHubIssue> {
-    const issue = (await request(`issues/${issueNumber(ticketId)}`)) as GitHubIssue;
+    const issue = responseObject(
+      await request(`issues/${issueNumber(ticketId)}`),
+    ) as GitHubIssue;
     const boundary = validateGitHubIssueBoundary({
       number: issue.number,
       title: issue.title,
@@ -185,7 +194,7 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
         }
       }
 
-      const comment = (await request(`issues/${issueNumber(ticketId)}/comments`, {
+      const comment = responseObject(await request(`issues/${issueNumber(ticketId)}/comments`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: marker ? `${body}\n\n${marker}` : body }),
@@ -208,7 +217,7 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
     async call(args) {
       const ticketId = requireString(args, "ticket_id");
       await read(ticketId);
-      const issue = (await request(`issues/${issueNumber(ticketId)}`, {
+      const issue = responseObject(await request(`issues/${issueNumber(ticketId)}`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ state: "closed" }),

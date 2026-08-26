@@ -205,4 +205,41 @@ describe("GitHub Records", () => {
     await expect(failure).rejects.toThrow("The requested ticket operation could not be completed");
     await expect(failure).rejects.not.toThrow(/GitHub|repos\/acme|403/);
   });
+
+  it("translates null success bodies instead of leaking property-access TypeErrors", async () => {
+    const readFetch = vi.fn<typeof fetch>().mockResolvedValue(json(200, null));
+    const readSystem = githubRecordsSystem({
+      token: "github_pat_test",
+      repository: "acme/support",
+      fetchImpl: readFetch,
+    });
+    await expect(office(readSystem, "ticket.get").call({ ticket_id: "tkt_7" })).rejects.toThrow(
+      "The requested ticket operation could not be completed",
+    );
+
+    const replyFetch = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json(200, issue()))
+      .mockResolvedValueOnce(json(200, null));
+    const replySystem = githubRecordsSystem({
+      token: "github_pat_test",
+      repository: "acme/support",
+      fetchImpl: replyFetch,
+    });
+    await expect(office(replySystem, "ticket.reply").call({
+      ticket_id: "tkt_7",
+      body: "Done",
+    })).rejects.toThrow("The requested ticket operation could not be completed");
+
+    const closeFetch = vi.fn<typeof fetch>()
+      .mockResolvedValueOnce(json(200, issue()))
+      .mockResolvedValueOnce(json(200, null));
+    const closeSystem = githubRecordsSystem({
+      token: "github_pat_test",
+      repository: "acme/support",
+      fetchImpl: closeFetch,
+    });
+    await expect(office(closeSystem, "ticket.close").call({ ticket_id: "tkt_7" })).rejects.toThrow(
+      "The requested ticket operation could not be completed",
+    );
+  });
 });

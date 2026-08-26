@@ -40,3 +40,10 @@ export {
 export { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
 
 export { readVerdict, sandboxEnvelope, type Verification } from "./verdict.js";
+export {
+  REASONING_EFFORTS,
+  isReasoningEffort,
+  parseReasoningEffort,
+  type EffortParse,
+  type ReasoningEffort,
+} from "./reasoning-effort.js";

@@ -1,5 +1,8 @@
 import { useEffect, useRef, useState } from "react";
+import { REASONING_EFFORTS, type ReasoningEffort } from "@scope-city/harness";
 import { soundEngine } from "./sound-engine.js";
+
+export type EffortLevel = ReasoningEffort;
 
 /**
  * How hard the model should think on this mission.
@@ -22,16 +25,15 @@ import { soundEngine } from "./sound-engine.js";
  * fails loudly rather than becoming an effort that is quietly ignored.
  */
 
-export type EffortLevel = "low" | "medium" | "high";
-
 /**
- * Kept in step with `REASONING_EFFORTS` in `apps/demo/src/setup-models.ts`.
+ * The one list, imported rather than restated.
  *
- * Those are the levels registered against each slot, and the levels the harness
- * will accept. Adding one here without adding it there produces a dispatch that
- * is refused at session creation.
+ * These are the levels registered against each model slot and the levels the
+ * harness will accept. Writing them out again here would let the dialog offer
+ * something the slots do not declare, which produces a dispatch the operator
+ * has already pressed and which then dies at session creation with a 422.
  */
-export const EFFORT_LEVELS: readonly EffortLevel[] = ["low", "medium", "high"];
+export const EFFORT_LEVELS: readonly EffortLevel[] = REASONING_EFFORTS;
 
 export function effortLabel(effort: EffortLevel): string {
   switch (effort) {
@@ -65,6 +67,13 @@ export function effortSpriteUrl(effort: EffortLevel): string {
   return `${import.meta.env.BASE_URL}crew/effort-${effort}.png`;
 }
 
+/** The next level in a direction, stopping at the ends rather than wrapping. */
+function step(current: EffortLevel, delta: number): EffortLevel {
+  const at = EFFORT_LEVELS.indexOf(current);
+  const next = Math.min(Math.max(at + delta, 0), EFFORT_LEVELS.length - 1);
+  return EFFORT_LEVELS[next]!;
+}
+
 export function CrewModal(props: {
   open: boolean;
   selected: EffortLevel;
@@ -74,32 +83,81 @@ export function CrewModal(props: {
   const [draft, setDraft] = useState<EffortLevel>(props.selected);
   const dialogRef = useRef<HTMLDivElement>(null);
   const closeRef = useRef<HTMLButtonElement>(null);
+  const openerRef = useRef<Element | null>(null);
+
+  // Held in a ref so the key handler can read the latest without the effect
+  // depending on it. See the note on the effect below.
+  const onCloseRef = useRef(props.onClose);
+  onCloseRef.current = props.onClose;
 
   // Reopening shows what is actually set, not what was last abandoned.
   useEffect(() => {
     if (props.open) setDraft(props.selected);
   }, [props.open, props.selected]);
 
+  /*
+   * Focus goes in on open and comes back out on close.
+   *
+   * Depending on `props` here was a real bug rather than a lint nicety:
+   * MissionOrder passes inline callbacks, so every parent rerender produced a
+   * new props object, re-ran this effect, and yanked focus back to the close
+   * button. A connection change or a mission-state tick would pull the keyboard
+   * out from under whichever control the operator was actually using. The
+   * dependency is now `props.open` alone, and the close callback is read
+   * through a ref.
+   *
+   * Returning focus to the opener matters for the same reason it always does:
+   * a dialog that dismisses to nowhere leaves a keyboard user back at the top
+   * of the document, having lost their place.
+   */
   useEffect(() => {
     if (!props.open) return;
+
+    openerRef.current = document.activeElement;
     closeRef.current?.focus();
 
-    /*
-     * Escape closes, and Tab stays inside.
-     *
-     * A modal that lets focus walk out behind it leaves a keyboard user tabbing
-     * through a dialog they cannot see and controls they cannot reach, with no
-     * way back. Cycling within the dialog is the whole of the fix.
-     */
+    return () => {
+      const opener = openerRef.current;
+      if (opener instanceof HTMLElement && document.contains(opener)) opener.focus();
+    };
+  }, [props.open]);
+
+  /*
+   * Escape closes, Tab stays inside, and the arrows move between options.
+   *
+   * A modal that lets focus walk out behind it leaves a keyboard user tabbing
+   * through a dialog they cannot see and controls they cannot reach, with no
+   * way back.
+   *
+   * The arrow keys are not decoration either: `role="radio"` is a promise that
+   * a screen-reader user can move through the group with the arrows and Tab
+   * past it as one stop. Declaring the role without honouring the keyboard
+   * contract makes the dialog harder to use than plain buttons would have been.
+   */
+  useEffect(() => {
+    if (!props.open) return;
+
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") {
-        props.onClose();
+        onCloseRef.current();
         return;
       }
+
+      if (event.key === "ArrowRight" || event.key === "ArrowDown") {
+        event.preventDefault();
+        setDraft((current) => step(current, 1));
+        return;
+      }
+      if (event.key === "ArrowLeft" || event.key === "ArrowUp") {
+        event.preventDefault();
+        setDraft((current) => step(current, -1));
+        return;
+      }
+
       if (event.key !== "Tab") return;
 
       const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button, [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        'button:not([tabindex="-1"]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
       );
       if (!focusable || focusable.length === 0) return;
 
@@ -117,7 +175,7 @@ export function CrewModal(props: {
 
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [props.open, props]);
+  }, [props.open]);
 
   if (!props.open) return null;
 
@@ -162,6 +220,10 @@ export function CrewModal(props: {
                 key={level}
                 role="radio"
                 aria-checked={isSelected}
+                // One tab stop for the whole group, which is the other half of
+                // the radio contract: Tab moves past the options, the arrows
+                // move between them.
+                tabIndex={isSelected ? 0 : -1}
                 className={`crew-modal-v2__card${isSelected ? " crew-modal-v2__card--selected" : ""}`}
                 onClick={() => {
                   soundEngine.playClick();

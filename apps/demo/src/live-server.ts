@@ -6,6 +6,7 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  parseReasoningEffort,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import {
@@ -19,7 +20,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
-import { REASONING_EFFORTS } from "./setup-models.js";
+
 import { missionSystems, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
@@ -225,13 +226,17 @@ async function main(): Promise<void> {
       // middle of session creation, by which point the mission has an id and a
       // proxy and the operator sees a started run collapse. Rejecting it at the
       // door turns that into an ordinary 400 before anything is built.
-      const effort = typeof body.effort === "string" ? body.effort : "";
-      if (effort && !REASONING_EFFORTS.includes(effort as (typeof REASONING_EFFORTS)[number])) {
-        json(res, 400, {
-          error: `effort must be one of ${REASONING_EFFORTS.join(", ")}`,
-        });
+      //
+      // Only an absent field means "no preference". Coercing a non-string to ""
+      // and treating that as absence let numbers, booleans, arrays, objects and
+      // null all launch as though nothing had been asked for -- a malformed
+      // request quietly becoming a different valid one.
+      const parsed = parseReasoningEffort(body.effort);
+      if (!parsed.ok) {
+        json(res, 400, { error: parsed.reason });
         return;
       }
+      const effort = parsed.effort ?? "";
 
       const active = [...missions.values()].find(
         (mission) => mission.status === "starting" || mission.status === "running",

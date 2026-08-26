@@ -78,7 +78,7 @@ export function MissionOrder(props: {
                 className="crew-card__avatar-img"
               />
             </div>
-            <div className="crew-card__body">
+            <div className="crew-card__detail">
               <strong>{effortLabel(thinkingEffort)} effort</strong>
               {/* The model is stated because it is fixed, and saying so is the
                   honest version of the picker this replaced. */}

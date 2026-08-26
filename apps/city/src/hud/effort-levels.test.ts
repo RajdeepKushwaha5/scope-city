@@ -1,6 +1,7 @@
-import { existsSync, readFileSync } from "node:fs";
+import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
+import { REASONING_EFFORTS } from "@scope-city/harness";
 import { EFFORT_LEVELS, effortLabel, effortSpriteUrl } from "./CrewModal.js";
 
 /**
@@ -12,17 +13,12 @@ import { EFFORT_LEVELS, effortLabel, effortSpriteUrl } from "./CrewModal.js";
  * the operator has already pressed the button.
  */
 describe("offered effort levels", () => {
-  it("matches what the model slots actually register", () => {
-    const setup = readFileSync(
-      fileURLToPath(new URL("../../../demo/src/setup-models.ts", import.meta.url)),
-      "utf8",
-    );
-
-    const declared = /REASONING_EFFORTS = \[([^\]]*)\]/.exec(setup)?.[1];
-    expect(declared, "REASONING_EFFORTS not found in setup-models.ts").toBeDefined();
-
-    const levels = [...declared!.matchAll(/"([a-z]+)"/g)].map((m) => m[1]);
-    expect([...EFFORT_LEVELS]).toEqual(levels);
+  it("offers exactly what the harness contract declares", () => {
+    // Asserted against the imported constant rather than by parsing
+    // setup-models.ts for a regex match, which is what this used to do. A test
+    // that reads source text passes or fails on formatting, and would have gone
+    // green against a file that no longer registered anything at all.
+    expect([...EFFORT_LEVELS]).toEqual([...REASONING_EFFORTS]);
   });
 
   it("labels every level it offers", () => {

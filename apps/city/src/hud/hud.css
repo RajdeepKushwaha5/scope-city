@@ -523,6 +523,26 @@ body {
   box-shadow: inset -4px 0 0 #295369;
 }
 
+/*
+ * The text beside the effort sprite.
+ *
+ * Deliberately not `.crew-card__body`, which looks like it should be the card's
+ * body and is in fact a 14x15px absolutely-positioned fragment of the pixel-art
+ * sprite. Reusing it laid the label on top of the avatar.
+ */
+.crew-card__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.crew-card__detail small {
+  color: var(--ink-dim);
+}
+
 .permission-choice { display: flex; gap: 7px; }
 
 .order__hint {

@@ -17,6 +17,7 @@ import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
 import { useRecordedMission } from "./useRecordedMission.js";
 import { useControlPlane } from "./use-control-plane.js";
+import { toScreen } from "./iso/projection.js";
 
 /**
  * The city.
@@ -62,6 +63,7 @@ export function App(): React.JSX.Element {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
+  const [hovered, setHovered] = useState<{ office: string; x: number; y: number } | null>(null);
   const [preview, setPreview] = useState<{ office: string; districts: readonly string[] } | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
@@ -145,10 +147,22 @@ export function App(): React.JSX.Element {
       scopeState: mission.scopeState,
       buildings: runtimeStates,
       selected: selectedOffice,
+      hovered: hovered?.office ?? null,
       counterfactual: preview,
     }),
-    [mission, runtimeStates, selectedOffice, preview],
+    [mission, runtimeStates, selectedOffice, hovered, preview],
   );
+
+  useEffect(() => {
+    const clear = (event: KeyboardEvent) => {
+      if (event.key !== "Escape") return;
+      setSelectedOffice(null);
+      setHovered(null);
+      mission.inspect(null);
+    };
+    window.addEventListener("keydown", clear);
+    return () => window.removeEventListener("keydown", clear);
+  }, [mission]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -176,6 +190,15 @@ export function App(): React.JSX.Element {
 
   // --- camera controls --------------------------------------------------
 
+  /** Canvas coordinates with the camera transform undone. */
+  const toWorld = useCallback(
+    (clientX: number, clientY: number) => ({
+      x: (clientX - size.width / 2 - camera.x) / camera.zoom,
+      y: (clientY - size.height / 2 - camera.y) / camera.zoom,
+    }),
+    [camera, size],
+  );
+
   const onPointerDown = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     dragRef.current = { x: e.clientX, y: e.clientY, moved: false };
     e.currentTarget.setPointerCapture(e.pointerId);
@@ -183,7 +206,17 @@ export function App(): React.JSX.Element {
 
   const onPointerMove = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     const start = dragRef.current;
-    if (!start) return;
+    if (!start) {
+      const world = toWorld(e.clientX, e.clientY);
+      const { building } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
+      setHovered(
+        isMeaningful(building)
+          ? { office: building.office!, x: e.clientX, y: e.clientY }
+          : null,
+      );
+      return;
+    }
+    setHovered(null);
     const dx = e.clientX - start.x;
     const dy = e.clientY - start.y;
     dragRef.current = {
@@ -192,7 +225,7 @@ export function App(): React.JSX.Element {
       moved: start.moved || Math.abs(dx) + Math.abs(dy) > 3,
     };
     setCamera((c) => ({ ...c, x: c.x + dx, y: c.y + dy }));
-  }, []);
+  }, [mission.offices, toWorld]);
 
   const onPointerUp = useCallback((e: React.PointerEvent<HTMLCanvasElement>) => {
     suppressClickRef.current = dragRef.current?.moved ?? false;
@@ -205,6 +238,10 @@ export function App(): React.JSX.Element {
   const onPointerCancel = useCallback(() => {
     dragRef.current = null;
     suppressClickRef.current = false;
+  }, []);
+
+  const onPointerLeave = useCallback(() => {
+    if (!dragRef.current) setHovered(null);
   }, []);
 
   const onWheel = useCallback((e: React.WheelEvent<HTMLCanvasElement>) => {
@@ -229,15 +266,6 @@ export function App(): React.JSX.Element {
       window.setTimeout(() => URL.revokeObjectURL(url), 1_000);
     }, "image/png");
   }, []);
-
-  /** Canvas coordinates with the camera transform undone. */
-  const toWorld = useCallback(
-    (clientX: number, clientY: number) => ({
-      x: (clientX - size.width / 2 - camera.x) / camera.zoom,
-      y: (clientY - size.height / 2 - camera.y) / camera.zoom,
-    }),
-    [camera, size],
-  );
 
   const onClick = useCallback(
     (e: React.MouseEvent<HTMLCanvasElement>) => {
@@ -268,19 +296,51 @@ export function App(): React.JSX.Element {
     [toWorld, mission],
   );
 
+  const onDoubleClick = useCallback(
+    (e: React.MouseEvent<HTMLCanvasElement>) => {
+      const world = toWorld(e.clientX, e.clientY);
+      const { building } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
+      if (!isMeaningful(building)) return;
+      const point = toScreen(building.cell.u, building.cell.v, building.height / 2);
+      const zoom = Math.max(camera.zoom, 1.35);
+      setSelectedOffice(building.office);
+      mission.inspect(building.district);
+      setCamera({ x: -point.x * zoom, y: -point.y * zoom, zoom });
+    },
+    [camera.zoom, mission, toWorld],
+  );
+
+  const hoveredState = hovered ? runtimeStates.get(hovered.office) : null;
+
   return (
     <>
       <canvas
         ref={canvasRef}
         className="world"
-        style={{ width: size.width, height: size.height }}
+        style={{ width: size.width, height: size.height, cursor: hovered ? "pointer" : "grab" }}
+        tabIndex={0}
+        aria-label="Interactive Scope City map. Drag to pan, scroll to zoom, click a building to inspect it."
         onPointerDown={onPointerDown}
         onPointerMove={onPointerMove}
         onPointerUp={onPointerUp}
         onPointerCancel={onPointerCancel}
+        onPointerLeave={onPointerLeave}
         onWheel={onWheel}
         onClick={onClick}
+        onDoubleClick={onDoubleClick}
       />
+
+      {hovered && hoveredState ? (
+        <div
+          className={`map-tooltip map-tooltip--${hoveredState.activity}`}
+          style={{ left: hovered.x + 14, top: hovered.y + 14 }}
+          role="status"
+        >
+          <strong>{hovered.office}</strong>
+          <span>{hoveredState.authority} · {hoveredState.activity}</span>
+          <small>Click to inspect · double-click to focus</small>
+        </div>
+      ) : null}
 
       <div className="hud">
         <div className="hud__main">

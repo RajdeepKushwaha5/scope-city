@@ -1038,3 +1038,49 @@ body {
   line-height: 1.5;
   color: var(--hud-dim, #7f8c9b);
 }
+/* ---- MAP INTERACTION ---------------------------------------------------- */
+
+.world:focus-visible {
+  outline: 2px solid #f0a020;
+  outline-offset: -3px;
+}
+
+.map-tooltip {
+  position: fixed;
+  z-index: 40;
+  pointer-events: none;
+  min-width: 190px;
+  max-width: 280px;
+  padding: 8px 10px;
+  border: 1px solid rgba(240, 160, 32, 0.58);
+  border-left: 3px solid #f0a020;
+  background: rgba(6, 18, 28, 0.96);
+  box-shadow: 5px 6px 0 rgba(0, 0, 0, 0.25);
+  color: #d8e3e8;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  text-transform: uppercase;
+}
+
+.map-tooltip strong {
+  color: #f0a020;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+}
+
+.map-tooltip span {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  color: #9fb0ba;
+}
+
+.map-tooltip small {
+  font-size: 8px;
+  color: #657986;
+}
+
+.map-tooltip--working { border-left-color: #3fb0d0; }
+.map-tooltip--waiting { border-left-color: #f0a020; }
+.map-tooltip--done { border-left-color: #3fb950; }
+.map-tooltip--refused { border-left-color: #ff4d4f; }

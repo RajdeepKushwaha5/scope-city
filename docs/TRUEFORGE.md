@@ -151,6 +151,12 @@ Dynamic and parallel, **one level deep**, sharing the root's tools and sandbox.
 our own turns server-side, and animate `thread.created` / `thread.done` where the
 harness genuinely spawns something.
 
+Scope City delegates only office pairs whose registry contracts prove they are
+read-only and able to return the evidence named in the assignment. This is task
+separation, not capability isolation: TrueForge children inherit the session's
+tools. The proxy therefore continues to enforce the same sealed mission scope
+for every thread, while the ledger atomically serialises any attempted mutation.
+
 ## Reconnection, verified
 
 A pending approval survives the browser going away, and this is the property

@@ -13,6 +13,12 @@ import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
+import { TopNav } from "./hud/TopNav.js";
+import { MapControls } from "./hud/MapControls.js";
+import { IntroDialogue } from "./hud/IntroDialogue.js";
+import { CommandPalette, type CommandItem } from "./hud/CommandPalette.js";
+import { ShutterFlash } from "./hud/ShutterFlash.js";
+import { readSetting, writeSetting } from "./safe-storage.js";
 import { useMission } from "./useMission.js";
 import { useLiveMission } from "./useLiveMission.js";
 import { useRecordedMission } from "./useRecordedMission.js";
@@ -64,6 +70,16 @@ export function App(): React.JSX.Element {
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
+  const [commandOpen, setCommandOpen] = useState(false);
+  const [flashing, setFlashing] = useState(false);
+  const [activeScenario, setActiveScenario] =
+    useState<"recorded" | "clean" | "poisoned" | "noscope" | null>(null);
+
+  // Read through the safe wrapper because this runs during the first render,
+  // and a browser with storage blocked throws on the property access rather
+  // than returning null -- which would white-screen the page before it drew
+  // anything, on the one URL a judge opens.
+  const [introOpen, setIntroOpen] = useState(() => readSetting("scope_city_welcomed") === null);
   const [hovered, setHovered] = useState<{ office: string; x: number; y: number } | null>(null);
   const [preview, setPreview] = useState<{ office: string; districts: readonly string[] } | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
@@ -274,6 +290,10 @@ export function App(): React.JSX.Element {
   const takeSnapshot = useCallback(() => {
     const canvas = canvasRef.current;
     if (!canvas) return;
+    // The shutter fires here or nowhere. A flash component that renders but is
+    // never triggered is the same dead control as a button that does nothing --
+    // it just fails silently instead of visibly.
+    setFlashing(true);
     canvas.toBlob((blob) => {
       if (!blob) return;
       const url = URL.createObjectURL(blob);
@@ -362,8 +382,89 @@ export function App(): React.JSX.Element {
 
   const hoveredState = hovered ? runtimeStates.get(hovered.office) : null;
 
+  const dismissIntro = useCallback(() => {
+    setIntroOpen(false);
+    writeSetting("scope_city_welcomed", "true");
+  }, []);
+
+  /**
+   * The four things a visitor can start, in one place.
+   *
+   * Every one of these already existed as a handler; the top nav and the intro
+   * simply reach the same ones, so a scenario cannot behave differently
+   * depending on which control started it.
+   */
+  const runScenario = useCallback(
+    (scenario: "recorded" | "clean" | "poisoned" | "noscope") => {
+      setActiveScenario(scenario);
+      if (scenario === "recorded") void recorded.play(RECORDING_URL);
+      else if (scenario === "clean") replay.runCleanJob();
+      else if (scenario === "poisoned") replay.runPoisonedTicket();
+      else replay.runNoScope();
+    },
+    [recorded, replay],
+  );
+
+  const commandItems: readonly CommandItem[] = useMemo(
+    () => [
+      {
+        id: "recorded",
+        title: "Replay a real run",
+        category: "Replays",
+        detail: "A captured mission with a verified hash chain",
+        onSelect: () => runScenario("recorded"),
+      },
+      {
+        id: "clean",
+        title: "Clean job",
+        category: "Replays",
+        detail: "Everything inside the scope",
+        onSelect: () => runScenario("clean"),
+      },
+      {
+        id: "poisoned",
+        title: "Poisoned ticket",
+        category: "Replays",
+        detail: "Stops at the city limits",
+        onSelect: () => runScenario("poisoned"),
+      },
+      {
+        id: "noscope",
+        title: "No scope",
+        category: "Replays",
+        detail: "The authority an ordinary integration hands over",
+        onSelect: () => runScenario("noscope"),
+      },
+      {
+        id: "reset",
+        title: "Reset view",
+        category: "Actions",
+        detail: "Fit the whole island",
+        onSelect: () => setCamera(fitCamera(size)),
+      },
+      {
+        id: "snapshot",
+        title: "Take a snapshot",
+        category: "Actions",
+        detail: "Download the city as a PNG",
+        onSelect: takeSnapshot,
+      },
+    ],
+    [runScenario, size, takeSnapshot],
+  );
+
   return (
     <>
+      <TopNav
+        connection={live.connection}
+        activeScenario={activeScenario}
+        onSelectScenario={runScenario}
+        onOpenCommand={() => setCommandOpen(true)}
+        onOpenIntro={() => setIntroOpen(true)}
+        onTakeSnapshot={takeSnapshot}
+        onResetView={() => setCamera(fitCamera(size))}
+      />
+
       <canvas
         ref={canvasRef}
         className="world"
@@ -392,6 +493,29 @@ export function App(): React.JSX.Element {
           <small>Click to inspect · double-click to focus</small>
         </div>
       ) : null}
+
+      <MapControls
+        onZoomIn={() => setCamera((c) => ({ ...c, zoom: Math.min(3, c.zoom * 1.2) }))}
+        onZoomOut={() => setCamera((c) => ({ ...c, zoom: Math.max(0.35, c.zoom / 1.2) }))}
+        onResetView={() => setCamera(fitCamera(size))}
+      />
+
+      <IntroDialogue
+        open={introOpen}
+        onDismiss={dismissIntro}
+        onSelectOption={(option) => {
+          dismissIntro();
+          if (option !== "explore") runScenario(option);
+        }}
+      />
+
+      <CommandPalette
+        open={commandOpen}
+        onClose={() => setCommandOpen(false)}
+        items={commandItems}
+      />
+
+      <ShutterFlash active={flashing} onComplete={() => setFlashing(false)} />
 
       <div className="hud">
         <div className="hud__main">

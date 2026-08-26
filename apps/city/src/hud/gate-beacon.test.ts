@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { placeBeacon } from "./GateBeacon.js";
+import { gateLandmark, placeBeacon, targetCell } from "./GateBeacon.js";
 
 /**
  * The beacon exists to point at the building that is holding the mission. Every
@@ -64,15 +64,15 @@ describe("placing the gate beacon", () => {
     expect(edge.offscreen).toBe(false);
   });
 
-  it("still marks a gate whose office names no building", () => {
-    // The live event contract allows a null office, and the city reducer turns
-    // that into "unknown tool" while keeping the gate active. Returning nothing
-    // for that case hid the beacon in precisely the situation it exists for.
-    // Placement itself must stay total; the component falls back to the Gate
-    // district landmark.
-    const placed = placeBeacon({ x: 0, y: 0 }, STILL, SIZE);
-    expect(Number.isFinite(placed.x)).toBe(true);
-    expect(Number.isFinite(placed.y)).toBe(true);
+  it("stays inside a viewport narrower than the label inset", () => {
+    // Holding a 104px inset on a 120px-wide viewport would push the marker off
+    // the very side it was being pulled back from. The inset shrinks to half
+    // the axis instead.
+    const narrow = { width: 120, height: 400 };
+    const placed = placeBeacon({ x: 9000, y: 0 }, STILL, narrow);
+
+    expect(placed.x).toBeGreaterThanOrEqual(0);
+    expect(placed.x).toBeLessThanOrEqual(narrow.width);
   });
 
   it("stays inside a viewport narrower than two insets", () => {
@@ -84,5 +84,30 @@ describe("placing the gate beacon", () => {
 
     expect(placed.x).toBe(104);
     expect(placed.y).toBe(56);
+  });
+});
+
+describe("what the beacon points at", () => {
+  it("points at the gated building when there is one", () => {
+    const cell = targetCell({ cell: { u: 7, v: 3 }, height: 2.5 });
+    expect(cell).toEqual({ u: 7, v: 3, height: 2.5 });
+  });
+
+  it("falls back to the Gate landmark when the office names no building", () => {
+    // The live event contract allows a null office, and `reduceLiveCity` turns
+    // that into the string "unknown tool" while keeping the gate active. The
+    // old code returned null here, so the map went silent in exactly the case
+    // the beacon exists for.
+    const cell = targetCell(undefined);
+
+    expect(cell).not.toBeNull();
+    expect(cell).toEqual(gateLandmark());
+  });
+
+  it("sits on the landmark's roof rather than 32px below it", () => {
+    // The projection subtracts `height * UNIT_H` with UNIT_H of 32, so a
+    // hardcoded height of 2 against a landmark rendered at 3.0 put the marker a
+    // full unit low -- pointing at the pavement in front of the building.
+    expect(gateLandmark()?.height).toBe(3);
   });
 });

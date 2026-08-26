@@ -62,20 +62,44 @@ export function placeBeacon(
   // `Math.max(.. , EDGE_INSET)` on the upper bound keeps the clamp sane on a
   // viewport narrower than two insets, where the bounds would otherwise cross
   // and the marker would be pinned to the wrong edge.
-  const clampedX = Math.min(
-    Math.max(x, EDGE_INSET_X),
-    Math.max(size.width - EDGE_INSET_X, EDGE_INSET_X),
-  );
-  const clampedY = Math.min(Math.max(y, EDGE_INSET), Math.max(size.height - EDGE_INSET, EDGE_INSET));
+  // On a viewport too narrow to hold two insets, holding the inset anyway would
+  // push the marker off the side it was meant to be pulled back from. The inset
+  // shrinks to half the axis instead, so the beacon stays inside the viewport
+  // and the label is as central as the space allows.
+  const insetX = Math.min(EDGE_INSET_X, size.width / 2);
+  const insetY = Math.min(EDGE_INSET, size.height / 2);
+
+  const clampedX = Math.min(Math.max(x, insetX), Math.max(size.width - insetX, insetX));
+  const clampedY = Math.min(Math.max(y, insetY), Math.max(size.height - insetY, insetY));
 
   return { x: clampedX, y: clampedY, offscreen: clampedX !== x || clampedY !== y };
 }
 
 /** The Gate district's own landmark, for a gate that names no building. */
-function gateLandmark(): { u: number; v: number; height: number } | null {
+export function gateLandmark(): { u: number; v: number; height: number } | null {
   const plot = plotFor("gate");
   if (!plot) return null;
-  return { u: plot.landmark.u, v: plot.landmark.v, height: 2 };
+  // The plot's own declared height, not a guess. Hardcoding 2 here against a
+  // landmark rendered at 3.0 put the marker 32px below its roof, because the
+  // projection subtracts `height * UNIT_H` and UNIT_H is 32. A beacon that
+  // points at the pavement in front of the building is a beacon that has to be
+  // interpreted.
+  return { u: plot.landmark.u, v: plot.landmark.v, height: plot.landmarkHeight };
+}
+
+/**
+ * Where the marker should sit: the gated building, or the Gate itself.
+ *
+ * Split out so the fallback can be tested. It was previously inline in a
+ * `useMemo` inside the component, which meant the branch that matters most --
+ * the one taken when a gate names no building -- had no test reaching it at
+ * all, only a test asserting that placement maths stayed finite.
+ */
+export function targetCell(
+  building: { cell: { u: number; v: number }; height: number } | undefined,
+): { u: number; v: number; height: number } | null {
+  if (building) return { u: building.cell.u, v: building.cell.v, height: building.height };
+  return gateLandmark();
 }
 
 export function GateBeacon(props: {
@@ -104,9 +128,7 @@ export function GateBeacon(props: {
     // The Gate district is the honest fallback. It cannot say which office,
     // because nothing knows, but it can say that something is being held and
     // where the operator should look.
-    const cell = building
-      ? { u: building.cell.u, v: building.cell.v, height: building.height }
-      : gateLandmark();
+    const cell = targetCell(building);
     if (!cell) return null;
 
     // The inverse of App's `toWorld`: world space through the camera.

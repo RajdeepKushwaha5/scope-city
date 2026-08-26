@@ -156,10 +156,13 @@ export function missionBrief(options: BriefOptions): string {
       "",
       "Create two real child threads and wait for both results. Do not simulate",
       "delegation in prose and do not repeat their reads in the root thread.",
-      "Keep both assignments read-only. TrueForge children share the session's",
-      "tools, so this is task separation rather than a capability boundary; the",
-      "sealed proxy scope and atomic ledger still police every thread. Combine",
-      "both results in the root before deciding what action to request.",
+      "Keep both assignments read-only, and understand why that is a request",
+      "rather than a rule: TrueForge children share the session's tools, so this",
+      "is task separation and not a capability boundary. Nothing here stops a",
+      "child acting. What stops it is the scope -- quota is claimed atomically",
+      "per mission, ceilings are per office, and an irreversible call raises the",
+      "same gate whichever thread makes it. Combine both results in the root",
+      "before deciding what action to request.",
       "",
     );
   }

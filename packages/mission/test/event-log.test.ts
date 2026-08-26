@@ -232,7 +232,43 @@ describe("the mission brief", () => {
     expect(brief).toMatch(/Create two real child threads/);
     const flat = brief.replace(/\s+/g, " ");
     expect(flat).toMatch(/Combine both results in the root/i);
-    expect(flat).toMatch(/rather than a capability boundary/i);
+  });
+
+  it("does not promise a boundary between threads that nothing enforces", async () => {
+    // TrueForge children inherit the session's tools and the proxy gets no
+    // thread identity, so "children must not act" is an instruction rather than
+    // a property. Asserting the substance instead of a phrase: the brief has to
+    // say that nothing stops a child, and name the thing that actually does.
+    const { missionBrief } = await import("../src/index.js");
+    const scope = {
+      ...briefScope,
+      offices: ["ticket.get", "charge.get", "charge.refund"],
+      limits: { ...briefScope.limits, maxCalls: { "charge.refund": 1 } },
+    } as never;
+
+    const registry = buildRegistry([
+      { office: "ticket.get", district: "records", mutating: false, args: {}, responseFields: ["id"], freeTextFields: [] },
+      {
+        office: "charge.get",
+        district: "exchequer",
+        mutating: false,
+        args: {},
+        // The planner will only nominate a target verifier that can actually
+        // report an amount and a prior-action state, so the fixture has to
+        // expose them or no delegation is planned at all.
+        responseFields: ["id", "amount", "refunded"],
+        freeTextFields: [],
+      },
+      { office: "charge.refund", district: "exchequer", mutating: true, args: {}, responseFields: ["id"], freeTextFields: [] },
+    ]);
+
+    const flat = missionBrief({ scope, sandbox: false, registry }).replace(/\s+/g, " ");
+
+    expect(flat).toMatch(/not a capability boundary/i);
+    expect(flat).toMatch(/Nothing here stops a child acting/i);
+    // And what does: the scope, named explicitly rather than left implied.
+    expect(flat).toMatch(/quota is claimed atomically/i);
+    expect(flat).toMatch(/same gate whichever thread makes it/i);
   });
 });
 

@@ -58,9 +58,22 @@ the data you thought you had fenced off.
 
 For missions with two independent read paths, the brief requires two real
 TrueForge dynamic subagents: a source investigator and a target verifier. Only
-their actual `thread.created` events add workers to the city. Mutations,
-sandbox verification and approval remain with the root agent, so delegation
-adds parallel evidence without creating competing irreversible actors.
+their actual `thread.created` events add workers to the city, so a run that
+delegates nothing shows nothing.
+
+**Delegation here separates context, not privilege**, and the distinction is
+worth being exact about because the looser version would be the overclaim this
+project exists to argue against. TrueForge children inherit the session's
+tools, and the proxy is given no thread identity, so nothing *stops* a child
+calling a mutating office. Asking them to stay read-only is an instruction, and
+an instruction is not a boundary.
+
+What holds regardless is the scope. Quota is claimed atomically per mission,
+ceilings are per office, and an irreversible call raises the same gate whichever
+thread makes it — so a child that tried to act would meet exactly the
+enforcement the root meets. The delegation is chosen from offices the registry
+proves are non-mutating, which makes a child acting unlikely; the boundary that
+makes it *safe* is the one that was there already.
 
 ### Two refusals, deliberately different
 

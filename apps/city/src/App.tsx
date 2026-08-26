@@ -118,8 +118,11 @@ export function App(): React.JSX.Element {
   // Derived once per state change and shared by the canvas and the inspector,
   // so the marker on a roof and the panel beside it cannot disagree.
   const runtimeStates = useMemo(
-    () => buildingStates(live.rawState, mission.offices),
-    [live.rawState, mission.offices],
+    // From whichever mission is on screen. Deriving from the live state while a
+    // recording played meant judge mode drew the idle live mission -- every
+    // office "not in scope" -- beside a replay showing the opposite.
+    () => buildingStates(live.active ? live.rawState : recorded.state, mission.offices),
+    [live.active, live.rawState, recorded.state, mission.offices],
   );
 
   const scene: SceneState = useMemo(
@@ -300,7 +303,7 @@ export function App(): React.JSX.Element {
                 maxAmountMinor={live.proposedScope.limits.maxAmountMinor ?? {}}
                 maxCalls={live.proposedScope.limits.maxCalls ?? {}}
                 countersignRequired={live.proposedScope.countersignRequired}
-                expiresInMs={Math.max(0, live.proposedScope.expiresAt - Date.now())}
+                expiresInMs={live.proposedTtlMs ?? 0}
                 report={live.report}
                 candidates={COUNTERFACTUAL_CANDIDATES.filter(
                   (office) => !live.proposedScope!.offices.includes(office),

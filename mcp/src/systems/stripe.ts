@@ -191,7 +191,19 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
         forOrder[0];
       if (!found) throw new NotFoundError(`charge for order ${orderId}`);
 
-      return { id: found.id, amount: found.amount, order_id: orderId };
+      // The refundable remainder, not the original amount.
+      //
+      // This office says it finds the *refundable* charge, and a caller asking
+      // it how much to refund is asking what is left. Returning the original on
+      // a partly settled charge let the scope be derived with a ceiling above
+      // the remainder, so the agent requested more than existed and
+      // `charge.refund` refused a mission that was otherwise correct -- an
+      // enforcement refusal caused by this office overstating what it found.
+      return {
+        id: found.id,
+        amount: found.amount - found.amount_refunded,
+        order_id: orderId,
+      };
     },
   };
 

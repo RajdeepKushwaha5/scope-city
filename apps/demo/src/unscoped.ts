@@ -49,24 +49,58 @@ async function everything(systems: readonly SystemDefinition[]): Promise<
     (resources[cls] ??= new Set()).add(id);
   };
 
-  // The demo's world, enumerated. Real ids where the system can produce them,
-  // so the unscoped run acts on the same records the scoped one would.
+  // Enumerated from the systems rather than hardcoded.
+  //
+  // A fixed list of three orders understated the very thing this scope exists
+  // to show: against real Stripe there are more charges than the demo seeded,
+  // and other recipients besides the three named, so calls to them were still
+  // refused for `resource_not_in_scope` while the documentation claimed "every
+  // record". A broad grant that quietly is not broad demonstrates nothing.
+  //
+  // The honest limit, stated because it matters: a real integration's
+  // credential carries no list at all. This vocabulary cannot express "no
+  // list" -- the same gap that made "no amount ceiling" a billion -- so the
+  // widest thing expressible is everything the systems can currently name.
+  // That is a floor on the blast radius, not a ceiling.
   const exchequer = systems.find((s) => s.district === "exchequer");
   const listCharges = exchequer?.offices.find((o) => o.office === "charge.find_by_order");
+  const readCharge = exchequer?.offices.find((o) => o.office === "charge.get");
 
   for (const orderId of ["ord_184", "ord_185", "ord_186"]) {
     add("order_ids", orderId);
     if (!listCharges) continue;
     try {
       const found = (await listCharges.call({ order_id: orderId })) as { id?: string };
-      if (typeof found.id === "string") add("charge_ids", found.id);
+      if (typeof found.id !== "string") continue;
+      add("charge_ids", found.id);
+
+      // Every recipient the account can name, read off the charges themselves,
+      // so a broad grant reaches whoever actually appears in the data rather
+      // than a list somebody typed.
+      if (!readCharge) continue;
+      const charge = (await readCharge.call({ charge_id: found.id })) as {
+        customer?: { email?: unknown; history?: unknown };
+      };
+      const email = charge.customer?.email;
+      if (typeof email === "string" && email.length > 0) add("mail_to", email);
+
+      const history = charge.customer?.history;
+      if (Array.isArray(history)) {
+        for (const entry of history) {
+          const id = (entry as { id?: unknown }).id;
+          if (typeof id === "string") add("charge_ids", id);
+        }
+      }
     } catch {
-      // An order with no charge simply contributes nothing. A broad grant that
-      // names a record which does not exist is still a broad grant.
+      // An order with no charge contributes nothing. A broad grant naming a
+      // record that does not exist is still a broad grant.
     }
   }
 
   for (const ticketId of ["tkt_184", "tkt_185"]) add("ticket_ids", ticketId);
+  // The attacker's address, so the comparison can actually reach it. Withholding
+  // it would have the broad-access run refused at the one call the whole
+  // scenario is about, by the boundary it is supposed to be running without.
   for (const email of ["customer@example.test", "someone.else@example.test", "attacker@example.test"]) {
     add("mail_to", email);
   }

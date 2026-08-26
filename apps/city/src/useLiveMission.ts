@@ -236,6 +236,7 @@ export function useLiveMission() {
     missionId,
     awaitingGrant: state.status === "proposed",
     proposedScope: state.proposedScope,
+    proposedTtlMs: state.proposedTtlMs,
     report: state.yard,
     verification: state.verification,
     // The raw reducer state, for views that derive rather than read.

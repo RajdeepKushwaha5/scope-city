@@ -80,6 +80,20 @@ describe("charge.find_by_order", () => {
     expect(result.id).toBe("ch_fresh");
   });
 
+  it("reports what is left to refund, not the original amount", async () => {
+    // A caller asking the refundable charge how much to refund is asking what
+    // remains. Returning the original let a scope be derived with a ceiling
+    // above the remainder, so the agent requested more than existed and the
+    // refund refused a mission that was otherwise correct.
+    const partly = { ...CHARGE, id: "ch_part", amount: 4900, amount_refunded: 1900 };
+    const sys = system(() => ({ data: [partly] }));
+
+    const result = (await officeOf(sys, "charge.find_by_order").call({
+      order_id: "ord_184",
+    })) as { amount: number };
+    expect(result.amount).toBe(3000);
+  });
+
   it("still returns a fully settled charge when that is all there is", async () => {
     // Better to hand back the settled charge and let the refund refuse with a
     // reason than to claim the order does not exist.

@@ -28,6 +28,8 @@ export interface LiveCityState {
   readonly yard: BacktestReport | null;
   /** The scope as proposed or granted, straight from the feed. */
   readonly proposedScope: WireScope | null;
+  /** The lease term offered at proposal, fixed rather than counting down. */
+  readonly proposedTtlMs: number | null;
   /**
    * What has happened at each office, keyed by office id.
    *
@@ -103,6 +105,7 @@ export const initialLiveCityState: LiveCityState = {
   scopeExpired: false,
   yard: null,
   proposedScope: null,
+  proposedTtlMs: null,
   verification: null,
   officeActivity: {},
 };
@@ -226,6 +229,14 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
     return {
       ...addLog(state, `SCOPE PROPOSED  ${feed.scope.scopeId}`, "plain", Date.now()),
       proposedScope: feed.scope,
+      // Captured when the proposal arrives, because the lease has not started.
+      //
+      // Showing `expiresAt - now` counted down while the operator read the Yard
+      // report, so a ten-minute lease advertised nine and then eight -- while
+      // the server restarts the clock at grant and hands over the full term.
+      // The number on the review screen has to be the term being offered, not a
+      // countdown on a lease nobody has taken out.
+      proposedTtlMs: Math.max(0, feed.scope.expiresAt - Date.now()),
     };
   }
 

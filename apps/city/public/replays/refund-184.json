@@ -1,28 +1,24 @@
 {
-  "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-  "scopeId": "SC-151AP8",
-  "job": "Refund order #184 and notify its owner, max $49",
+  "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+  "scopeId": "SC-1LARPO",
+  "job": "Refund order #184, max $49, for 30 minutes",
   "scope": {
-    "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-    "scopeId": "SC-151AP8",
+    "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+    "scopeId": "SC-1LARPO",
     "agent": "support-agent",
-    "job": "Refund order #184 and notify its owner, max $49",
+    "job": "Refund order #184, max $49, for 30 minutes",
     "state": "granted",
     "offices": [
       "charge.find_by_order",
       "charge.get",
-      "charge.refund",
-      "mail.send"
+      "charge.refund"
     ],
     "resources": {
       "order_ids": [
         "ord_184"
       ],
       "charge_ids": [
-        "ch_184"
-      ],
-      "mail_to": [
-        "customer@example.test"
+        "ch_3U8THZ2WNLo6nvwi1hSiIWWi"
       ]
     },
     "limits": {
@@ -30,8 +26,7 @@
         "charge.refund": 4900
       },
       "maxCalls": {
-        "charge.refund": 1,
-        "mail.send": 1
+        "charge.refund": 1
       },
       "maxResponseBytes": 64000
     },
@@ -54,27 +49,87 @@
         "charge_id",
         "amount",
         "status"
-      ],
-      "mail.send": [
-        "id",
-        "to"
       ]
     },
     "countersignRequired": [
-      "charge.refund",
-      "mail.send"
+      "charge.refund"
     ],
-    "expiresAt": 1787677805814,
+    "expiresAt": 1787713575215,
     "grantedBy": "operator:scope-city",
-    "grantedAt": 1787677205841,
+    "grantedAt": 1787711777563,
     "version": 1
   },
-  "startedAt": 1787677205842,
-  "finishedAt": 1787677489957,
+  "startedAt": 1787711777410,
+  "finishedAt": 1787712211512,
   "entries": [
     {
       "sequence": 1,
-      "at": 1787677205842,
+      "at": 1787711777410,
+      "event": {
+        "type": "scope.proposed",
+        "scope": {
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+          "scopeId": "SC-1LARPO",
+          "agent": "support-agent",
+          "job": "Refund order #184, max $49, for 30 minutes",
+          "state": "proposed",
+          "offices": [
+            "charge.find_by_order",
+            "charge.get",
+            "charge.refund"
+          ],
+          "resources": {
+            "order_ids": [
+              "ord_184"
+            ],
+            "charge_ids": [
+              "ch_3U8THZ2WNLo6nvwi1hSiIWWi"
+            ]
+          },
+          "limits": {
+            "maxAmountMinor": {
+              "charge.refund": 4900
+            },
+            "maxCalls": {
+              "charge.refund": 1
+            },
+            "maxResponseBytes": 64000
+          },
+          "projection": {
+            "charge.find_by_order": [
+              "id",
+              "amount",
+              "order_id"
+            ],
+            "charge.get": [
+              "id",
+              "amount",
+              "currency",
+              "order_id",
+              "refunded",
+              "customer.email"
+            ],
+            "charge.refund": [
+              "id",
+              "charge_id",
+              "amount",
+              "status"
+            ]
+          },
+          "countersignRequired": [
+            "charge.refund"
+          ],
+          "expiresAt": 1787713575062,
+          "grantedBy": null,
+          "grantedAt": null,
+          "version": 0
+        }
+      },
+      "hash": "fde190cbccceca0d9c8fcacf276fc662c343959edbd0f277a64c59e5a2be30f9"
+    },
+    {
+      "sequence": 2,
+      "at": 1787711777410,
       "event": {
         "type": "yard.report",
         "report": {
@@ -119,625 +174,691 @@
                 "charge_ids"
               ],
               "remedy": "Held by the resource list: charge.refund is still checked against the granted ids, so this is a path, not a hole."
-            },
-            {
-              "kind": "composition_reach",
-              "severity": "note",
-              "office": "mail.send",
-              "summary": "charge.get yields mail_to, which mail.send accepts — the pair is a path to act on whatever charge.get returns.",
-              "detail": [
-                "mail_to"
-              ],
-              "remedy": "Held by the resource list: mail.send is still checked against the granted ids, so this is a path, not a hole."
             }
           ],
-          "probesRun": 46,
+          "probesRun": 36,
           "clean": true
         }
       },
-      "hash": "19af2326470195f8f41376c9220b566c02316b22cab4bb5a660581e14fc660eb"
+      "hash": "588184a069b43cf7bd8779267c8c377411ab5d218084bbb85a982ffe0cbdd12b"
     },
     {
-      "sequence": 2,
-      "at": 1787677205842,
+      "sequence": 3,
+      "at": 1787711777410,
+      "event": {
+        "type": "mission.status",
+        "status": "proposed"
+      },
+      "hash": "90b886042da976ce58b5234109ef466cf970228a1d4fb721db9cbb3bcaffce2c"
+    },
+    {
+      "sequence": 4,
+      "at": 1787711777564,
+      "event": {
+        "type": "scope.granted",
+        "scope": {
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+          "scopeId": "SC-1LARPO",
+          "agent": "support-agent",
+          "job": "Refund order #184, max $49, for 30 minutes",
+          "state": "granted",
+          "offices": [
+            "charge.find_by_order",
+            "charge.get",
+            "charge.refund"
+          ],
+          "resources": {
+            "order_ids": [
+              "ord_184"
+            ],
+            "charge_ids": [
+              "ch_3U8THZ2WNLo6nvwi1hSiIWWi"
+            ]
+          },
+          "limits": {
+            "maxAmountMinor": {
+              "charge.refund": 4900
+            },
+            "maxCalls": {
+              "charge.refund": 1
+            },
+            "maxResponseBytes": 64000
+          },
+          "projection": {
+            "charge.find_by_order": [
+              "id",
+              "amount",
+              "order_id"
+            ],
+            "charge.get": [
+              "id",
+              "amount",
+              "currency",
+              "order_id",
+              "refunded",
+              "customer.email"
+            ],
+            "charge.refund": [
+              "id",
+              "charge_id",
+              "amount",
+              "status"
+            ]
+          },
+          "countersignRequired": [
+            "charge.refund"
+          ],
+          "expiresAt": 1787713575215,
+          "grantedBy": "operator:scope-city",
+          "grantedAt": 1787711777563,
+          "version": 1
+        },
+        "at": 1787711777563
+      },
+      "hash": "7597b4661da10b30f265ab2879cb4f53d72a8a0862607e07b0ed9c2cae7ad4a8"
+    },
+    {
+      "sequence": 5,
+      "at": 1787711777564,
       "event": {
         "type": "mission.status",
         "status": "starting"
       },
-      "hash": "61ee0584b42324a09512a58700ab12ddf678c3efe5585daa2070d31be09374fd"
+      "hash": "9be18761225715f4b04520f8dd89a7f5caed3ad5676782df02a9fa7ec34a64f7"
     },
     {
-      "sequence": 3,
-      "at": 1787677205896,
+      "sequence": 6,
+      "at": 1787711777611,
       "event": {
         "type": "mission.status",
         "status": "running",
         "detail": "gemini-a/flash-a"
       },
-      "hash": "3a3265d78b24433ac287a52907108937828c2614c3a1d564eb6de8a345e99cc2"
+      "hash": "fec146b919ecb7922d097317cd99e3e44fca3357ea5ddced3ebc758d1a115a76"
     },
     {
-      "sequence": 4,
-      "at": 1787677206053,
+      "sequence": 7,
+      "at": 1787711777648,
       "event": {
         "type": "world",
         "event": {
           "type": "mission.started",
-          "turnId": "01m0wxtscnnv2cj8wcjv03kwg7.local",
-          "at": 1787677206052
+          "turnId": "01m0xysttqt4mt3j3002tkx59d.local",
+          "at": 1787711777647
         }
       },
-      "hash": "8af4c5fb6105ad981526c17cd969daf78414d5063c3d5c329fdbb006147a9378"
+      "hash": "027f664c5b6000b81447c8ee37d3bda799dd9725f250278a35cf981e85d7443b"
     },
     {
-      "sequence": 5,
-      "at": 1787677206177,
+      "sequence": 8,
+      "at": 1787711777754,
       "event": {
         "type": "world",
         "event": {
           "type": "district.online",
           "district": "scope-city-live",
-          "at": 1787677206177
+          "at": 1787711777754
         }
       },
-      "hash": "057ad15507b9369a1d567c903158392b30e29d0207919dadb23884214f0c8313"
+      "hash": "2a2b018a00aaeec67c9a4530d32a5e3fd427500a94e6d5a46eb5e11460c3f004"
     },
     {
-      "sequence": 6,
-      "at": 1787677209682,
+      "sequence": 9,
+      "at": 1787711778816,
       "event": {
         "type": "world",
         "event": {
           "type": "mission.ended",
           "status": "error",
-          "at": 1787677209682
+          "at": 1787711778816
         }
       },
-      "hash": "b2c24deb659683b5f0c013fe6ec7e7056668ea5ab5a236d0c6099e251ec93ba7"
+      "hash": "06bc7e4899c124f99794b6192e9f2a07509ec33da65940cce2cc5bd2375f0b99"
     },
     {
-      "sequence": 7,
-      "at": 1787677209698,
+      "sequence": 10,
+      "at": 1787711778829,
       "event": {
         "type": "mission.status",
         "status": "starting",
-        "detail": "gemini-a/flash-a unavailable; rotating (unavailable)"
+        "detail": "gemini-a/flash-a unavailable; rotating (rate_limited)"
       },
-      "hash": "e60cad82ed812bc47785141e19be727f3aa57e8accce5225978ac97bc1468bf5"
+      "hash": "44b31e124d61e825e754397eb99d3e4d8fc06bea92dc86ca30a8040530aa0db7"
     },
     {
-      "sequence": 8,
-      "at": 1787677209706,
+      "sequence": 11,
+      "at": 1787711778842,
       "event": {
         "type": "mission.status",
         "status": "running",
         "detail": "gemini-b/flash-b"
       },
-      "hash": "afaa45d617ed9457cf3492af36e7d92c7deea80067356d56124e5cb8fef2364a"
+      "hash": "06dfb9f1e42b9c71b52be46cba572e8d87d0d625c7585bdf95e860bd1f3ae9b0"
     },
     {
-      "sequence": 9,
-      "at": 1787677209729,
+      "sequence": 12,
+      "at": 1787711778873,
       "event": {
         "type": "world",
         "event": {
           "type": "mission.started",
-          "turnId": "01m0wxtx3dys0srshrhy6sx3v5.local",
-          "at": 1787677209729
+          "turnId": "01m0xysw11e6j8qbaq4y8pxvw0.local",
+          "at": 1787711778873
         }
       },
-      "hash": "b83f068d4e367fdc6fee784b89342a99d1e6fc9abaaa306fd7de89d817c06be2"
+      "hash": "f7078e81992b7e5492e71cce9c0824a7d3df907c8c82c573203abbcfc98ca142"
     },
     {
-      "sequence": 10,
-      "at": 1787677209804,
+      "sequence": 13,
+      "at": 1787711778910,
       "event": {
         "type": "world",
         "event": {
           "type": "district.online",
           "district": "scope-city-live",
-          "at": 1787677209804
+          "at": 1787711778910
         }
       },
-      "hash": "acc494e2fd91296253d339941fce6d86152eb4fbeff0552d44fa856ecad4b086"
+      "hash": "218a3e6a9437be298f530d0402f803540813ff68e49ce9c4f744d5fcf0ac48fb"
     },
     {
-      "sequence": 11,
-      "at": 1787677211893,
+      "sequence": 14,
+      "at": 1787711779523,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "error",
+          "at": 1787711779522
+        }
+      },
+      "hash": "54751f4cb605f2ee6511b443ee628d0260c35955c61e540aeec6558bc6992cd0"
+    },
+    {
+      "sequence": 15,
+      "at": 1787711779531,
+      "event": {
+        "type": "mission.status",
+        "status": "starting",
+        "detail": "gemini-b/flash-b unavailable; rotating (rate_limited)"
+      },
+      "hash": "0d489a530c1b8ba21a776fb27b73e668f9019b5566a3cc6cf20fc1076ddbbd0d"
+    },
+    {
+      "sequence": 16,
+      "at": 1787711779545,
+      "event": {
+        "type": "mission.status",
+        "status": "running",
+        "detail": "gemini-c/flash-c"
+      },
+      "hash": "1db55179e4718aac8dd4c754f34e152a18648803772ba8adbcd183fe90453007"
+    },
+    {
+      "sequence": 17,
+      "at": 1787711779573,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0xyswq10qcwbd7edtcbybba.local",
+          "at": 1787711779573
+        }
+      },
+      "hash": "81e7f184999672f673ff70faad04f63b58c4fd4b873d3531aeae5fac38271b5a"
+    },
+    {
+      "sequence": 18,
+      "at": 1787711779613,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787711779613
+        }
+      },
+      "hash": "52db4d82638ea9f0e09a563e019a73fbfc9f2b294d9f74fdfc2cf7d3bb342c93"
+    },
+    {
+      "sequence": 19,
+      "at": 1787711780195,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "error",
+          "at": 1787711780195
+        }
+      },
+      "hash": "b080db104ed034f825d18964c6f4086328f76513b8d64d899afe92e32280ea6c"
+    },
+    {
+      "sequence": 20,
+      "at": 1787711780206,
+      "event": {
+        "type": "mission.status",
+        "status": "starting",
+        "detail": "gemini-c/flash-c unavailable; rotating (rate_limited)"
+      },
+      "hash": "f3787d40f08b2474830a17e256734e3718d3a8db31346967078cd4b3e4fa6249"
+    },
+    {
+      "sequence": 21,
+      "at": 1787711780224,
+      "event": {
+        "type": "mission.status",
+        "status": "running",
+        "detail": "gemini-d/flash-d"
+      },
+      "hash": "282967c754ffd7e11beb71a475180b4b4d2f9cc977165f7d79068ccd46f9f667"
+    },
+    {
+      "sequence": 22,
+      "at": 1787711780258,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0xysxc6r7twchrcqq4kh1e7.local",
+          "at": 1787711780258
+        }
+      },
+      "hash": "d1b0ff2d933f7db1c6adfe7f820a14f6f587620e316acf6a1d2f66bba38b8164"
+    },
+    {
+      "sequence": 23,
+      "at": 1787711780305,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787711780305
+        }
+      },
+      "hash": "02d7daa6dc94d094eff16c0bcfdb6682c455ee5322197548499466a324b5b26d"
+    },
+    {
+      "sequence": 24,
+      "at": 1787711783091,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.arrived",
           "threadId": "main",
           "office": "charge.find_by_order",
-          "at": 1787677211892
+          "at": 1787711783091
         }
       },
-      "hash": "8eef8a88f5c056f8c617fa10edf2390b2e3470e74febdc91f81440c35f2357af"
+      "hash": "0ab75617b8352e3870abda65ffdea51afee44c3d778360ad726b4760c076423c"
     },
     {
-      "sequence": 12,
-      "at": 1787677211905,
+      "sequence": 25,
+      "at": 1787711783836,
       "event": {
         "type": "proxy",
         "event": {
           "type": "call.allowed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
           "office": "charge.find_by_order",
           "district": "exchequer",
           "sequence": 0,
-          "at": 1787677211904
+          "at": 1787711783205
         }
       },
-      "hash": "5ef8f7ea307a5b884e14cd29348c82126d3f192b46f78b582b1452037a9738b8"
+      "hash": "f3f5b80efdf42692187381523e054579c3bae917d68a809eec1c0ac13574d750"
     },
     {
-      "sequence": 13,
-      "at": 1787677211914,
+      "sequence": 26,
+      "at": 1787711783854,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.finished",
           "threadId": "main",
           "office": "charge.find_by_order",
-          "at": 1787677211914
+          "at": 1787711783854
         }
       },
-      "hash": "400a9553323d7c195cdb93695b744c496f3efd442f3196762fbe456ff5e351a0"
+      "hash": "39b2c10d851482887df02fb218e780b5beaff92514cc4ba43bd8064a973a16e3"
     },
     {
-      "sequence": 14,
-      "at": 1787677213810,
+      "sequence": 27,
+      "at": 1787711786297,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.arrived",
           "threadId": "main",
           "office": "charge.get",
-          "at": 1787677213810
+          "at": 1787711786297
         }
       },
-      "hash": "124081a930bc0a288fca897f8d5576574c86dadc19a15ff74978afd65eb72f0d"
+      "hash": "e7d56ac4773941b673200d1993ea3368a52269b7b84429eaaaf0fbee71ba2cc6"
     },
     {
-      "sequence": 15,
-      "at": 1787677213819,
+      "sequence": 28,
+      "at": 1787711787595,
       "event": {
         "type": "proxy",
         "event": {
           "type": "response.redacted",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
           "office": "charge.get",
           "redacted": [
             "customer.address",
             "customer.history"
           ],
           "truncated": false,
-          "at": 1787677213818
+          "at": 1787711786373
         }
       },
-      "hash": "fc8629598438f2445c4d2440034f6014afd9cf4c5a7716162ff8b42daa73ce69"
+      "hash": "214730472d361189be38e3a2f4eb2b42ac00b6256b20b6d1b0ccc2655c3f4e4a"
     },
     {
-      "sequence": 16,
-      "at": 1787677213819,
+      "sequence": 29,
+      "at": 1787711787595,
       "event": {
         "type": "proxy",
         "event": {
           "type": "call.allowed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
           "office": "charge.get",
           "district": "exchequer",
           "sequence": 0,
-          "at": 1787677213818
+          "at": 1787711786373
         }
       },
-      "hash": "e177fe7fe4af548bb63965f6c42eaa9fb00b411b88aeb071ee68ac98d90a1e3e"
+      "hash": "efa2c3f751f6b5e97470138e3834f18f71a0436e2a9938b3df2463d89cb786b0"
     },
     {
-      "sequence": 17,
-      "at": 1787677213828,
+      "sequence": 30,
+      "at": 1787711787639,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.finished",
           "threadId": "main",
           "office": "charge.get",
-          "at": 1787677213828
+          "at": 1787711787639
         }
       },
-      "hash": "6204f2e794251dd49410a802f0da821d78969728d3f420e6f1b29fe6b3eae0ed"
+      "hash": "0f0c782133f5a091811804125ee18610a103e55be7a21e23866546400bb37255"
     },
     {
-      "sequence": 18,
-      "at": 1787677217243,
+      "sequence": 31,
+      "at": 1787711790975,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.arrived",
           "threadId": "main",
           "office": "exec",
-          "at": 1787677217243
+          "at": 1787711790975
         }
       },
-      "hash": "f7228cae97f4accaedea5cf48f3f551df009f54b3b82cb1e94826fb0028f27c2"
+      "hash": "5e5bcaba3a91bcb1e307e7388319056f2cf7b4f19c7bc3e18b8c0a6dd414bf3f"
     },
     {
-      "sequence": 19,
-      "at": 1787677222566,
+      "sequence": 32,
+      "at": 1787711797880,
       "event": {
         "type": "world",
         "event": {
           "type": "yard.opened",
-          "sandboxId": "v1:daytona:default.f57465e9-77b6-4127-9504-e0d709651367",
-          "at": 1787677222566
+          "sandboxId": "v1:daytona:default.a25559b9-391b-439b-bd35-422663b1cf29",
+          "at": 1787711797880
         }
       },
-      "hash": "6d164c916effd74087a66b758c92ac96f071953f82f826defc823501f47bda22"
-    },
-    {
-      "sequence": 20,
-      "at": 1787677222566,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.finished",
-          "threadId": "main",
-          "office": "exec",
-          "at": 1787677222566
-        }
-      },
-      "hash": "8bd28f9397ae5f81f51267b3d6dc2507bdb5360e5456296f5adae9902ce6c752"
-    },
-    {
-      "sequence": 21,
-      "at": 1787677224801,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.arrived",
-          "threadId": "main",
-          "office": "exec",
-          "at": 1787677224801
-        }
-      },
-      "hash": "6b2bec6f05926e16e191bc8404bef59ae275f8233f9dba58e5ca074aac4a3b79"
-    },
-    {
-      "sequence": 22,
-      "at": 1787677225219,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.finished",
-          "threadId": "main",
-          "office": "exec",
-          "at": 1787677225219
-        }
-      },
-      "hash": "95b511dc55645105437667df2aad84ec6cebababfe718354fbb06cf25b03e22d"
-    },
-    {
-      "sequence": 23,
-      "at": 1787677227155,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.arrived",
-          "threadId": "main",
-          "office": "charge.refund",
-          "at": 1787677227155
-        }
-      },
-      "hash": "55890b4f01abb6d29080e6509c5b52b089a2f20def1418e9c5506178cae4c682"
-    },
-    {
-      "sequence": 24,
-      "at": 1787677227357,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "gate.raised",
-          "threadId": "main",
-          "toolCallId": "function-call-15071118773340701143",
-          "office": "charge.refund",
-          "args": {
-            "charge_id": "ch_184",
-            "amount": 4900
-          },
-          "at": 1787677227356
-        }
-      },
-      "hash": "cbeda691ca749ae4d88d9fc5ad1d172232dc1a7d639531e2f43f4431d23b9bb9"
-    },
-    {
-      "sequence": 25,
-      "at": 1787677227890,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "mission.ended",
-          "status": "done",
-          "at": 1787677227890
-        }
-      },
-      "hash": "96c1d089fc87e95e0ded99d68b47736e80218bf54ac0062c2e04f2368328b82b"
-    },
-    {
-      "sequence": 26,
-      "at": 1787677373240,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "gate.cleared",
-          "toolCallId": "function-call-15071118773340701143",
-          "approved": true,
-          "at": 1787677373240
-        }
-      },
-      "hash": "ee8703099765aa0e40b7c640e75854c3e967f7963277f395bd25f8b132f94fd1"
-    },
-    {
-      "sequence": 27,
-      "at": 1787677373267,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "mission.started",
-          "turnId": "01m0wxzwt0w78whsc50vatxsq9.local",
-          "at": 1787677373267
-        }
-      },
-      "hash": "d7d2e31f92996b79c38c2693c20d37a8666fdb18c77462d9487e04162c81c6c6"
-    },
-    {
-      "sequence": 28,
-      "at": 1787677373287,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "district.online",
-          "district": "scope-city-live",
-          "at": 1787677373287
-        }
-      },
-      "hash": "067d12cb897f22d8d5787e8f99b63a2606288e2f061ed9398ec27c8c5fee0c4c"
-    },
-    {
-      "sequence": 29,
-      "at": 1787677373290,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "quota.consumed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "charge.refund",
-          "used": 1,
-          "ceiling": 1,
-          "at": 1787677373289
-        }
-      },
-      "hash": "809f2042e987acc85228db788f4e3ccb41acc2aae190416ab2f3a1981cd1267f"
-    },
-    {
-      "sequence": 30,
-      "at": 1787677373290,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "call.countersign_required",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "charge.refund",
-          "district": "exchequer",
-          "fingerprint": "5ea226ade921dc2cc31d02edc1a20de871246b769a6bbae8b53fb45ad2931668",
-          "at": 1787677373289
-        }
-      },
-      "hash": "c01024954ba4cf8e3f7e545ae15fc16bc004365ebb6083ba606b154ac292455e"
-    },
-    {
-      "sequence": 31,
-      "at": 1787677373290,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "call.allowed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "charge.refund",
-          "district": "exchequer",
-          "sequence": 1,
-          "at": 1787677373289
-        }
-      },
-      "hash": "5d2ebb0bfbe4abdb83e08a2799ebe18207e29baefff98d6474e092146a4a4a9d"
-    },
-    {
-      "sequence": 32,
-      "at": 1787677373305,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.finished",
-          "threadId": "main",
-          "office": "charge.refund",
-          "at": 1787677373305
-        }
-      },
-      "hash": "433c739ac6f7e2321032cb12762e2f7a9284347fa7815e3c9514747c2032caf6"
+      "hash": "eb5eb3e776c73450b012bdbbbc0bd75ff27a3dc7e52c649b6e84d4e81fdab972"
     },
     {
       "sequence": 33,
-      "at": 1787677375847,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "agent.arrived",
-          "threadId": "main",
-          "office": "mail.send",
-          "at": 1787677375847
-        }
-      },
-      "hash": "75bc2828b10907434cdcd66a09e7bbf0d8629b712edba5d560a0f52a65954224"
-    },
-    {
-      "sequence": 34,
-      "at": 1787677375912,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "gate.raised",
-          "threadId": "main",
-          "toolCallId": "function-call-9886037896196062587",
-          "office": "mail.send",
-          "args": {
-            "to": "customer@example.test",
-            "body": "Your refund of $49 for order #184 has been processed.",
-            "subject": "Refund for Order #184"
-          },
-          "at": 1787677375912
-        }
-      },
-      "hash": "ec81b52fdb45c6396cbfd53dc2cbd6e4045a0df5acf797df576ff848069e4c66"
-    },
-    {
-      "sequence": 35,
-      "at": 1787677375913,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "mission.ended",
-          "status": "done",
-          "at": 1787677375913
-        }
-      },
-      "hash": "369ecf64b9cd49f72f5aba1e6b6ab12f6ad0a0ee599b2e9029b874af1496823a"
-    },
-    {
-      "sequence": 36,
-      "at": 1787677454876,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "gate.cleared",
-          "toolCallId": "function-call-9886037896196062587",
-          "approved": true,
-          "at": 1787677454876
-        }
-      },
-      "hash": "402e82dc94e2369f46616accdf7b8314af566ec63d474827812b85eee76fca76"
-    },
-    {
-      "sequence": 37,
-      "at": 1787677454898,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "mission.started",
-          "turnId": "01m0wy2ch16q8ps0xy662khrtj.local",
-          "at": 1787677454898
-        }
-      },
-      "hash": "b33538996d2d1028f2f504c6ca2dd82263a77d06cb18820e4c75b26dcb5b1602"
-    },
-    {
-      "sequence": 38,
-      "at": 1787677454917,
-      "event": {
-        "type": "world",
-        "event": {
-          "type": "district.online",
-          "district": "scope-city-live",
-          "at": 1787677454917
-        }
-      },
-      "hash": "46376ea3c3263247b05948641477ef7b9dce43b210454f3636773c098a301fdc"
-    },
-    {
-      "sequence": 39,
-      "at": 1787677454919,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "quota.consumed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "mail.send",
-          "used": 1,
-          "ceiling": 1,
-          "at": 1787677454919
-        }
-      },
-      "hash": "fd5113af95f426c86bc75d0a799cf3f16be9111cb8acd78280fe8da8700e9f18"
-    },
-    {
-      "sequence": 40,
-      "at": 1787677454919,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "call.countersign_required",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "mail.send",
-          "district": "post-house",
-          "fingerprint": "508924b3006391cf960886a9dcdfbe186d780ee57b81a8914a1bc8fa733e864d",
-          "at": 1787677454919
-        }
-      },
-      "hash": "44685d791f90a144daac3bd44d916ccbc2ba734b1f60d6b512cc3e03533beb60"
-    },
-    {
-      "sequence": 41,
-      "at": 1787677454920,
-      "event": {
-        "type": "proxy",
-        "event": {
-          "type": "call.allowed",
-          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
-          "office": "mail.send",
-          "district": "post-house",
-          "sequence": 2,
-          "at": 1787677454919
-        }
-      },
-      "hash": "ca2bc20af0d03f05b313909945821498bcd410748f7266f2ed5390eb5c10d2f1"
-    },
-    {
-      "sequence": 42,
-      "at": 1787677454936,
+      "at": 1787711797881,
       "event": {
         "type": "world",
         "event": {
           "type": "agent.finished",
           "threadId": "main",
-          "office": "mail.send",
-          "at": 1787677454936
+          "office": "exec",
+          "at": 1787711797880
         }
       },
-      "hash": "276909a32b55321b40a6ee86f08ba8097cb51a38aba326c762f4781f2385a992"
+      "hash": "72a3dbe3d9f2a3227fabd25ed2a773262b31b9d60c476dae1821f6ee6126f906"
     },
     {
-      "sequence": 43,
-      "at": 1787677456977,
+      "sequence": 34,
+      "at": 1787711797881,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "yard.verified",
+          "toolCallId": "function-call-16203895895196353553",
+          "script": "\nintended_amount = 4900\nrecord_amount = 4900\nrefunded_amount = 0\n\nassert intended_amount == record_amount, \"Intended amount does not match record amount\"\nassert refunded_amount == 0, \"Charge has already been refunded\"\n\nprint(f\"Verdict: Ready to refund charge id: ch_3U8THZ2WNLo6nvwi1hSiIWWi for ord_184, amount: 4900\")\n",
+          "output": "{\"success\":true,\"response\":{\"exitCode\":2,\"result\":\"/usr/bin/bash: line 2: intended_amount: command not found\\n/usr/bin/bash: line 3: record_amount: command not found\\n/usr/bin/bash: line 4: refunded_amount: command not found\\n/usr/bin/bash: line 6: assert: command not found\\n/usr/bin/bash: line 7: assert: command not found\\n/usr/bin/bash: line 9: syntax error near unexpected token `f\\\"Verdict: Ready to refund charge id: ch_3U8THZ2WNLo6nvwi1hSiIWWi for ord_184, amount: 4900\\\"'\\n/usr/bin/bash: line 9: `print(f\\\"Verdict: Ready to refund charge id: ch_3U8THZ2WNLo6nvwi1hSiIWWi for ord_184, amount: 4900\\\")'\\n\"}}",
+          "passed": false,
+          "at": 1787711797880
+        }
+      },
+      "hash": "5c09a0ed77fe6293526ea72c4f943fe0f28cfa280850b937cb66db000022f878"
+    },
+    {
+      "sequence": 35,
+      "at": 1787711800412,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787711800412
+        }
+      },
+      "hash": "7bc78f4db76e32f5e60e23f0f89db570ac4832e18b0b769b38d4f1dab4ea83bb"
+    },
+    {
+      "sequence": 36,
+      "at": 1787711800881,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787711800881
+        }
+      },
+      "hash": "6ecd9590fb93f0b45022ed9d9fffb3c87ae6ec80d53ab7bb80a24913f65b7467"
+    },
+    {
+      "sequence": 37,
+      "at": 1787711800881,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "yard.verified",
+          "toolCallId": "function-call-13351195970919483288",
+          "script": "python3 -c \"intended_amount = 4900; record_amount = 4900; refunded_amount = 0; assert intended_amount == record_amount, 'Intended amount does not match record amount'; assert refunded_amount == 0, 'Charge has already been refunded'; print(f'Verdict: Ready to refund charge id: ch_3U8THZ2WNLo6nvwi1hSiIWWi for ord_184, amount: 4900')\"",
+          "output": "{\"success\":true,\"response\":{\"exitCode\":0,\"result\":\"Verdict: Ready to refund charge id: ch_3U8THZ2WNLo6nvwi1hSiIWWi for ord_184, amount: 4900\\n\"}}",
+          "passed": true,
+          "at": 1787711800881
+        }
+      },
+      "hash": "953017995cd4b7db4bbc8ff1894f125a3ded025f8ee2b3d7403c818c86f87d47"
+    },
+    {
+      "sequence": 38,
+      "at": 1787711803322,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "charge.refund",
+          "at": 1787711803322
+        }
+      },
+      "hash": "8bdc9bc3784de7e5813bdb99870337f8f49b50839e1754ba4fa9e6808d50b2df"
+    },
+    {
+      "sequence": 39,
+      "at": 1787711803630,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.raised",
+          "threadId": "main",
+          "toolCallId": "function-call-17250947196017545394",
+          "office": "charge.refund",
+          "args": {
+            "amount": 4900,
+            "charge_id": "ch_3U8THZ2WNLo6nvwi1hSiIWWi"
+          },
+          "at": 1787711803630
+        }
+      },
+      "hash": "63ce74e4e5fc60a59d9f78567b6dedd67db92283a298b2404ab93f5ab4687ea8"
+    },
+    {
+      "sequence": 40,
+      "at": 1787711804216,
       "event": {
         "type": "world",
         "event": {
           "type": "mission.ended",
           "status": "done",
-          "at": 1787677456977
+          "at": 1787711804216
         }
       },
-      "hash": "6725dce734acc21f96d20cc1ab872095001bb8f7ecdde4e2e5472704bd540b07"
+      "hash": "2ed3b33af5c1fd41c656d9f6e091dba8638d042b0529a77d54d0b6bf6ed453b2"
+    },
+    {
+      "sequence": 41,
+      "at": 1787712200818,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.cleared",
+          "toolCallId": "function-call-17250947196017545394",
+          "approved": true,
+          "at": 1787712200818
+        }
+      },
+      "hash": "a04489e97d0898633d33abd6a0c52ff96d06ea4fc01c4f764a7f127000491ce1"
+    },
+    {
+      "sequence": 42,
+      "at": 1787712200936,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0xz6r4vcv33byfsg1r4stbg.local",
+          "at": 1787712200936
+        }
+      },
+      "hash": "8b25963a8576bc0f468c7e8a91e352869f6f6e83aed8c2948bc0cdfe9314bc55"
+    },
+    {
+      "sequence": 43,
+      "at": 1787712200998,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787712200998
+        }
+      },
+      "hash": "57204c7788d94e8f6c798fee00f7461ec0a4863e85cca0c02346a59a55684425"
     },
     {
       "sequence": 44,
-      "at": 1787677456977,
+      "at": 1787712201005,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "quota.consumed",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+          "office": "charge.refund",
+          "used": 1,
+          "ceiling": 1,
+          "at": 1787712201004
+        }
+      },
+      "hash": "5ee649a5ae74de9100cb5ccb713ad2ac222de2c9e67d08a1adfd5476bb782123"
+    },
+    {
+      "sequence": 45,
+      "at": 1787712201006,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.countersign_required",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+          "office": "charge.refund",
+          "district": "exchequer",
+          "fingerprint": "eab897953160ec5abd6dee9f4321232dc80d3b809dd127ee45cf193f5fd9b210",
+          "at": 1787712201004
+        }
+      },
+      "hash": "27741fc2d0393b53676afe0fcc90283258cd27e6ad859f003a52fd2cd532fd94"
+    },
+    {
+      "sequence": 46,
+      "at": 1787712202338,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.allowed",
+          "missionId": "m_63dcc874d6b913ab444b3b2c6800391ca5164b965ac95cd8",
+          "office": "charge.refund",
+          "district": "exchequer",
+          "sequence": 1,
+          "at": 1787712201004
+        }
+      },
+      "hash": "0b3a3f7620c4a28d08ed3c2424efa0601dc886823e023eb239a5cb6dc83079f2"
+    },
+    {
+      "sequence": 47,
+      "at": 1787712202385,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "charge.refund",
+          "at": 1787712202385
+        }
+      },
+      "hash": "d7b66b8c2f85f7c4ae500a8bfbac46c0d9066afff3f5642c802156291e5c7392"
+    },
+    {
+      "sequence": 48,
+      "at": 1787712204519,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "done",
+          "at": 1787712204519
+        }
+      },
+      "hash": "a0b4643f946500ee71eca08242234d226bb51457c258ec138ef36c9b4b81bcf4"
+    },
+    {
+      "sequence": 49,
+      "at": 1787712204520,
       "event": {
         "type": "mission.status",
         "status": "completed"
       },
-      "hash": "db198041ce8e9566792fb8066359c60fee79bc4d1c3014634d90c2f55f50c048"
+      "hash": "455e7a3c925ecb19f2a5227c072b68e074d7779df3149911dd66dce51ebe8dd4"
     }
   ],
-  "head": "db198041ce8e9566792fb8066359c60fee79bc4d1c3014634d90c2f55f50c048",
+  "head": "455e7a3c925ecb19f2a5227c072b68e074d7779df3149911dd66dce51ebe8dd4",
   "algorithm": "sha256",
   "lossy": false
 }

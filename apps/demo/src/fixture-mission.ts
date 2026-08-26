@@ -82,10 +82,12 @@ export function createFixtureMission(params: {
     scope,
     registry: officeRegistry(),
     ledger: new QuotaLedger(),
-    upstream: async (call) => {
+    upstream: async (call, context) => {
       const handler = handlers.get(call.office);
       if (!handler) throw new Error(`no system implements ${call.office}`);
-      return handler.call(call.args);
+      // The proxy's key is passed through untouched. It is the only identifier
+      // that distinguishes a retry from a second, legitimate, identical action.
+      return handler.call(call.args, context);
     },
     countersign: async (request) => {
       const fingerprint = fingerprintCall({

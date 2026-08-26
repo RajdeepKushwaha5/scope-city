@@ -13,7 +13,19 @@ export interface OfficeHandler {
   readonly description: string;
   /** JSON Schema for the tool's arguments, served through MCP tools/list. */
   readonly inputSchema: Record<string, unknown>;
-  readonly call: (args: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * `context.idempotencyKey` identifies one intended action across retries.
+   *
+   * Optional because most offices are reads and have nothing to deduplicate.
+   * A system writing to an API that supports idempotent requests should pass it
+   * through rather than inventing one: a key derived from the arguments
+   * collides two legitimate identical actions, and a fresh key per attempt
+   * makes every retry a new action.
+   */
+  readonly call: (
+    args: Record<string, unknown>,
+    context?: { readonly idempotencyKey?: string },
+  ) => Promise<unknown>;
 }
 
 export interface SystemDefinition {

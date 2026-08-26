@@ -193,11 +193,10 @@ describe("charge.refund", () => {
     });
   });
 
-  it("sends an idempotency key derived from the action", async () => {
-    // Without one, a refund Stripe created but whose response was lost looks
+  it("passes the proxy's idempotency key through to Stripe", async () => {
+    // Without a key, a refund Stripe created but whose response was lost looks
     // like a failure: the proxy releases its quota claim and a retry creates a
-    // *second* refund. Derived rather than random, so the retry of a lost
-    // request sends the same key and Stripe returns the original.
+    // *second* refund.
     let sentKey: string | undefined;
     const sys = stripeSystem({
       apiKey: "rk_test_fake",
@@ -210,29 +209,53 @@ describe("charge.refund", () => {
       }) as unknown as typeof fetch,
     });
 
-    await officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: 4900 });
-    expect(sentKey).toBe("scope-city:ch_3U8T0Z:4900");
+    await officeOf(sys, "charge.refund").call(
+      { charge_id: "ch_3U8T0Z", amount: 4900 },
+      { idempotencyKey: "claim-7" },
+    );
+    expect(sentKey).toBe("scope-city:claim-7");
   });
 
-  it("sends the same key for the same action, so a retry cannot duplicate", async () => {
-    const keys: (string | undefined)[] = [];
+  it("gives two equal partial refunds different keys", async () => {
+    // The bug this replaced: a key derived from charge and amount collided two
+    // legitimate partial refunds of the same size, so Stripe returned the first
+    // and the system reported a refund that never happened. Only the caller
+    // knows whether a request is a retry, so only its key can tell them apart.
+    const keys: (string | null)[] = [];
     const sys = stripeSystem({
       apiKey: "rk_test_fake",
       fetchImpl: (async (input: string | URL, init?: RequestInit) => {
         if (String(input).endsWith("/refunds")) {
-          keys.push(new Headers(init?.headers).get("idempotency-key") ?? undefined);
+          keys.push(new Headers(init?.headers).get("idempotency-key"));
           return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
         }
         return { ok: true, status: 200, json: async () => CHARGE } as Response;
       }) as unknown as typeof fetch,
     });
 
-    const call = { charge_id: "ch_3U8T0Z", amount: 4900 };
-    await officeOf(sys, "charge.refund").call(call);
-    await officeOf(sys, "charge.refund").call(call);
+    const args = { charge_id: "ch_3U8T0Z", amount: 1000 };
+    await officeOf(sys, "charge.refund").call(args, { idempotencyKey: "claim-1" });
+    await officeOf(sys, "charge.refund").call(args, { idempotencyKey: "claim-2" });
 
-    expect(keys[0]).toBe(keys[1]);
-    expect(keys[0]).toBeDefined();
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it("sends no key when the caller supplies none", async () => {
+    // Inventing one here would be guessing at something only the caller knows.
+    let hadKey = true;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          hadKey = new Headers(init?.headers).has("idempotency-key");
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: 4900 });
+    expect(hadKey).toBe(false);
   });
 
   it("refuses more than remains, before the call goes out", async () => {

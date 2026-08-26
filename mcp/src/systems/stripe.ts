@@ -219,7 +219,7 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
       },
       required: ["charge_id", "amount"],
     },
-    async call(args) {
+    async call(args, context) {
       const id = requireString(args, "charge_id");
       const amount = assertMinorUnits(args.amount, "amount");
 
@@ -239,18 +239,22 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
       // -- a dropped connection, a timeout -- looks like a failure. The proxy
       // then releases its quota claim and a retry creates a *second* refund.
       // The preflight read above cannot close that window: it is a separate
-      // request, so it cannot see a refund that is being created concurrently
-      // with it.
+      // request, so it cannot see a refund being created concurrently with it.
       //
-      // The key is derived from what identifies the action rather than
-      // randomly generated, so the retry of a lost request sends the same key
-      // and Stripe returns the original refund instead of making another. A
-      // random key would make every attempt a new action, which is exactly the
-      // behaviour being prevented.
+      // The key comes from the proxy rather than from these arguments, and that
+      // distinction is the whole of it. A key derived from charge and amount
+      // collides two legitimate partial refunds of the same size, so Stripe
+      // returns the first one and this reports a refund that never happened --
+      // which is a worse failure than the duplicate it was meant to prevent.
+      // A fresh key per attempt has the opposite problem: every retry becomes a
+      // new action. Only the caller knows whether a request is a retry, and the
+      // proxy's key is exactly that knowledge.
       const created = await api("refunds", {
         method: "POST",
         body: { charge: id, amount: String(amount) },
-        idempotencyKey: `scope-city:${id}:${amount}`,
+        ...(context?.idempotencyKey
+          ? { idempotencyKey: `scope-city:${context.idempotencyKey}` }
+          : {}),
       });
 
       return {

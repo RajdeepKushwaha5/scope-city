@@ -545,22 +545,16 @@ async function main(): Promise<void> {
         return;
       }
 
-      // Re-checked here, not only at proposal.
+      // Deliberately no singleton check here.
       //
-      // Several proposals can wait at once -- proposing costs nothing and
-      // starts nothing -- so checking only that *this* one is awaiting a grant
-      // let two of them be granted in turn, each starting a TrueForge session
-      // through a control plane that assumes one. The singleton has to hold at
-      // the moment authority is actually handed over.
-      const running = [...missions.values()].find(
-        (other) => other.status === "starting" || other.status === "running",
-      );
-      if (running) {
-        json(res, 409, { error: "a mission is already active", missionId: running.id });
-        return;
-      }
-      // Nothing to revoke: a denied scope was never registered with the proxy
-      // and never had a session. Denial is simply the mission ending here.
+      // The grant handler has one, because granting starts a session. Denial
+      // starts nothing, revokes nothing, and touches no other mission, so
+      // blocking it while an unrelated run is active would strand valid
+      // proposals in `proposed` until something they have nothing to do with
+      // finishes. Refusing authority must always be available.
+      //
+      // Nothing to revoke either: a denied scope was never registered with the
+      // proxy and never had a session. Denial is simply the mission ending.
       mission.status = "denied";
       mission.feed.append({ type: "scope.denied", at: Date.now() });
       mission.feed.append({ type: "mission.status", status: "denied" });

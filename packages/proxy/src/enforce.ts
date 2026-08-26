@@ -11,7 +11,20 @@ import type { EmitProxyEvent } from "./events.js";
 import { fingerprintCall } from "./fingerprint.js";
 
 /** A call into a real MCP server. Injected so the pipeline stays testable. */
-export type UpstreamCall = (call: Call) => Promise<unknown>;
+/**
+ * Performs the real call, behind the boundary.
+ *
+ * The context carries the proxy's idempotency key, which is the only identifier
+ * that means "one intended action" across retries. A system talking to an API
+ * that supports idempotent writes needs exactly this: deriving a key from the
+ * arguments instead collides two legitimate identical actions, and generating
+ * one per attempt makes every retry a new action. Only the caller knows which
+ * of those a given request is.
+ */
+export type UpstreamCall = (
+  call: Call,
+  context: { readonly idempotencyKey: string },
+) => Promise<unknown>;
 
 /** Asks the operator and resolves once they decide. Injected for the same reason. */
 export type CountersignGate = (request: {
@@ -177,7 +190,7 @@ export async function enforceCall(params: {
   // 4. execute
   let raw: unknown;
   try {
-    raw = await upstream(call);
+    raw = await upstream(call, { idempotencyKey });
   } catch (error) {
     release();
     const message = error instanceof Error ? error.message : String(error);

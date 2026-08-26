@@ -310,7 +310,7 @@ export function missionAgentSpec(params: {
       // still had twenty-four turns to work through the job -- the label
       // described the thinking and not the work. "high" keeps the ceiling every
       // run has had, so only the lower settings change anything.
-      iterationLimit: iterationLimitFor(params.reasoningEffort as never),
+      iterationLimit: iterationLimitFor(params.reasoningEffort),
     },
   };
 }

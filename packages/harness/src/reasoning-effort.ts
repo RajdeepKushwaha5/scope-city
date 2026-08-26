@@ -68,7 +68,20 @@ const ITERATION_BUDGET: Record<ReasoningEffort, number> = {
   high: 24,
 };
 
-/** The turn budget for an effort, or the ceiling when none was chosen. */
-export function iterationLimitFor(effort: ReasoningEffort | null | undefined): number {
-  return effort ? ITERATION_BUDGET[effort] : ITERATION_BUDGET.high;
+/**
+ * The turn budget for an effort, or the ceiling when none was chosen.
+ *
+ * Takes `unknown` rather than a narrowed type, because the caller receives the
+ * effort as a plain string from a request body. Typing the parameter narrowly
+ * meant the call site cast to satisfy it, and a cast is not a check: an effort
+ * of "xhigh" -- valid to TrueForge, not registered on these slots -- indexed
+ * the table, missed, and put `undefined` into the agent spec's iteration limit.
+ * A run with no budget at all is not the low-cost run the label promised.
+ *
+ * Anything unrecognised falls back to the ceiling, which is what every run did
+ * before budgets existed. Failing open here is right: the effort is a
+ * preference, and the boundary that actually matters is the scope.
+ */
+export function iterationLimitFor(effort: unknown): number {
+  return isReasoningEffort(effort) ? ITERATION_BUDGET[effort] : ITERATION_BUDGET.high;
 }

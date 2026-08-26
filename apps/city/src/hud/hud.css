@@ -2388,10 +2388,34 @@ canvas.world:active {
   color: #cbd5e1;
 }
 
+/*
+ * Three across when there is room for three, one down when there is not.
+ *
+ * Each card reserves a 100px image column beside its text, so three fixed
+ * fractions on a narrow viewport squeezed the text to a few characters a line.
+ * `auto-fit` with a floor lets the row break instead of crushing its contents.
+ */
 .crew-modal-v2__thinking-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
   gap: 5px;
+}
+
+/*
+ * Not selectable once the mission is running.
+ *
+ * The effort was sent with the dispatch, so changing it afterwards would leave
+ * the panel reporting a setting the run in flight was not given -- the same gap
+ * between stated and actual that removing the model picker was about. It is
+ * disabled rather than hidden so the operator can still see what was used.
+ */
+.crew-card--locked {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.crew-card--locked .crew-card__edit-btn {
+  visibility: hidden;
 }
 
 .crew-modal-v2__footer {

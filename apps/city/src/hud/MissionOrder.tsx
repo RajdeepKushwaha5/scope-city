@@ -62,14 +62,25 @@ export function MissionOrder(props: {
           {/* A real button rather than a div wearing role="button". The
               synthetic version had to reimplement Enter and Space by hand and
               still missed the parts a button gets for free. */}
+          {/* Locked once the mission is running.
+              The effort travelled with the dispatch, so letting it change
+              afterwards would leave this panel reporting a setting the run in
+              flight was never given -- the same gap between stated and actual
+              that removing the model picker was about. Disabled rather than
+              hidden, so the operator can still read what was used. */}
           <button
             type="button"
-            className="crew-card crew-card--clickable"
+            className={`crew-card${props.active ? " crew-card--locked" : " crew-card--clickable"}`}
+            disabled={props.active}
             onClick={() => {
               soundEngine.playClick();
               setCrewOpen(true);
             }}
-            title="Choose how hard the model thinks on this mission"
+            title={
+              props.active
+                ? "Set when this mission was dispatched"
+                : "Choose how hard the model thinks on this mission"
+            }
           >
             <div className="crew-card__avatar-box">
               <img
@@ -79,7 +90,9 @@ export function MissionOrder(props: {
               />
             </div>
             <div className="crew-card__detail">
-              <strong>{effortLabel(thinkingEffort)} effort</strong>
+              <strong>
+                {effortLabel(thinkingEffort)} effort{props.active ? " · in use" : ""}
+              </strong>
               {/* The model is stated because it is fixed, and saying so is the
                   honest version of the picker this replaced. */}
               <small>gemini-2.5-flash &bull; 4 rotating keys</small>

@@ -22,7 +22,11 @@ export type LiveMissionStatus =
 export interface ManagedLiveMission {
   readonly id: string;
   readonly feed: { append: (event: CityFeedEvent) => unknown };
-  readonly gates: { cancelAll: (reason?: string) => void };
+  readonly gates: {
+    cancelAll: (
+      reason?: string,
+    ) => readonly { toolCallId: string; office: string | null; waitedMs: number }[] | void;
+  };
   status: LiveMissionStatus;
   expiryTimer?: NodeJS.Timeout;
 }
@@ -58,7 +62,43 @@ export function retireMission(
     clearTimeout(mission.expiryTimer);
     mission.expiryTimer = undefined;
   }
-  mission.gates.cancelAll(detail ?? `mission ${status}`);
+  const reason = detail ?? `mission ${status}`;
+  // `Array.isArray` rather than `?? []`: this reads through an interface other
+  // code implements, and a queue that returns something other than a list
+  // should leave the record short an event rather than crash the retirement
+  // path -- which is the one path that has to run when things are already
+  // going wrong.
+  const reported = mission.gates.cancelAll(reason);
+  const abandoned = Array.isArray(reported) ? reported : [];
+
+  /*
+   * A question nobody answered is its own fact.
+   *
+   * These calls are refused, exactly as a human refusal refuses them, and the
+   * record used to show only that: a `gate.raised` and then a cancelled
+   * mission, with the reader left to notice a missing `gate.cleared` and infer
+   * what it meant. Absence is a poor way to carry a fact that matters this
+   * much -- `gate.cleared { approved: false }` is a control that fired, and
+   * this is a control that was never exercised. They end the same way and mean
+   * opposite things.
+   *
+   * Written before the terminal status, so the record reads in the order the
+   * events happened: the gates fell, then the mission ended.
+   */
+  for (const gate of abandoned) {
+    mission.feed.append({
+      type: "world",
+      event: {
+        type: "gate.abandoned",
+        toolCallId: gate.toolCallId,
+        office: gate.office,
+        waitedMs: gate.waitedMs,
+        reason,
+        at: Date.now(),
+      },
+    });
+  }
+
   registry.forget(mission.id);
   mission.status = status;
   mission.feed.append({ type: "mission.status", status, ...(detail ? { detail } : {}) });

@@ -4,6 +4,11 @@ import {
   type OfficeHandler,
   type SystemDefinition,
 } from "./types.js";
+import {
+  githubIssueNumber,
+  resolveGitHubTicketMetadata,
+  validateGitHubIssueBoundary,
+} from "@scope-city/scope";
 
 export interface GitHubRecordsOptions {
   readonly token: string;
@@ -17,7 +22,7 @@ export class GitHubRecordsError extends Error {
     readonly status: number,
     message: string,
   ) {
-    super(`GitHub ${status}: ${message}`);
+    super(message);
     this.name = "GitHubRecordsError";
   }
 }
@@ -42,15 +47,9 @@ interface GitHubComment {
 }
 
 const API_VERSION = "2022-11-28";
-const ORDER_LABEL = "scope-city:order:";
-const EMAIL_LABEL = "scope-city:email:";
-
-/** `tkt_17` is GitHub issue #17. Nothing else is silently coerced. */
 function issueNumber(ticketId: string): number {
-  const match = /^tkt_([1-9][0-9]*)$/.exec(ticketId);
-  if (!match) throw new TypeError("ticket_id must look like tkt_<github issue number>");
-  const value = Number(match[1]);
-  if (!Number.isSafeInteger(value)) throw new TypeError("ticket_id is outside the safe integer range");
+  const value = githubIssueNumber(ticketId);
+  if (value === null) throw new TypeError("The requested ticket operation could not be completed");
   return value;
 }
 
@@ -65,25 +64,14 @@ function labelsOf(issue: GitHubIssue): string[] {
 }
 
 function metadata(labels: readonly string[]): { orderId: string; customerEmail: string } {
-  const orderId = labels.find((label) => label.startsWith(ORDER_LABEL))?.slice(ORDER_LABEL.length);
-  const customerEmail = labels.find((label) => label.startsWith(EMAIL_LABEL))?.slice(EMAIL_LABEL.length);
-
   // These labels are repository-maintainer metadata. They deliberately live
   // outside the customer-controlled issue body, because the pre-grant resolver
   // may read structured identifiers and must never read the poisoned prose.
-  if (!orderId || !customerEmail) {
-    throw new GitHubRecordsError(
-      422,
-      `issue is missing ${ORDER_LABEL}<id> or ${EMAIL_LABEL}<address> metadata`,
-    );
+  const result = resolveGitHubTicketMetadata(labels);
+  if (!result.ok) {
+    throw new GitHubRecordsError(422, "The requested ticket operation could not be completed");
   }
-  return { orderId, customerEmail };
-}
-
-function messageFrom(body: unknown): string {
-  if (typeof body !== "object" || body === null) return "request failed";
-  const message = (body as { message?: unknown }).message;
-  return typeof message === "string" ? message : "request failed";
+  return result;
 }
 
 function retryMarker(idempotencyKey: string): string {
@@ -115,18 +103,25 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
     });
 
     const body = await response.json().catch(() => null);
-    if (response.status === 404) throw new NotFoundError(`GitHub ${path}`);
-    if (!response.ok) throw new GitHubRecordsError(response.status, messageFrom(body));
+    if (response.status === 404) throw new NotFoundError("ticket");
+    if (!response.ok) {
+      throw new GitHubRecordsError(response.status, "The requested ticket operation could not be completed");
+    }
     return body;
   }
 
   async function read(ticketId: string): Promise<GitHubIssue> {
     const issue = (await request(`issues/${issueNumber(ticketId)}`)) as GitHubIssue;
-    if (issue.pull_request !== undefined) {
-      throw new GitHubRecordsError(422, "ticket points at a pull request, not an issue");
-    }
-    if (typeof issue.number !== "number" || typeof issue.title !== "string") {
-      throw new GitHubRecordsError(502, "issue response is malformed");
+    const boundary = validateGitHubIssueBoundary({
+      number: issue.number,
+      title: issue.title,
+      pullRequest: issue.pull_request,
+    });
+    if (!boundary.ok) {
+      throw new GitHubRecordsError(
+        boundary.reason === "pull_request" ? 422 : 502,
+        "The requested ticket operation could not be completed",
+      );
     }
     return issue;
   }
@@ -172,13 +167,19 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
 
       const marker = context?.idempotencyKey ? retryMarker(context.idempotencyKey) : null;
       if (marker) {
-        const comments = await request(`issues/${issueNumber(ticketId)}/comments?per_page=100`);
-        if (!Array.isArray(comments)) {
-          throw new GitHubRecordsError(502, "comments response is malformed");
+        let prior: GitHubComment | undefined;
+        for (let page = 1; !prior; page += 1) {
+          const comments = await request(
+            `issues/${issueNumber(ticketId)}/comments?per_page=100&page=${page}`,
+          );
+          if (!Array.isArray(comments)) {
+            throw new GitHubRecordsError(502, "The requested ticket operation could not be completed");
+          }
+          prior = (comments as GitHubComment[]).find(
+            (comment) => typeof comment.body === "string" && comment.body.includes(marker),
+          );
+          if (comments.length < 100) break;
         }
-        const prior = (comments as GitHubComment[]).find(
-          (comment) => typeof comment.body === "string" && comment.body.includes(marker),
-        );
         if (prior && typeof prior.id === "number") {
           return { id: ticketId, replies: 1, comment_id: prior.id, replayed: true };
         }
@@ -189,7 +190,9 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ body: marker ? `${body}\n\n${marker}` : body }),
       })) as { id?: unknown };
-      if (typeof comment.id !== "number") throw new GitHubRecordsError(502, "comment response is malformed");
+      if (typeof comment.id !== "number") {
+        throw new GitHubRecordsError(502, "The requested ticket operation could not be completed");
+      }
       return { id: ticketId, replies: 1, comment_id: comment.id };
     },
   };
@@ -210,7 +213,9 @@ export function githubRecordsSystem(options: GitHubRecordsOptions): SystemDefini
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ state: "closed" }),
       })) as GitHubIssue;
-      if (issue.state !== "closed") throw new GitHubRecordsError(502, "close response is malformed");
+      if (issue.state !== "closed") {
+        throw new GitHubRecordsError(502, "The requested ticket operation could not be completed");
+      }
       return { id: ticketId, status: "closed" };
     },
   };

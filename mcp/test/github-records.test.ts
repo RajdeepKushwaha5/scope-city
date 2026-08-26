@@ -35,7 +35,7 @@ describe("GitHub Records", () => {
     const system = githubRecordsSystem({ token: "github_pat_test", repository: "acme/support", fetchImpl });
 
     await expect(office(system, "ticket.get").call({ ticket_id: "issue-seven" })).rejects.toThrow(
-      /tkt_<github issue number>/,
+      /requested ticket operation could not be completed/i,
     );
     expect(fetchImpl).not.toHaveBeenCalled();
   });
@@ -49,6 +49,21 @@ describe("GitHub Records", () => {
     );
   });
 
+  it("fails closed when authority-bearing labels are duplicated or conflict", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json(200, issue({
+      labels: [
+        { name: "scope-city:order:ord_184" },
+        { name: "scope-city:order:ord_999" },
+        { name: "scope-city:email:customer@example.test" },
+      ],
+    })));
+    const system = githubRecordsSystem({ token: "github_pat_test", repository: "acme/support", fetchImpl });
+
+    await expect(office(system, "ticket.get").call({ ticket_id: "tkt_7" })).rejects.toThrow(
+      /requested ticket operation could not be completed/i,
+    );
+  });
+
   it("refuses a pull request even though GitHub serves it from the issues API", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -56,7 +71,7 @@ describe("GitHub Records", () => {
     const system = githubRecordsSystem({ token: "github_pat_test", repository: "acme/support", fetchImpl });
 
     await expect(office(system, "ticket.get").call({ ticket_id: "tkt_7" })).rejects.toThrow(
-      /not an issue/,
+      /requested ticket operation could not be completed/i,
     );
   });
 
@@ -115,6 +130,25 @@ describe("GitHub Records", () => {
     expect(fetchImpl).toHaveBeenCalledTimes(2);
   });
 
+  it("finds an idempotency marker beyond the first GitHub comments page", async () => {
+    const marker = "<!-- scope-city-operation:operation-7 -->";
+    const firstPage = Array.from({ length: 100 }, (_, id) => ({ id, body: "older comment" }));
+    const fetchImpl = vi
+      .fn<typeof fetch>()
+      .mockResolvedValueOnce(json(200, issue()))
+      .mockResolvedValueOnce(json(200, firstPage))
+      .mockResolvedValueOnce(json(200, [{ id: 4321, body: `Refund completed.\n\n${marker}` }]));
+    const system = githubRecordsSystem({ token: "github_pat_test", repository: "acme/support", fetchImpl });
+
+    await expect(office(system, "ticket.reply").call(
+      { ticket_id: "tkt_7", body: "Refund completed." },
+      { idempotencyKey: "operation-7" },
+    )).resolves.toEqual({ id: "tkt_7", replies: 1, comment_id: 4321, replayed: true });
+    expect(fetchImpl.mock.calls[1]?.[0]).toContain("per_page=100&page=1");
+    expect(fetchImpl.mock.calls[2]?.[0]).toContain("per_page=100&page=2");
+    expect(fetchImpl).toHaveBeenCalledTimes(3);
+  });
+
   it("embeds an invisible operation marker when posting an idempotent reply", async () => {
     const fetchImpl = vi
       .fn<typeof fetch>()
@@ -159,5 +193,16 @@ describe("GitHub Records", () => {
     await expect(office(system, "ticket.get").call({ ticket_id: "tkt_404" })).rejects.toThrow(
       /not found/,
     );
+  });
+
+  it("does not expose upstream API details in caller-visible errors", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(json(403, {
+      message: "Resource not accessible by integration at repos/acme/support/issues/7",
+    }));
+    const system = githubRecordsSystem({ token: "github_pat_test", repository: "acme/support", fetchImpl });
+
+    const failure = office(system, "ticket.get").call({ ticket_id: "tkt_7" });
+    await expect(failure).rejects.toThrow("The requested ticket operation could not be completed");
+    await expect(failure).rejects.not.toThrow(/GitHub|repos\/acme|403/);
   });
 });

@@ -46,15 +46,75 @@ describe("proofAuthorises", () => {
     if (!verdict.ok) expect(verdict.reason).toContain("no sandbox verification");
   });
 
-  it("refuses a check that failed, and says what it said", () => {
+  it("refuses a check that failed without echoing the sandbox output", () => {
+    // The output is the sandbox's, and it has read whatever the scope allowed.
+    // Returning it from an endpoint returns it to whoever can reach that
+    // endpoint, which on a control plane with no auth of its own is wider than
+    // the operator. The working is already on the feed, beside the gate.
     const failed: SandboxProof = {
       script: "python3 -c 'assert 4900 == 39900'",
-      output: '{"response":{"exitCode":1,"result":"AssertionError"}}',
+      output: '{"response":{"exitCode":1,"result":"AssertionError: customer@example.test"}}',
       passed: false,
     };
     const verdict = proofAuthorises(failed, refundCall);
     expect(verdict.ok).toBe(false);
-    if (!verdict.ok) expect(verdict.detail).toContain("AssertionError");
+    if (!verdict.ok) {
+      expect(verdict.detail).not.toContain("customer@example.test");
+      expect(verdict.detail).toContain("beside the gate");
+    }
+  });
+
+  it("refuses a longer number that merely contains the amount", () => {
+    // `14900` contains `4900`, so substring matching let a proof for a
+    // fourteen-thousand-nine-hundred refund satisfy a pending forty-nine-pound
+    // one. An amount has to appear as its own token.
+    const bigger: SandboxProof = {
+      script: "check",
+      output: '{"response":{"exitCode":0,"result":"ch_3U8THZ verified for 14900"}}',
+      passed: true,
+    };
+    expect(proofAuthorises(bigger, refundCall).ok).toBe(false);
+  });
+
+  it("accepts an amount that ends a sentence", () => {
+    // Prose ends with a full stop, and "ready to refund 4900." is a perfectly
+    // good mention. Excluding it made the check reject its own real output.
+    const prose: SandboxProof = {
+      script: "check",
+      output: '{"response":{"exitCode":0,"result":"ch_3U8THZ ready to refund 4900."}}',
+      passed: true,
+    };
+    expect(proofAuthorises(prose, refundCall).ok).toBe(true);
+  });
+
+  it("refuses a decimal that starts with the amount", () => {
+    // `4900.50` is a different amount, however much it looks like this one.
+    const decimal: SandboxProof = {
+      script: "check",
+      output: '{"response":{"exitCode":0,"result":"ch_3U8THZ verified 4900.50"}}',
+      passed: true,
+    };
+    expect(proofAuthorises(decimal, refundCall).ok).toBe(false);
+  });
+
+  it("refuses an id that is only a prefix of the one in the working", () => {
+    const other: SandboxProof = {
+      script: "check",
+      output: '{"response":{"exitCode":0,"result":"ch_3U8THZQQ ready for 4900"}}',
+      passed: true,
+    };
+    expect(proofAuthorises(other, refundCall).ok).toBe(false);
+  });
+
+  it("matches against the output rather than the script the agent wrote", () => {
+    // Both are agent-influenced, but the output is at least produced by running
+    // something, so a script that never executed cannot supply it.
+    const scriptOnly: SandboxProof = {
+      script: "print('ch_3U8THZ 4900')",
+      output: '{"response":{"exitCode":0,"result":"done"}}',
+      passed: true,
+    };
+    expect(proofAuthorises(scriptOnly, refundCall).ok).toBe(false);
   });
 
   it("accepts a call with nothing identifying to match", () => {

@@ -410,7 +410,7 @@ async function main(): Promise<void> {
       // check, so demanding evidence of one would refuse every approval on a
       // build that is running exactly as configured.
       if (approved && SANDBOX_AVAILABLE.value) {
-        // Bound to *this* call, and spent once used.
+        // Bound to *this* call, and spent only once the approval lands.
         //
         // Keeping only the most recent verification meant any passing check
         // authorised any pending gate: the shipped recording shows a refund
@@ -418,7 +418,18 @@ async function main(): Promise<void> {
         // with nothing ever checked about the mail. That is the same drift the
         // countersign fingerprint exists to catch, one layer up.
         const pending = mission.gates.pending(toolCallId);
-        const verdict = proofAuthorises(mission.verification, pending?.args ?? {});
+
+        // Checked before the proof, because a missing gate supplies no
+        // arguments and a proof with nothing to match against passes trivially
+        // -- so a stale or mistyped id would destroy a valid proof and then
+        // return 409, leaving the real pending gate unapprovable and the agent
+        // paused on a decision that can no longer be made.
+        if (!pending) {
+          json(res, 409, { error: "that gate is not waiting" });
+          return;
+        }
+
+        const verdict = proofAuthorises(mission.verification, pending.args);
         if (!verdict.ok) {
           json(res, 428, {
             error: verdict.reason,
@@ -426,15 +437,17 @@ async function main(): Promise<void> {
           });
           return;
         }
-        // Consumed, so a second irreversible call needs its own working rather
-        // than riding on the first one's.
-        mission.verification = undefined;
       }
 
       if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {
         json(res, 409, { error: "that gate is not waiting" });
         return;
       }
+
+      // Spent here, after the decision has actually landed. A second
+      // irreversible call needs its own working rather than riding on the
+      // first one's, and a decision that never landed must not cost a proof.
+      if (approved) mission.verification = undefined;
       mission.feed.append({
         type: "world",
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },

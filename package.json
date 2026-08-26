@@ -13,7 +13,8 @@
     "typecheck": "pnpm -r --if-present typecheck",
     "demo:headless": "pnpm --filter @scope-city/demo headless",
     "city": "pnpm --filter @scope-city/city dev",
-    "demo:models": "pnpm --filter @scope-city/demo models"
+    "demo:models": "pnpm --filter @scope-city/demo models",
+    "seed:github": "node scripts/seed-github.mjs"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

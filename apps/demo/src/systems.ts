@@ -1,5 +1,6 @@
 import {
   exchequerSystem,
+  githubRecordsSystem,
   postHouseSystem,
   recordsSystem,
   stripeSystem,
@@ -24,6 +25,8 @@ import {
  */
 
 const STRIPE_API_KEY = process.env.STRIPE_API_KEY ?? "";
+const GITHUB_TOKEN = process.env.GITHUB_TOKEN ?? "";
+const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY ?? "";
 
 /**
  * Forces every district to its fixture, whatever else is configured.
@@ -46,9 +49,20 @@ export function exchequerIsLive(): boolean {
   return STRIPE_API_KEY.includes("_test_");
 }
 
+/** True when Records is backed by a real GitHub Issues repository. */
+export function recordsIsLive(): boolean {
+  if (FIXTURES_ONLY) return false;
+  if ((GITHUB_TOKEN === "") !== (GITHUB_REPOSITORY === "")) {
+    throw new Error("GitHub Records needs both GITHUB_TOKEN and GITHUB_REPOSITORY");
+  }
+  return GITHUB_TOKEN !== "";
+}
+
 export function missionSystems(): readonly SystemDefinition[] {
   return [
-    recordsSystem(),
+    recordsIsLive()
+      ? githubRecordsSystem({ token: GITHUB_TOKEN, repository: GITHUB_REPOSITORY })
+      : recordsSystem(),
     exchequerIsLive() ? stripeSystem({ apiKey: STRIPE_API_KEY }) : exchequerSystem(),
     postHouseSystem(),
   ];
@@ -56,11 +70,10 @@ export function missionSystems(): readonly SystemDefinition[] {
 
 /** One line for the startup log, so which world this is running against is never a guess. */
 export function systemsSummary(): string {
-  if (exchequerIsLive()) {
-    return "Systems: Records (fixture) · Exchequer (Stripe test mode) · Post House (fixture)";
+  const records = recordsIsLive() ? `GitHub ${GITHUB_REPOSITORY}` : "fixture";
+  const exchequer = exchequerIsLive() ? "Stripe test mode" : "fixture";
+  if (FIXTURES_ONLY && (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")) {
+    return "Systems: all fixtures — SCOPE_FIXTURES is set, so external credentials are ignored";
   }
-  if (FIXTURES_ONLY && STRIPE_API_KEY !== "") {
-    return "Systems: all fixtures — SCOPE_FIXTURES is set, so the Stripe key is ignored";
-  }
-  return "Systems: all fixtures — set STRIPE_API_KEY to make the Exchequer real";
+  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (fixture)`;
 }

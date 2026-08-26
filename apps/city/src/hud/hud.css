@@ -96,24 +96,22 @@ body {
 }
 
 /*
- * The panels are clickable. The containers holding them are not.
+ * The panels are clickable, and so is the stack holding them -- deliberately.
  *
- * Restoring `pointer-events: auto` on `.hud__main`'s children handed it back to
- * `.hud__scan-stack`, which is a grid with 10px gaps and a fixed 430px width.
- * The panels are its children, so the gap pixels and the empty column below the
- * last panel belonged to the container -- a smaller lid than the one this
- * replaced, in exactly the place an operator drags to pan the city.
+ * `.hud__main` is the lid worth removing: it spans the whole map and holds
+ * nothing across its middle. `.hud__scan-stack` is a different case. It is a
+ * flex item sized to its content, so it is only ever as tall as the panels
+ * inside it, and the area it captures beyond them is the 10px gaps between
+ * panels -- about forty pixels of strip at panel width.
  *
- * So the rule is pushed down one more level: the stack stays transparent to the
- * pointer and the Windows inside it take the clicks. `.hud__order` and
- * `.hud__console` are real panels rather than containers, so they keep it
- * directly.
+ * Making it transparent too was tried and reverted. The stack is the scroll
+ * container on a short screen, and `pointer-events: none` on a scroll container
+ * makes its own scrollbar unclickable in Firefox and kills hover-triggered
+ * overlay scrollbars. A user could wheel over a panel but could not drag the
+ * bar to reach panels below the fold. Trading a working scrollbar for forty
+ * pixels of strip between panels is a bad trade, so the strips stay.
  */
 .hud__main > * {
-  pointer-events: auto;
-}
-
-.hud__scan-stack > * {
   pointer-events: auto;
 }
 
@@ -133,9 +131,6 @@ body {
   gap: 10px;
   width: min(430px, 100%);
   align-content: start;
-  /* Transparent to the pointer; its Windows take the clicks. See the note
-     above `.hud__main > *`. */
-  pointer-events: none;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;

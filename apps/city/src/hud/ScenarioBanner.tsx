@@ -21,23 +21,45 @@ interface Billing {
   readonly watchFor: string;
 }
 
+/*
+ * Every claim below was checked against the script that actually runs.
+ *
+ * The first version of this table said the clean job "finishes inside its
+ * scope". It does not: `CLEAN_JOB` ends by raising a gate and waiting for a
+ * countersign. The banner was therefore promising an ending the run never
+ * reaches -- which is precisely the failure this component exists to make
+ * visible, committed in the component itself.
+ *
+ * The recorded run is the exception, and getting it wrong the same way twice is
+ * instructive. It does hold at the Gate -- but the record contains the approval
+ * that was actually given, so playback carries straight through it to a
+ * completed mission. Billing it as "stops at the Gate" would have left a viewer
+ * waiting to countersign something that never asks them.
+ *
+ * The two scripted runs do end held, because an irreversible call is the point
+ * of the demo. Saying so is not a hedge; a viewer who expects completion reads
+ * a held gate as the demo hanging.
+ */
 const BILLING: Record<Scenario, Billing> = {
   recorded: {
     name: "Recorded run",
-    watchFor: "A real mission, replayed from a hash-chained record. The Gate holds before the refund.",
+    watchFor:
+      "A real mission, replayed from a hash-chained record. It holds at the Gate, takes the countersign that was actually given, and completes.",
   },
   clean: {
     name: "Clean job",
-    watchFor: "The job finishes inside its scope. Nothing is refused, because nothing overreaches.",
+    watchFor:
+      "Nothing is refused, because nothing overreaches. The run still stops at the Gate, because the refund is irreversible.",
   },
   poisoned: {
     name: "Poisoned ticket",
     watchFor:
-      "The ticket text tells the agent to do something else. Watch it get refused at the boundary, not talked out of it.",
+      "The ticket text tells the agent to do something else. Two calls are refused at the boundary, then the legitimate refund stops at the Gate.",
   },
   noscope: {
     name: "No scope",
-    watchFor: "The same job with the authority an ordinary integration hands over. Watch how far it reaches.",
+    watchFor:
+      "The same job with the authority an ordinary integration hands over. Nothing refuses anything, and the run ends failed.",
   },
 };
 

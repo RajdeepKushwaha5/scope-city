@@ -2228,7 +2228,12 @@ canvas.world:active {
   top: 62px;
   left: 50%;
   transform: translateX(-50%);
-  z-index: 21;
+  /* Below the HUD, not above it.
+     At 21 this sat over the panels, so on a narrow viewport the billing
+     covered the scan stack and the console -- the controls a viewer needs in
+     order to do anything about what the billing just told them. Prose loses to
+     controls. */
+  z-index: 19;
   max-width: min(760px, calc(100vw - 32px));
   display: flex;
   align-items: baseline;
@@ -2273,12 +2278,14 @@ canvas.world:active {
 }
 
 /* Stacking under the nav on a narrow screen, where 760px of prose across the
-   top would cover the city outright. */
+   top would cover the city outright. Stacking makes it taller, which is why it
+   also has to sit behind the panels rather than over them. */
 @media (max-width: 700px) {
   .scenario-banner {
     flex-direction: column;
     align-items: flex-start;
     gap: 3px;
+    max-width: calc(100vw - 88px);
   }
 
   .scenario-banner__dismiss {

@@ -95,7 +95,25 @@ body {
   pointer-events: none;
 }
 
+/*
+ * The panels are clickable. The containers holding them are not.
+ *
+ * Restoring `pointer-events: auto` on `.hud__main`'s children handed it back to
+ * `.hud__scan-stack`, which is a grid with 10px gaps and a fixed 430px width.
+ * The panels are its children, so the gap pixels and the empty column below the
+ * last panel belonged to the container -- a smaller lid than the one this
+ * replaced, in exactly the place an operator drags to pan the city.
+ *
+ * So the rule is pushed down one more level: the stack stays transparent to the
+ * pointer and the Windows inside it take the clicks. `.hud__order` and
+ * `.hud__console` are real panels rather than containers, so they keep it
+ * directly.
+ */
 .hud__main > * {
+  pointer-events: auto;
+}
+
+.hud__scan-stack > * {
   pointer-events: auto;
 }
 
@@ -115,6 +133,9 @@ body {
   gap: 10px;
   width: min(430px, 100%);
   align-content: start;
+  /* Transparent to the pointer; its Windows take the clicks. See the note
+     above `.hud__main > *`. */
+  pointer-events: none;
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;

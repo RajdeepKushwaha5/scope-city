@@ -16,6 +16,7 @@
 
 import { readFileSync } from "node:fs";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
+import { REASONING_EFFORTS } from "@scope-city/harness";
 
 /**
  * The upstream Gemini model every slot points at.
@@ -133,6 +134,15 @@ async function main(): Promise<void> {
             properties: {
               contextLength: slot.contextLength,
               maxOutputTokens: 8192,
+              // Declared, or the effort is refused rather than ignored.
+              //
+              // TrueForge validates `model.params.reasoningEffort` against what
+              // the registered model says it supports, and a model that
+              // declares nothing rejects every effort with a 422 reading
+              // "does not support configurable reasoning effort". Registering
+              // the levels is what makes the operator's choice reach the
+              // provider instead of being an unused control.
+              reasoningEfforts: REASONING_EFFORTS,
             },
           },
         ],

@@ -580,9 +580,9 @@ export function App(): React.JSX.Element {
                  not one of the scripted scenarios, so it clears the billing
                  rather than inheriting it -- a banner promising a refusal over
                  a real run is worse than no banner. */
-              onLaunch={async (order: string) => {
+              onLaunch={async (order, effort) => {
                 setActiveScenario(null);
-                await live.launch(order);
+                await live.launch(order, effort);
               }}
               onStop={live.leave}
               onPoisonedReplay={() => runScenario("poisoned")}

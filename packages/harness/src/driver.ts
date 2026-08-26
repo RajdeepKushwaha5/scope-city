@@ -259,6 +259,16 @@ export function missionAgentSpec(params: {
   instructions: string;
   gatedTools: readonly string[];
   sandbox: boolean;
+  /**
+   * How hard the model should think, when the operator has said.
+   *
+   * Passed through to the provider rather than interpreted here. TrueForge
+   * validates it against what the registered model declares it supports and
+   * refuses the session with a 422 otherwise, which is why this is a real
+   * control rather than a label: an effort the model cannot honour never
+   * silently becomes an effort it ignores.
+   */
+  reasoningEffort?: string;
 }): AgentSpec {
   // Every key here is camelCase, and that is not a style choice.
   //
@@ -269,7 +279,14 @@ export function missionAgentSpec(params: {
   // perfectly healthy session with no tools at all, and nothing anywhere says
   // why. Do not "fix" these to match the OpenAPI document.
   return {
-    model: { name: params.model },
+    model: {
+      name: params.model,
+      // Omitted entirely when unset. An empty `params` object is accepted and
+      // means something different from "no preference" to some providers.
+      ...(params.reasoningEffort
+        ? { params: { reasoningEffort: params.reasoningEffort } }
+        : {}),
+    },
     instructions: params.instructions,
     mcpServers: [
       {

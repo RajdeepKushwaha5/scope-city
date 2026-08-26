@@ -78,7 +78,7 @@ export function useLiveMission() {
     [closeSource],
   );
 
-  const launch = useCallback(async (order: string) => {
+  const launch = useCallback(async (order: string, effort?: string) => {
     const launchVersion = launchGuardRef.current.begin();
     closeSource();
     setActive(true);
@@ -92,7 +92,9 @@ export function useLiveMission() {
       const response = await fetch("/api/missions", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ order }),
+        // Omitted when the operator expressed no preference, so the server
+        // sees "no effort" rather than the empty string.
+        body: JSON.stringify(effort ? { order, effort } : { order }),
       });
       const body = (await response.json()) as LaunchResponse & { error?: string; detail?: string };
       if (!launchGuardRef.current.isCurrent(launchVersion)) {

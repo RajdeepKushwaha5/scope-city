@@ -243,10 +243,85 @@ The tests that matter most:
 - `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
 - `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
 - `packages/proxy` — the poisoned ticket refused end to end, and the countersign
-  that is void because it belongs to a different call
+## Qodo Code Review Evidence
+
+Every change reaches `main` through a pull request that Qodo reviews first. Nothing
+below is a summary written after the fact: each finding is quoted from the review
+thread on the linked PR, and each fix is in the PR that answers it.
+
+### The banner that lied about its own run
+
+**Finding** ([#27](https://github.com/RajdeepKushwaha5/scope-city/pull/27)) — *"Clean
+run never finishes."* The scenario banner promised *"the job finishes inside its
+scope"*, but `CLEAN_JOB` ends by raising a gate and waiting for a countersign.
+
+This one is worth reading the thread for. The banner exists to state what a run will
+show **before** it shows it, so that a run doing something else is visibly a failed
+run. Qodo caught that component making exactly the error it was built to expose.
+
+**Fix** ([#30](https://github.com/RajdeepKushwaha5/scope-city/pull/30)) — every claim
+rewritten from the script that actually runs, and a regression test that reads the
+endings out of `useMission.ts` rather than asserting them from memory. Qodo then found
+the correction was *also* wrong for the recorded run (it holds at the gate, then plays
+through the approval the record already contains) and that the new test could pass
+vacuously. Both fixed in the same PR.
+
+### Evidence the code could no longer produce
+
+**Finding** ([#24](https://github.com/RajdeepKushwaha5/scope-city/pull/24)) —
+*"Recovery stops before lease."* `save-recording.mjs` waited 15 minutes against a lease
+of up to 30, so it could abandon a mission that was still legally running and then
+refuse to save it for not having completed.
+
+**Fix** ([#32](https://github.com/RajdeepKushwaha5/scope-city/pull/32)) — the bound now
+comes from the mission's own granted scope instead of a constant. Qodo's follow-up
+noted the first scope in a record is the *proposed* one and grant recomputes the
+expiry; the scan now looks for `scope.granted` specifically.
+
+### A selector that changed nothing
+
+**Finding** ([#35](https://github.com/RajdeepKushwaha5/scope-city/pull/35)) — *"Crew
+choice never dispatches."* A model picker set React state and rendered a portrait, and
+`onLaunch(order.trim())` carried neither the choice nor the effort.
+
+For this project that is more than a dead control: a UI stating a capability the system
+does not have is the gap between stated and actual authority that the rest of Scope
+City argues against.
+
+**Fix** — the fictional model identities are gone. What remains is real and verified
+end to end: the effort is declared on each slot in `setup-models.ts`, travels through
+`POST /api/missions` into `model.params.reasoningEffort`, and TrueForge refuses an
+unsupported value rather than ignoring it.
+
+```
+effort=high    -> 201 {"model":{"params":{"reasoning_effort":"high"}}}
+effort=max     -> 422 Reasoning effort "max" is not supported by model "gemini-a/flash-a"
+effort=banana  -> 422 Reasoning effort "banana" is not supported by model "gemini-a/flash-a"
+```
+
+### Findings dismissed, and why
+
+Not every finding was taken. On [#33](https://github.com/RajdeepKushwaha5/scope-city/pull/33)
+Qodo reported that the panel stack's grid gaps still capture pointer events, and
+separately that setting `pointer-events: none` on that stack breaks its own scrollbar in
+Firefox. Those are the same line pulling opposite ways. The stack is sized to its
+content, so what it captures is roughly forty pixels of strip *between* panels, while
+the scrollbar is how a short screen reaches panels below the fold. The trade was
+declined, with the reasoning recorded in the stylesheet and in the
+[review thread](https://github.com/RajdeepKushwaha5/scope-city/pull/33), and a test pins
+the revert.
+
+### The record
+
+Every merged pull request carries a Qodo review -- 32 of 32 at the time of writing.
+Follow-up reviews were requested with
+`/agentic_review` after each round of fixes. The full history, including the findings
+that were rejected and the ones that turned out to be stale, is public in the
+[pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr).
 
 ## Licence
 
 MIT — see [LICENSE](LICENSE).
 
 Asset and font licences are recorded in [ATTRIBUTION.md](ATTRIBUTION.md).
+

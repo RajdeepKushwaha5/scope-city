@@ -493,7 +493,6 @@ body {
   font-size: 13px;
 }
 
-.crew-card__sprite,
 .console__portrait {
   position: relative;
   display: block;
@@ -522,6 +521,26 @@ body {
   bottom: 3px;
   background: #3d7890;
   box-shadow: inset -4px 0 0 #295369;
+}
+
+/*
+ * The text beside the effort sprite.
+ *
+ * Deliberately not `.crew-card__body`, which looks like it should be the card's
+ * body and is in fact a 14x15px absolutely-positioned fragment of the pixel-art
+ * sprite. Reusing it laid the label on top of the avatar.
+ */
+.crew-card__detail {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  flex: 1;
+  min-width: 0;
+  text-align: left;
+}
+
+.crew-card__detail small {
+  color: var(--ink-dim);
 }
 
 .permission-choice { display: flex; gap: 7px; }
@@ -1358,7 +1377,7 @@ canvas.world:active {
   border: 1px solid var(--hud-rule);
 }
 
-.crew-card__sprite, .console__portrait {
+.console__portrait {
   width: 24px;
   height: 24px;
   display: flex;
@@ -2084,78 +2103,6 @@ canvas.world:active {
   width: 90vw;
 }
 
-.crew-modal__header {
-  display: flex;
-  justify-content: space-between;
-  align-items: flex-start;
-  margin-bottom: 12px;
-}
-
-.crew-modal__list {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  margin-bottom: 16px;
-}
-
-.crew-modal__item {
-  display: flex;
-  align-items: flex-start;
-  gap: 12px;
-  padding: 10px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hud-rule);
-  border-radius: 4px;
-  cursor: pointer;
-  transition: all 0.15s ease;
-}
-
-.crew-modal__item:hover {
-  background: rgba(255, 255, 255, 0.06);
-  border-color: var(--hud-dim);
-}
-
-.crew-modal__item--selected {
-  background: rgba(255, 194, 71, 0.08);
-  border-color: #ffc247;
-  box-shadow: 0 0 12px rgba(255, 194, 71, 0.15);
-}
-
-.crew-modal__details {
-  flex: 1;
-}
-
-.crew-modal__top-line {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  margin-bottom: 2px;
-}
-
-.crew-modal__role {
-  font-size: 9px;
-  color: var(--hud-dim);
-  display: block;
-  margin-bottom: 4px;
-}
-
-.crew-modal__desc {
-  margin: 0;
-  font-size: 10px;
-  line-height: 1.4;
-  color: var(--hud-text);
-}
-
-.crew-modal__check {
-  color: #ffc247;
-  font-weight: 700;
-  font-size: 14px;
-}
-
-.crew-modal__thinking {
-  margin-top: 12px;
-}
-
 /* ---- THE GATE BEACON ----------------------------------------------------- */
 
 /*
@@ -2326,4 +2273,190 @@ canvas.world:active {
   .scenario-banner {
     display: none;
   }
+}
+
+/* ---- CHOOSE YOUR CREW DIALOG (MATCHING CLAUDE CITY 8-BIT SPEC) ----------- */
+
+.crew-card__avatar-box {
+  width: 32px;
+  height: 32px;
+  background: #0f172a;
+  border: 1px solid var(--hud-amber);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.crew-card__avatar-img {
+  width: 28px;
+  height: 28px;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.crew-modal-v2 {
+  max-width: 780px;
+  width: 94vw;
+  background: #081923;
+  border: 4px solid var(--hud-amber, #ffc247);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.9);
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.crew-modal-v2__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 16px 20px 14px;
+  border-bottom: 3px solid rgba(255, 194, 71, 0.25);
+  background: rgba(255, 194, 71, 0.05);
+}
+
+.crew-modal-v2__title {
+  margin: 0;
+  font-family: Silkscreen, "VT323", monospace;
+  font-size: 16px;
+  color: var(--hud-amber, #ffc247);
+  letter-spacing: 0.06em;
+}
+
+.crew-modal-v2__subtitle {
+  margin: 4px 0 0;
+  font-size: 11px;
+  color: #94a3b8;
+  font-family: monospace;
+}
+
+.crew-modal-v2__close {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 22px;
+  cursor: pointer;
+  line-height: 1;
+  padding: 0 4px;
+}
+
+.crew-modal-v2__close:hover {
+  color: #ffffff;
+}
+
+.crew-modal-v2__card {
+  display: grid;
+  grid-template-columns: 100px 1fr;
+  background: #0b1320;
+  border: 3px solid #1e293b;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  overflow: hidden;
+  padding: 0;
+}
+
+.crew-modal-v2__card:hover {
+  border-color: rgba(255, 194, 71, 0.6);
+  background: #0f1c2e;
+}
+
+.crew-modal-v2__card--selected {
+  border-color: #ffc247 !important;
+  background: rgba(255, 194, 71, 0.08) !important;
+  box-shadow: 0 0 16px rgba(255, 194, 71, 0.15);
+}
+
+.crew-modal-v2__card-img {
+  height: 90px;
+  width: auto;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
+
+.crew-modal-v2__card-name {
+  margin: 0;
+  font-family: Silkscreen, monospace;
+  font-size: 12px;
+  color: #ffc247;
+}
+
+.crew-modal-v2__card-desc {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: #cbd5e1;
+}
+
+/*
+ * Three across when there is room for three, one down when there is not.
+ *
+ * Each card reserves a 100px image column beside its text, so three fixed
+ * fractions on a narrow viewport squeezed the text to a few characters a line.
+ * `auto-fit` with a floor lets the row break instead of crushing its contents.
+ */
+.crew-modal-v2__thinking-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+  gap: 5px;
+}
+
+/*
+ * Not selectable once the mission is running.
+ *
+ * The effort was sent with the dispatch, so changing it afterwards would leave
+ * the panel reporting a setting the run in flight was not given -- the same gap
+ * between stated and actual that removing the model picker was about. It is
+ * disabled rather than hidden so the operator can still see what was used.
+ */
+.crew-card--locked {
+  cursor: default;
+  opacity: 0.72;
+}
+
+.crew-card--locked .crew-card__edit-btn {
+  visibility: hidden;
+}
+
+.crew-modal-v2__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  padding: 12px 20px;
+  border-top: 3px solid rgba(255, 194, 71, 0.25);
+  background: rgba(255, 194, 71, 0.03);
+}
+
+.crew-modal-v2__btn-cancel {
+  background: transparent;
+  border: 1px solid #334155;
+  color: #cbd5e1;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  padding: 8px 16px;
+  cursor: pointer;
+}
+
+.crew-modal-v2__btn-cancel:hover {
+  background: rgba(255, 255, 255, 0.08);
+  color: #ffffff;
+}
+
+.crew-modal-v2__btn-confirm {
+  background: #ffc247;
+  border: 1px solid #ffc247;
+  color: #0c1017;
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 900;
+  padding: 8px 18px;
+  cursor: pointer;
+}
+
+.crew-modal-v2__btn-confirm:hover {
+  background: #ffd369;
+}
+
+@media (max-width: 640px) {
 }

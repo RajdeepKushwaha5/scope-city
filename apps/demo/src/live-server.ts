@@ -6,6 +6,7 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  parseReasoningEffort,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import {
@@ -19,6 +20,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+
 import { missionSystems, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
@@ -72,6 +74,8 @@ const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? ""
 interface LiveMission extends ManagedLiveMission {
   readonly id: string;
   readonly order: string;
+  /** The effort the operator asked for, if any. Empty means no preference. */
+  readonly reasoningEffort: string;
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
   readonly book: CountersignBook;
@@ -217,6 +221,23 @@ async function main(): Promise<void> {
         return;
       }
 
+      // Validated here as well as by TrueForge, and the duplication is
+      // deliberate: the harness refuses an unsupported effort with a 422 in the
+      // middle of session creation, by which point the mission has an id and a
+      // proxy and the operator sees a started run collapse. Rejecting it at the
+      // door turns that into an ordinary 400 before anything is built.
+      //
+      // Only an absent field means "no preference". Coercing a non-string to ""
+      // and treating that as absence let numbers, booleans, arrays, objects and
+      // null all launch as though nothing had been asked for -- a malformed
+      // request quietly becoming a different valid one.
+      const parsed = parseReasoningEffort(body.effort);
+      if (!parsed.ok) {
+        json(res, 400, { error: parsed.reason });
+        return;
+      }
+      const effort = parsed.effort ?? "";
+
       const active = [...missions.values()].find(
         (mission) => mission.status === "starting" || mission.status === "running",
       );
@@ -262,6 +283,7 @@ async function main(): Promise<void> {
         const live: LiveMission = {
           id,
           order,
+          reasoningEffort: effort,
           feed,
           gates,
           book,
@@ -344,6 +366,7 @@ async function main(): Promise<void> {
       const live: LiveMission = {
         id,
         order,
+        reasoningEffort: effort,
         feed,
         gates,
         book,
@@ -728,6 +751,9 @@ async function main(): Promise<void> {
               // claimed, which is worse than not demonstrating it.
               gatedTools: [...live.scope.countersignRequired],
               sandbox,
+              // The operator's choice, carried from the dispatch panel. Absent
+              // unless they made one.
+              ...(live.reasoningEffort ? { reasoningEffort: live.reasoningEffort } : {}),
               // The comparison run is briefed as an ordinary integration is,
               // without our framing about untrusted content or limited reach.
               instructions: missionBrief({

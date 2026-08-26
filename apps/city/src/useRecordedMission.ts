@@ -110,16 +110,20 @@ export function useRecordedMission(): {
     [stop],
   );
 
-  // The scope comes from the file, not from the events.
+  // The scope comes from the replayed events, not the file's header.
   //
-  // The reducer never sees a scope event -- the control plane holds the scope
-  // and sends only what happened -- so a replay that waited for one would draw
-  // no city limits at all, and the viewer would see actions with no visible
-  // authority behind them. That is precisely the half of the evidence this
-  // feature exists to show.
+  // It used to come from `record.scope`, which was right when the feed carried
+  // no scope events and a replay would otherwise have drawn no city limits at
+  // all. The feed carries them now, and reading the header instead showed the
+  // *granted* scope from the first frame -- so judge mode displayed granted
+  // offices before `scope.granted` had been replayed, misrepresenting the
+  // review flow this recording exists to demonstrate.
+  //
+  // Following the reducer means the replay shows what the operator saw, in the
+  // order they saw it: nothing, then a proposal, then a grant.
   const view = cityViewFrom({
     state,
-    scope: record ? scopeViewFromWire(record.scope) : null,
+    scope: state.proposedScope ? scopeViewFromWire(state.proposedScope) : null,
     // A recording is a past mission; there is no countdown left to run on it.
     // Null renders no timer rather than a frozen or negative one.
     expiresIn: null,

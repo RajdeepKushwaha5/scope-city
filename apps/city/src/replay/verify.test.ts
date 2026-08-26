@@ -66,3 +66,50 @@ describe("browser verification agrees with the server", () => {
     if (!verdict.ok) expect(verdict.reason).toContain("incomplete");
   });
 });
+
+describe("the replay shows the review flow in order", () => {
+  it("has no granted authority before the grant is replayed", async () => {
+    // The recording exists to show propose-then-grant. Reading the scope from
+    // the file's header instead of the replayed events showed granted offices
+    // from the first frame, which misrepresents the exact flow it was added to
+    // demonstrate.
+    const { initialLiveCityState, reduceLiveCity, scopeIsOpen } = await import("../live-state.js");
+    const { buildingStates } = await import("../building-state.js");
+    const { OFFICES } = await import("../useMission.js");
+
+    let state = initialLiveCityState;
+    const grantAt = recording.entries.findIndex(
+      (e) => (e.event as { type?: string }).type === "scope.granted",
+    );
+    expect(grantAt).toBeGreaterThan(0);
+
+    // Replay everything up to, but not including, the grant.
+    for (const entry of recording.entries.slice(0, grantAt)) {
+      state = reduceLiveCity(state, entry.event);
+    }
+
+    expect(scopeIsOpen(state)).toBe(true);
+    for (const office of OFFICES) {
+      const authority = buildingStates(state, OFFICES).get(office.office)?.authority;
+      expect(authority === "allowed" || authority === "gated").toBe(false);
+    }
+
+    // And once the mission actually starts, authority appears.
+    //
+    // Not at `scope.granted` itself: the mission is still `proposed` for that
+    // instant, and a building reporting `allowed` while the status says the
+    // operator has not finished deciding would be the same overstatement in
+    // miniature. Authority arrives when the run does.
+    for (const entry of recording.entries.slice(grantAt)) {
+      state = reduceLiveCity(state, entry.event);
+      if (state.status === "running") break;
+    }
+
+    const granted = buildingStates(state, OFFICES);
+    const anyGranted = OFFICES.some((o) => {
+      const a = granted.get(o.office)?.authority;
+      return a === "allowed" || a === "gated";
+    });
+    expect(anyGranted).toBe(true);
+  });
+});

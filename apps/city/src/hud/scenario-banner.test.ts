@@ -50,4 +50,40 @@ describe("scenario billing", () => {
     expect(SCENARIO_BILLING.poisoned.watchFor).toMatch(/refus/i);
     expect(SCENARIO_BILLING.clean.watchFor).not.toMatch(/refused at/i);
   });
+
+  it("does not promise an ending the scripted run never reaches", () => {
+    // The first version of this table said the clean job "finishes inside its
+    // scope". It does not: CLEAN_JOB ends by raising a gate and waiting for a
+    // countersign, so the banner was promising an ending the run never gets
+    // to -- exactly the failure this component exists to make visible, made by
+    // the component itself.
+    //
+    // Read out of the script rather than asserted from memory, so rewriting a
+    // scenario to end differently fails here instead of shipping a banner that
+    // quietly lies.
+    const source = readFileSync(
+      fileURLToPath(new URL("../useMission.ts", import.meta.url)),
+      "utf8",
+    );
+
+    for (const [scenario, marker] of [
+      ["clean", "const CLEAN_JOB"],
+      ["poisoned", "const POISONED"],
+    ] as const) {
+      const start = source.indexOf(marker);
+      expect(start).toBeGreaterThan(-1);
+      const script = source.slice(start, source.indexOf("];", start));
+
+      if (script.includes("a.gate({")) {
+        expect(SCENARIO_BILLING[scenario].watchFor).toMatch(/gate/i);
+      }
+    }
+  });
+
+  it("tells the viewer the no-scope run fails rather than stopping", () => {
+    // The only run that does not end at the gate. It ends `failed`, and a
+    // viewer told to "watch how far it reaches" has no way to know that the
+    // ending is the point.
+    expect(SCENARIO_BILLING.noscope.watchFor).toMatch(/fail/i);
+  });
 });

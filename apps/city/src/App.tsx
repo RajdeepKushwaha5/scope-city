@@ -575,11 +575,19 @@ export function App(): React.JSX.Element {
               active={live.active}
               connection={live.connection}
               error={live.error ?? recorded.error}
-              onLaunch={live.launch}
+              /* Every path that starts a run goes through `runScenario`, or the
+                 banner keeps describing whatever ran last. A live mission is
+                 not one of the scripted scenarios, so it clears the billing
+                 rather than inheriting it -- a banner promising a refusal over
+                 a real run is worse than no banner. */
+              onLaunch={async (order: string) => {
+                setActiveScenario(null);
+                await live.launch(order);
+              }}
               onStop={live.leave}
-              onPoisonedReplay={replay.runPoisonedTicket}
-              onCleanReplay={replay.runCleanJob}
-              onNoScopeReplay={replay.runNoScope}
+              onPoisonedReplay={() => runScenario("poisoned")}
+              onCleanReplay={() => runScenario("clean")}
+              onNoScopeReplay={() => runScenario("noscope")}
               onResetView={() => setCamera(fitCamera(size))}
               onRecordedReplay={() => void recorded.play(RECORDING_URL)}
               canDispatch={controlPlane === "available"}

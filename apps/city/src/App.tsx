@@ -136,7 +136,16 @@ export function App(): React.JSX.Element {
   // --- canvas sizing ----------------------------------------------------
 
   useEffect(() => {
-    const measure = () => setSize({ width: window.innerWidth, height: window.innerHeight });
+    const measure = () => {
+      setSize({ width: window.innerWidth, height: window.innerHeight });
+      // The hover carries client coordinates captured when the pointer last
+      // moved. A resize does not move the pointer, so those coordinates now
+      // describe a position in the old viewport -- and the tooltip would be
+      // placed from them against the new one, deciding which way to flip on
+      // stale numbers. The pointer is somewhere else relative to the city now
+      // anyway, so the honest state is no hover until it moves again.
+      setHovered(null);
+    };
     measure();
     window.addEventListener("resize", measure);
     return () => window.removeEventListener("resize", measure);

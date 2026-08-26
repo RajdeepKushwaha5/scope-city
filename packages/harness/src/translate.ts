@@ -1,5 +1,6 @@
 import type { PendingToolCall, TurnEvent } from "./types.js";
 import { initialState, type TranslatorState, type WorldEvent } from "./world-events.js";
+import { readVerdict } from "./verdict.js";
 
 export interface TranslateResult {
   readonly state: TranslatorState;
@@ -278,6 +279,28 @@ export function translate(
           office,
           at: now,
         });
+
+        // A sandbox response is the one tool result worth keeping.
+        //
+        // Everything else the agent calls goes through the proxy, which already
+        // reports what was allowed and what came back. Sandbox execution does
+        // not: it is the agent's own working, and discarding it left the map
+        // able to say "a sandbox opened" and nothing about why its verdict
+        // should be trusted. An operator approving an irreversible transfer on
+        // the strength of a check they cannot see is not really checking.
+        if (isSandboxOffice(office)) {
+          const content = (event as unknown as { content?: unknown }).content;
+          const output = typeof content === "string" ? content : "";
+          const args = next.toolCallArgs.get(toolCallId);
+          events.push({
+            type: "yard.verified",
+            toolCallId,
+            script: scriptFrom(args),
+            output,
+            passed: readVerdict(output),
+            at: now,
+          });
+        }
         const toolCalls = new Map(next.toolCalls);
         toolCalls.delete(toolCallId);
         const toolCallArgs = new Map(next.toolCallArgs);
@@ -329,4 +352,36 @@ export function translateAll(
     events.push(...result.events);
   }
   return { state, events };
+}
+
+/**
+ * Whether a tool call was sandbox execution.
+ *
+ * Matched by name because the harness does not label sandbox tools distinctly
+ * in the event stream. The list is narrow on purpose: a false positive would
+ * attach an unrelated tool's output to the gate as though it were verification,
+ * which is worse than attaching nothing.
+ */
+export function isSandboxOffice(office: string): boolean {
+  const name = office.toLowerCase();
+  return name === "exec" || name === "bash" || name === "shell" || name.endsWith(".exec");
+}
+
+/**
+ * The script out of an exec call's arguments.
+ *
+ * Argument names vary by harness version, so several are tried rather than
+ * assuming one. An empty string is returned rather than a guess: showing the
+ * operator the wrong text next to a verdict is worse than showing them none.
+ */
+export function scriptFrom(args: unknown): string {
+  if (typeof args === "string") return args;
+  if (typeof args !== "object" || args === null) return "";
+
+  const record = args as Record<string, unknown>;
+  for (const key of ["script", "code", "command", "cmd", "input", "source"]) {
+    const value = record[key];
+    if (typeof value === "string" && value.length > 0) return value;
+  }
+  return "";
 }

@@ -1,0 +1,14 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "buildCommand": "pnpm --filter @scope-city/city build",
+  "outputDirectory": "apps/city/dist",
+  "installCommand": "pnpm install --frozen-lockfile",
+  "framework": null,
+  "rewrites": [{ "source": "/((?!replays/|assets/).*)", "destination": "/index.html" }],
+  "headers": [
+    {
+      "source": "/replays/(.*)",
+      "headers": [{ "key": "cache-control", "value": "public, max-age=300" }]
+    }
+  ]
+}

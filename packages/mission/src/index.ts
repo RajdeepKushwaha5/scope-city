@@ -18,9 +18,7 @@ export {
 
 export {
   missionBrief,
-  readVerdict,
   type BriefOptions,
-  type Verification,
 } from "./brief.js";
 
 export { type CityFeedEvent } from "./feed-events.js";
@@ -35,3 +33,14 @@ export {
   type RecordEntry,
   type RecordVerdict,
 } from "./record.js";
+
+// Re-exported from the harness, where it moved: reading a verdict out of tool
+// output is parsing, and the harness cannot import this package to reach it.
+export { readVerdict, type Verification } from "@scope-city/harness";
+
+export {
+  identifyingArguments,
+  proofAuthorises,
+  type ProofVerdict,
+  type SandboxProof,
+} from "./proof.js";

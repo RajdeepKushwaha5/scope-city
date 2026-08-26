@@ -5,3 +5,15 @@ packages:
 
 allowBuilds:
   esbuild: true
+
+# nanoid reaches us only through vitest -> vite -> postcss, so this is a
+# test-toolchain dependency and never ships in the city bundle. Pinned anyway:
+# GHSA-2v37-7h3g-55p8 (custom generators can loop indefinitely when size is
+# zero) is fixed in 3.3.18, and postcss requires the 3.x line, so upgrading to
+# nanoid 5 would break the resolution rather than fix it.
+#
+# pnpm 11 reads overrides from here rather than package.json, where they are
+# silently ignored with a warning that is easy to miss.
+overrides:
+  nanoid: ^3.3.18
+

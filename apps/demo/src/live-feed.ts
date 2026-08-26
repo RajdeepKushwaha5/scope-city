@@ -78,6 +78,11 @@ export class OperatorGateQueue {
     return promise;
   }
 
+  /** The call waiting under this id, so a caller can check what it is approving. */
+  pending(toolCallId: string): GateRequest | undefined {
+    return this.#waiting.get(toolCallId)?.gate;
+  }
+
   decide(toolCallId: string, decision: GateDecision): boolean {
     const waiting = this.#waiting.get(toolCallId);
     if (!waiting) return false;

@@ -1,0 +1,319 @@
+import { describe, expect, it } from "vitest";
+import { NotFoundError } from "../src/systems/types.js";
+import { stripeSystem } from "../src/systems/stripe.js";
+
+/**
+ * The Stripe Exchequer, exercised without Stripe.
+ *
+ * `fetch` is injected, so these run offline and deterministically. That matters
+ * beyond convenience: a suite that reaches a payment API is slow, flaky, and
+ * writes to somebody's account, and the one thing worth testing here is the
+ * mapping -- whether a Stripe charge object becomes the shape the evaluator and
+ * projector already understand.
+ *
+ * The payloads are trimmed from real test-mode responses rather than invented.
+ */
+
+const CHARGE = {
+  id: "ch_3U8T0Z",
+  amount: 4900,
+  currency: "usd",
+  amount_refunded: 0,
+  metadata: { order_id: "ord_184" },
+  receipt_email: "customer@example.test",
+  billing_details: {
+    email: null,
+    address: { line1: "12 Somewhere Lane", city: "Springfield", country: "US" },
+  },
+};
+
+const OTHER = {
+  id: "ch_3U8T0a",
+  amount: 39900,
+  currency: "usd",
+  amount_refunded: 0,
+  metadata: { order_id: "ord_185" },
+  receipt_email: "customer@example.test",
+};
+
+function fakeFetch(handler: (url: string, init?: RequestInit) => unknown): typeof fetch {
+  return (async (input: string | URL, init?: RequestInit) => {
+    const url = String(input);
+    const body = handler(url, init);
+    return {
+      ok: true,
+      status: 200,
+      json: async () => body,
+    } as Response;
+  }) as unknown as typeof fetch;
+}
+
+function system(handler: (url: string, init?: RequestInit) => unknown) {
+  return stripeSystem({ apiKey: "rk_test_fake", fetchImpl: fakeFetch(handler) });
+}
+
+const officeOf = (sys: ReturnType<typeof system>, name: string) => {
+  const office = sys.offices.find((o) => o.office === name);
+  if (!office) throw new Error(`no office ${name}`);
+  return office;
+};
+
+describe("charge.find_by_order", () => {
+  it("matches on the order id in metadata", async () => {
+    const sys = system(() => ({ data: [OTHER, CHARGE] }));
+    const result = await officeOf(sys, "charge.find_by_order").call({ order_id: "ord_184" });
+    expect(result).toEqual({ id: "ch_3U8T0Z", amount: 4900, order_id: "ord_184" });
+  });
+
+  it("prefers a charge that still has something left to refund", async () => {
+    // An order can have several charges, and after a demo run one is spent.
+    // Trusting Stripe's list order to put the useful one first is relying on
+    // something undocumented; handing back a settled charge fails later with
+    // "only 0 remains", which reads as the enforcement misfiring.
+    const spent = { ...CHARGE, id: "ch_spent", amount_refunded: 4900 };
+    const fresh = { ...CHARGE, id: "ch_fresh", amount_refunded: 0 };
+    const sys = system(() => ({ data: [spent, fresh] }));
+
+    const result = (await officeOf(sys, "charge.find_by_order").call({
+      order_id: "ord_184",
+    })) as { id: string };
+    expect(result.id).toBe("ch_fresh");
+  });
+
+  it("reports what is left to refund, not the original amount", async () => {
+    // A caller asking the refundable charge how much to refund is asking what
+    // remains. Returning the original let a scope be derived with a ceiling
+    // above the remainder, so the agent requested more than existed and the
+    // refund refused a mission that was otherwise correct.
+    const partly = { ...CHARGE, id: "ch_part", amount: 4900, amount_refunded: 1900 };
+    const sys = system(() => ({ data: [partly] }));
+
+    const result = (await officeOf(sys, "charge.find_by_order").call({
+      order_id: "ord_184",
+    })) as { amount: number };
+    expect(result.amount).toBe(3000);
+  });
+
+  it("still returns a fully settled charge when that is all there is", async () => {
+    // Better to hand back the settled charge and let the refund refuse with a
+    // reason than to claim the order does not exist.
+    const spent = { ...CHARGE, id: "ch_spent", amount_refunded: 4900 };
+    const sys = system(() => ({ data: [spent] }));
+    const result = (await officeOf(sys, "charge.find_by_order").call({
+      order_id: "ord_184",
+    })) as { id: string };
+    expect(result.id).toBe("ch_spent");
+  });
+
+  it("raises the same NotFoundError the fixture does", async () => {
+    // Nothing above this file should be able to tell which implementation
+    // refused a lookup.
+    const sys = system(() => ({ data: [] }));
+    await expect(
+      officeOf(sys, "charge.find_by_order").call({ order_id: "ord_999" }),
+    ).rejects.toBeInstanceOf(NotFoundError);
+  });
+});
+
+describe("charge.get", () => {
+  it("maps a Stripe charge into the shape the scope already polices", async () => {
+    const sys = system((url) => (url.includes("charges/") ? CHARGE : { data: [CHARGE, OTHER] }));
+    const result = (await officeOf(sys, "charge.get").call({ charge_id: "ch_3U8T0Z" })) as Record<
+      string,
+      unknown
+    >;
+
+    expect(result["id"]).toBe("ch_3U8T0Z");
+    expect(result["amount"]).toBe(4900);
+    expect(result["order_id"]).toBe("ord_184");
+    expect(result["refunded"]).toBe(0);
+  });
+
+  it("returns more than any sensible scope allows, on purpose", async () => {
+    // The projector needs something real to remove. An office that only ever
+    // returned the safe fields would make the response layer untestable and
+    // the demo's central claim unobservable.
+    const sys = system((url) => (url.includes("charges/") ? CHARGE : { data: [CHARGE, OTHER] }));
+    const result = (await officeOf(sys, "charge.get").call({ charge_id: "ch_3U8T0Z" })) as {
+      customer: { email: string; address: string; history: unknown[] };
+    };
+
+    expect(result.customer.email).toBe("customer@example.test");
+    expect(result.customer.address).toContain("Somewhere Lane");
+    expect(result.customer.history).toHaveLength(2);
+  });
+
+  it("falls back to receipt_email when billing details carry none", async () => {
+    const sys = system((url) => (url.includes("charges/") ? CHARGE : { data: [CHARGE] }));
+    const result = (await officeOf(sys, "charge.get").call({ charge_id: "ch_3U8T0Z" })) as {
+      customer: { email: string };
+    };
+    expect(result.customer.email).toBe("customer@example.test");
+  });
+
+  it("does not build a history for a charge with no email", async () => {
+    // Matching every charge whose email is the empty string would hand back the
+    // entire account as one customer's history.
+    const anonymous = { ...CHARGE, receipt_email: null, billing_details: { email: null } };
+    const sys = system((url) => (url.includes("charges/") ? anonymous : { data: [anonymous, OTHER] }));
+    const result = (await officeOf(sys, "charge.get").call({ charge_id: "ch_3U8T0Z" })) as {
+      customer: { history: unknown[] };
+    };
+    expect(result.customer.history).toEqual([]);
+  });
+});
+
+describe("charge.refund", () => {
+  it("posts a refund for the exact amount", async () => {
+    let sent: string | undefined;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        const url = String(input);
+        if (url.endsWith("/refunds")) {
+          sent = String(init?.body ?? "");
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    const result = await officeOf(sys, "charge.refund").call({
+      charge_id: "ch_3U8T0Z",
+      amount: 4900,
+    });
+
+    expect(sent).toContain("charge=ch_3U8T0Z");
+    expect(sent).toContain("amount=4900");
+    expect(result).toEqual({
+      id: "re_1",
+      charge_id: "ch_3U8T0Z",
+      amount: 4900,
+      status: "succeeded",
+    });
+  });
+
+  it("passes the proxy's idempotency key through to Stripe", async () => {
+    // Without a key, a refund Stripe created but whose response was lost looks
+    // like a failure: the proxy releases its quota claim and a retry creates a
+    // *second* refund.
+    let sentKey: string | undefined;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          sentKey = new Headers(init?.headers).get("idempotency-key") ?? undefined;
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call(
+      { charge_id: "ch_3U8T0Z", amount: 4900 },
+      { idempotencyKey: "claim-7" },
+    );
+    expect(sentKey).toBe("scope-city:claim-7");
+  });
+
+  it("gives two equal partial refunds different keys", async () => {
+    // The bug this replaced: a key derived from charge and amount collided two
+    // legitimate partial refunds of the same size, so Stripe returned the first
+    // and the system reported a refund that never happened. Only the caller
+    // knows whether a request is a retry, so only its key can tell them apart.
+    const keys: (string | null)[] = [];
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          keys.push(new Headers(init?.headers).get("idempotency-key"));
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    const args = { charge_id: "ch_3U8T0Z", amount: 1000 };
+    await officeOf(sys, "charge.refund").call(args, { idempotencyKey: "claim-1" });
+    await officeOf(sys, "charge.refund").call(args, { idempotencyKey: "claim-2" });
+
+    expect(keys[0]).not.toBe(keys[1]);
+  });
+
+  it("sends no key when the caller supplies none", async () => {
+    // Inventing one here would be guessing at something only the caller knows.
+    let hadKey = true;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL, init?: RequestInit) => {
+        if (String(input).endsWith("/refunds")) {
+          hadKey = new Headers(init?.headers).has("idempotency-key");
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => CHARGE } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: 4900 });
+    expect(hadKey).toBe(false);
+  });
+
+  it("still sends the keyed request when the charge already looks settled", async () => {
+    // The recovery path. If Stripe created a refund and the response was lost,
+    // the retry sees `amount_refunded` already updated. Refusing there would
+    // report a failure for a refund that happened and leave the quota
+    // unconsumed, so the boundary would believe an irreversible action was
+    // still available after it had been taken. With a key the POST is safe to
+    // repeat, so Stripe decides.
+    const settled = { ...CHARGE, amount_refunded: 4900 };
+    let posted = false;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL) => {
+        if (String(input).endsWith("/refunds")) {
+          posted = true;
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => settled } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call(
+      { charge_id: "ch_3U8T0Z", amount: 4900 },
+      { idempotencyKey: "claim-9" },
+    );
+    expect(posted).toBe(true);
+  });
+
+  it("refuses more than remains, before the call goes out", async () => {
+    // Stripe would refuse this too, but learning it from a 400 after the quota
+    // has been claimed is a worse place to find out.
+    const partly = { ...CHARGE, amount_refunded: 4000 };
+    const sys = system(() => partly);
+    await expect(
+      officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: 4900 }),
+    ).rejects.toBeInstanceOf(RangeError);
+  });
+
+  it("refuses a non-positive amount without asking Stripe", async () => {
+    // The layer defends itself: a negative refund runs the arithmetic backwards
+    // and a scope misconfiguration should not be the only thing standing in the
+    // way of it.
+    const sys = system(() => CHARGE);
+    await expect(
+      officeOf(sys, "charge.refund").call({ charge_id: "ch_3U8T0Z", amount: -100 }),
+    ).rejects.toBeInstanceOf(RangeError);
+  });
+});
+
+describe("the office surface matches the fixture", () => {
+  it("declares the same three offices", async () => {
+    const sys = system(() => ({ data: [] }));
+    expect(sys.offices.map((o) => o.office).sort()).toEqual([
+      "charge.find_by_order",
+      "charge.get",
+      "charge.refund",
+    ]);
+    expect(sys.district).toBe("exchequer");
+  });
+});

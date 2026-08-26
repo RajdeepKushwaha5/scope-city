@@ -1,0 +1,743 @@
+{
+  "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+  "scopeId": "SC-151AP8",
+  "job": "Refund order #184 and notify its owner, max $49",
+  "scope": {
+    "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+    "scopeId": "SC-151AP8",
+    "agent": "support-agent",
+    "job": "Refund order #184 and notify its owner, max $49",
+    "state": "granted",
+    "offices": [
+      "charge.find_by_order",
+      "charge.get",
+      "charge.refund",
+      "mail.send"
+    ],
+    "resources": {
+      "order_ids": [
+        "ord_184"
+      ],
+      "charge_ids": [
+        "ch_184"
+      ],
+      "mail_to": [
+        "customer@example.test"
+      ]
+    },
+    "limits": {
+      "maxAmountMinor": {
+        "charge.refund": 4900
+      },
+      "maxCalls": {
+        "charge.refund": 1,
+        "mail.send": 1
+      },
+      "maxResponseBytes": 64000
+    },
+    "projection": {
+      "charge.find_by_order": [
+        "id",
+        "amount",
+        "order_id"
+      ],
+      "charge.get": [
+        "id",
+        "amount",
+        "currency",
+        "order_id",
+        "refunded",
+        "customer.email"
+      ],
+      "charge.refund": [
+        "id",
+        "charge_id",
+        "amount",
+        "status"
+      ],
+      "mail.send": [
+        "id",
+        "to"
+      ]
+    },
+    "countersignRequired": [
+      "charge.refund",
+      "mail.send"
+    ],
+    "expiresAt": 1787677805814,
+    "grantedBy": "operator:scope-city",
+    "grantedAt": 1787677205841,
+    "version": 1
+  },
+  "startedAt": 1787677205842,
+  "finishedAt": 1787677489957,
+  "entries": [
+    {
+      "sequence": 1,
+      "at": 1787677205842,
+      "event": {
+        "type": "yard.report",
+        "report": {
+          "findings": [
+            {
+              "kind": "response_over_reach",
+              "severity": "note",
+              "office": "charge.get",
+              "summary": "charge.get may return an email address.",
+              "detail": [
+                "customer.email"
+              ],
+              "remedy": "Drop customer.email from charge.get's projection if the job does not need it."
+            },
+            {
+              "kind": "response_over_reach",
+              "severity": "note",
+              "office": "charge.get",
+              "summary": "charge.get can return a postal address, prior transactions, and projection is stopping it.",
+              "detail": [
+                "customer.address",
+                "customer.history"
+              ],
+              "remedy": "No action — this is the response filter doing its job."
+            },
+            {
+              "kind": "composition_reach",
+              "severity": "note",
+              "office": "charge.refund",
+              "summary": "charge.find_by_order yields charge_ids, which charge.refund accepts — the pair is a path to act on whatever charge.find_by_order returns.",
+              "detail": [
+                "charge_ids"
+              ],
+              "remedy": "Held by the resource list: charge.refund is still checked against the granted ids, so this is a path, not a hole."
+            },
+            {
+              "kind": "composition_reach",
+              "severity": "note",
+              "office": "charge.refund",
+              "summary": "charge.get yields charge_ids, which charge.refund accepts — the pair is a path to act on whatever charge.get returns.",
+              "detail": [
+                "charge_ids"
+              ],
+              "remedy": "Held by the resource list: charge.refund is still checked against the granted ids, so this is a path, not a hole."
+            },
+            {
+              "kind": "composition_reach",
+              "severity": "note",
+              "office": "mail.send",
+              "summary": "charge.get yields mail_to, which mail.send accepts — the pair is a path to act on whatever charge.get returns.",
+              "detail": [
+                "mail_to"
+              ],
+              "remedy": "Held by the resource list: mail.send is still checked against the granted ids, so this is a path, not a hole."
+            }
+          ],
+          "probesRun": 46,
+          "clean": true
+        }
+      },
+      "hash": "19af2326470195f8f41376c9220b566c02316b22cab4bb5a660581e14fc660eb"
+    },
+    {
+      "sequence": 2,
+      "at": 1787677205842,
+      "event": {
+        "type": "mission.status",
+        "status": "starting"
+      },
+      "hash": "61ee0584b42324a09512a58700ab12ddf678c3efe5585daa2070d31be09374fd"
+    },
+    {
+      "sequence": 3,
+      "at": 1787677205896,
+      "event": {
+        "type": "mission.status",
+        "status": "running",
+        "detail": "gemini-a/flash-a"
+      },
+      "hash": "3a3265d78b24433ac287a52907108937828c2614c3a1d564eb6de8a345e99cc2"
+    },
+    {
+      "sequence": 4,
+      "at": 1787677206053,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0wxtscnnv2cj8wcjv03kwg7.local",
+          "at": 1787677206052
+        }
+      },
+      "hash": "8af4c5fb6105ad981526c17cd969daf78414d5063c3d5c329fdbb006147a9378"
+    },
+    {
+      "sequence": 5,
+      "at": 1787677206177,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787677206177
+        }
+      },
+      "hash": "057ad15507b9369a1d567c903158392b30e29d0207919dadb23884214f0c8313"
+    },
+    {
+      "sequence": 6,
+      "at": 1787677209682,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "error",
+          "at": 1787677209682
+        }
+      },
+      "hash": "b2c24deb659683b5f0c013fe6ec7e7056668ea5ab5a236d0c6099e251ec93ba7"
+    },
+    {
+      "sequence": 7,
+      "at": 1787677209698,
+      "event": {
+        "type": "mission.status",
+        "status": "starting",
+        "detail": "gemini-a/flash-a unavailable; rotating (unavailable)"
+      },
+      "hash": "e60cad82ed812bc47785141e19be727f3aa57e8accce5225978ac97bc1468bf5"
+    },
+    {
+      "sequence": 8,
+      "at": 1787677209706,
+      "event": {
+        "type": "mission.status",
+        "status": "running",
+        "detail": "gemini-b/flash-b"
+      },
+      "hash": "afaa45d617ed9457cf3492af36e7d92c7deea80067356d56124e5cb8fef2364a"
+    },
+    {
+      "sequence": 9,
+      "at": 1787677209729,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0wxtx3dys0srshrhy6sx3v5.local",
+          "at": 1787677209729
+        }
+      },
+      "hash": "b83f068d4e367fdc6fee784b89342a99d1e6fc9abaaa306fd7de89d817c06be2"
+    },
+    {
+      "sequence": 10,
+      "at": 1787677209804,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787677209804
+        }
+      },
+      "hash": "acc494e2fd91296253d339941fce6d86152eb4fbeff0552d44fa856ecad4b086"
+    },
+    {
+      "sequence": 11,
+      "at": 1787677211893,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "charge.find_by_order",
+          "at": 1787677211892
+        }
+      },
+      "hash": "8eef8a88f5c056f8c617fa10edf2390b2e3470e74febdc91f81440c35f2357af"
+    },
+    {
+      "sequence": 12,
+      "at": 1787677211905,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.allowed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.find_by_order",
+          "district": "exchequer",
+          "sequence": 0,
+          "at": 1787677211904
+        }
+      },
+      "hash": "5ef8f7ea307a5b884e14cd29348c82126d3f192b46f78b582b1452037a9738b8"
+    },
+    {
+      "sequence": 13,
+      "at": 1787677211914,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "charge.find_by_order",
+          "at": 1787677211914
+        }
+      },
+      "hash": "400a9553323d7c195cdb93695b744c496f3efd442f3196762fbe456ff5e351a0"
+    },
+    {
+      "sequence": 14,
+      "at": 1787677213810,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "charge.get",
+          "at": 1787677213810
+        }
+      },
+      "hash": "124081a930bc0a288fca897f8d5576574c86dadc19a15ff74978afd65eb72f0d"
+    },
+    {
+      "sequence": 15,
+      "at": 1787677213819,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "response.redacted",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.get",
+          "redacted": [
+            "customer.address",
+            "customer.history"
+          ],
+          "truncated": false,
+          "at": 1787677213818
+        }
+      },
+      "hash": "fc8629598438f2445c4d2440034f6014afd9cf4c5a7716162ff8b42daa73ce69"
+    },
+    {
+      "sequence": 16,
+      "at": 1787677213819,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.allowed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.get",
+          "district": "exchequer",
+          "sequence": 0,
+          "at": 1787677213818
+        }
+      },
+      "hash": "e177fe7fe4af548bb63965f6c42eaa9fb00b411b88aeb071ee68ac98d90a1e3e"
+    },
+    {
+      "sequence": 17,
+      "at": 1787677213828,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "charge.get",
+          "at": 1787677213828
+        }
+      },
+      "hash": "6204f2e794251dd49410a802f0da821d78969728d3f420e6f1b29fe6b3eae0ed"
+    },
+    {
+      "sequence": 18,
+      "at": 1787677217243,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787677217243
+        }
+      },
+      "hash": "f7228cae97f4accaedea5cf48f3f551df009f54b3b82cb1e94826fb0028f27c2"
+    },
+    {
+      "sequence": 19,
+      "at": 1787677222566,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "yard.opened",
+          "sandboxId": "v1:daytona:default.f57465e9-77b6-4127-9504-e0d709651367",
+          "at": 1787677222566
+        }
+      },
+      "hash": "6d164c916effd74087a66b758c92ac96f071953f82f826defc823501f47bda22"
+    },
+    {
+      "sequence": 20,
+      "at": 1787677222566,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787677222566
+        }
+      },
+      "hash": "8bd28f9397ae5f81f51267b3d6dc2507bdb5360e5456296f5adae9902ce6c752"
+    },
+    {
+      "sequence": 21,
+      "at": 1787677224801,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787677224801
+        }
+      },
+      "hash": "6b2bec6f05926e16e191bc8404bef59ae275f8233f9dba58e5ca074aac4a3b79"
+    },
+    {
+      "sequence": 22,
+      "at": 1787677225219,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "exec",
+          "at": 1787677225219
+        }
+      },
+      "hash": "95b511dc55645105437667df2aad84ec6cebababfe718354fbb06cf25b03e22d"
+    },
+    {
+      "sequence": 23,
+      "at": 1787677227155,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "charge.refund",
+          "at": 1787677227155
+        }
+      },
+      "hash": "55890b4f01abb6d29080e6509c5b52b089a2f20def1418e9c5506178cae4c682"
+    },
+    {
+      "sequence": 24,
+      "at": 1787677227357,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.raised",
+          "threadId": "main",
+          "toolCallId": "function-call-15071118773340701143",
+          "office": "charge.refund",
+          "args": {
+            "charge_id": "ch_184",
+            "amount": 4900
+          },
+          "at": 1787677227356
+        }
+      },
+      "hash": "cbeda691ca749ae4d88d9fc5ad1d172232dc1a7d639531e2f43f4431d23b9bb9"
+    },
+    {
+      "sequence": 25,
+      "at": 1787677227890,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "done",
+          "at": 1787677227890
+        }
+      },
+      "hash": "96c1d089fc87e95e0ded99d68b47736e80218bf54ac0062c2e04f2368328b82b"
+    },
+    {
+      "sequence": 26,
+      "at": 1787677373240,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.cleared",
+          "toolCallId": "function-call-15071118773340701143",
+          "approved": true,
+          "at": 1787677373240
+        }
+      },
+      "hash": "ee8703099765aa0e40b7c640e75854c3e967f7963277f395bd25f8b132f94fd1"
+    },
+    {
+      "sequence": 27,
+      "at": 1787677373267,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0wxzwt0w78whsc50vatxsq9.local",
+          "at": 1787677373267
+        }
+      },
+      "hash": "d7d2e31f92996b79c38c2693c20d37a8666fdb18c77462d9487e04162c81c6c6"
+    },
+    {
+      "sequence": 28,
+      "at": 1787677373287,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787677373287
+        }
+      },
+      "hash": "067d12cb897f22d8d5787e8f99b63a2606288e2f061ed9398ec27c8c5fee0c4c"
+    },
+    {
+      "sequence": 29,
+      "at": 1787677373290,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "quota.consumed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.refund",
+          "used": 1,
+          "ceiling": 1,
+          "at": 1787677373289
+        }
+      },
+      "hash": "809f2042e987acc85228db788f4e3ccb41acc2aae190416ab2f3a1981cd1267f"
+    },
+    {
+      "sequence": 30,
+      "at": 1787677373290,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.countersign_required",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.refund",
+          "district": "exchequer",
+          "fingerprint": "5ea226ade921dc2cc31d02edc1a20de871246b769a6bbae8b53fb45ad2931668",
+          "at": 1787677373289
+        }
+      },
+      "hash": "c01024954ba4cf8e3f7e545ae15fc16bc004365ebb6083ba606b154ac292455e"
+    },
+    {
+      "sequence": 31,
+      "at": 1787677373290,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.allowed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "charge.refund",
+          "district": "exchequer",
+          "sequence": 1,
+          "at": 1787677373289
+        }
+      },
+      "hash": "5d2ebb0bfbe4abdb83e08a2799ebe18207e29baefff98d6474e092146a4a4a9d"
+    },
+    {
+      "sequence": 32,
+      "at": 1787677373305,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "charge.refund",
+          "at": 1787677373305
+        }
+      },
+      "hash": "433c739ac6f7e2321032cb12762e2f7a9284347fa7815e3c9514747c2032caf6"
+    },
+    {
+      "sequence": 33,
+      "at": 1787677375847,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.arrived",
+          "threadId": "main",
+          "office": "mail.send",
+          "at": 1787677375847
+        }
+      },
+      "hash": "75bc2828b10907434cdcd66a09e7bbf0d8629b712edba5d560a0f52a65954224"
+    },
+    {
+      "sequence": 34,
+      "at": 1787677375912,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.raised",
+          "threadId": "main",
+          "toolCallId": "function-call-9886037896196062587",
+          "office": "mail.send",
+          "args": {
+            "to": "customer@example.test",
+            "body": "Your refund of $49 for order #184 has been processed.",
+            "subject": "Refund for Order #184"
+          },
+          "at": 1787677375912
+        }
+      },
+      "hash": "ec81b52fdb45c6396cbfd53dc2cbd6e4045a0df5acf797df576ff848069e4c66"
+    },
+    {
+      "sequence": 35,
+      "at": 1787677375913,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "done",
+          "at": 1787677375913
+        }
+      },
+      "hash": "369ecf64b9cd49f72f5aba1e6b6ab12f6ad0a0ee599b2e9029b874af1496823a"
+    },
+    {
+      "sequence": 36,
+      "at": 1787677454876,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "gate.cleared",
+          "toolCallId": "function-call-9886037896196062587",
+          "approved": true,
+          "at": 1787677454876
+        }
+      },
+      "hash": "402e82dc94e2369f46616accdf7b8314af566ec63d474827812b85eee76fca76"
+    },
+    {
+      "sequence": 37,
+      "at": 1787677454898,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.started",
+          "turnId": "01m0wy2ch16q8ps0xy662khrtj.local",
+          "at": 1787677454898
+        }
+      },
+      "hash": "b33538996d2d1028f2f504c6ca2dd82263a77d06cb18820e4c75b26dcb5b1602"
+    },
+    {
+      "sequence": 38,
+      "at": 1787677454917,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "district.online",
+          "district": "scope-city-live",
+          "at": 1787677454917
+        }
+      },
+      "hash": "46376ea3c3263247b05948641477ef7b9dce43b210454f3636773c098a301fdc"
+    },
+    {
+      "sequence": 39,
+      "at": 1787677454919,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "quota.consumed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "mail.send",
+          "used": 1,
+          "ceiling": 1,
+          "at": 1787677454919
+        }
+      },
+      "hash": "fd5113af95f426c86bc75d0a799cf3f16be9111cb8acd78280fe8da8700e9f18"
+    },
+    {
+      "sequence": 40,
+      "at": 1787677454919,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.countersign_required",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "mail.send",
+          "district": "post-house",
+          "fingerprint": "508924b3006391cf960886a9dcdfbe186d780ee57b81a8914a1bc8fa733e864d",
+          "at": 1787677454919
+        }
+      },
+      "hash": "44685d791f90a144daac3bd44d916ccbc2ba734b1f60d6b512cc3e03533beb60"
+    },
+    {
+      "sequence": 41,
+      "at": 1787677454920,
+      "event": {
+        "type": "proxy",
+        "event": {
+          "type": "call.allowed",
+          "missionId": "m_b41d0f347b4b330b7e0e43760704cb4f9f390d2375bff571",
+          "office": "mail.send",
+          "district": "post-house",
+          "sequence": 2,
+          "at": 1787677454919
+        }
+      },
+      "hash": "ca2bc20af0d03f05b313909945821498bcd410748f7266f2ed5390eb5c10d2f1"
+    },
+    {
+      "sequence": 42,
+      "at": 1787677454936,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "agent.finished",
+          "threadId": "main",
+          "office": "mail.send",
+          "at": 1787677454936
+        }
+      },
+      "hash": "276909a32b55321b40a6ee86f08ba8097cb51a38aba326c762f4781f2385a992"
+    },
+    {
+      "sequence": 43,
+      "at": 1787677456977,
+      "event": {
+        "type": "world",
+        "event": {
+          "type": "mission.ended",
+          "status": "done",
+          "at": 1787677456977
+        }
+      },
+      "hash": "6725dce734acc21f96d20cc1ab872095001bb8f7ecdde4e2e5472704bd540b07"
+    },
+    {
+      "sequence": 44,
+      "at": 1787677456977,
+      "event": {
+        "type": "mission.status",
+        "status": "completed"
+      },
+      "hash": "db198041ce8e9566792fb8066359c60fee79bc4d1c3014634d90c2f55f50c048"
+    }
+  ],
+  "head": "db198041ce8e9566792fb8066359c60fee79bc4d1c3014634d90c2f55f50c048",
+  "algorithm": "sha256",
+  "lossy": false
+}

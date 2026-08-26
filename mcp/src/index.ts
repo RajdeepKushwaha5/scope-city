@@ -15,3 +15,5 @@ export {
   type OfficeHandler,
   type SystemDefinition,
 } from "./systems/types.js";
+
+export { stripeSystem, StripeError, type StripeOptions } from "./systems/stripe.js";

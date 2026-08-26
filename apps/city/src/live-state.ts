@@ -6,7 +6,15 @@ import { OFFICES, type GateRequest, type LogLine, type Phase, type ScopeView } f
 
 export interface LiveCityState {
   readonly phase: Phase;
-  readonly status: "idle" | "starting" | "running" | "completed" | "failed" | "cancelled";
+  readonly status:
+    | "idle"
+    | "proposed"
+    | "denied"
+    | "starting"
+    | "running"
+    | "completed"
+    | "failed"
+    | "cancelled";
   readonly detail: string | null;
   readonly online: readonly string[];
   readonly figures: readonly Figure[];
@@ -18,6 +26,69 @@ export interface LiveCityState {
   readonly scopeExpired: boolean;
   /** The Yard's verdict, once it arrives. Null before the backtest is replayed. */
   readonly yard: BacktestReport | null;
+  /** The scope as proposed or granted, straight from the feed. */
+  readonly proposedScope: WireScope | null;
+  /** The lease term offered at proposal, fixed rather than counting down. */
+  readonly proposedTtlMs: number | null;
+  /**
+   * What has happened at each office, keyed by office id.
+   *
+   * Tracked here rather than derived from the log because the log is a list of
+   * lines for a human and this is state for a renderer: counting settled calls
+   * by re-parsing prose would break the first time a message was reworded.
+   */
+  readonly officeActivity: Readonly<Record<string, OfficeActivity>>;
+  /** The most recent sandbox check, shown beside the gate it justifies. */
+  readonly verification: {
+    readonly script: string;
+    readonly output: string;
+    readonly passed: boolean;
+  } | null;
+}
+
+/**
+ * Whether the scope is still conferring anything.
+ *
+ * One definition, used by everything that draws authority, because the
+ * alternative is several: the building states treated any retained scope as
+ * granted while the city view had already closed it, so after expiry or
+ * cancellation the map fogged over and every building still reported its old
+ * limits and its countersign.
+ *
+ * A closed scope is not a smaller scope. Expired, revoked, denied, or simply
+ * finished, the authority is gone, and anything still describing it is
+ * describing what the agent *used to* be able to do.
+ */
+export function scopeIsOpen(state: LiveCityState): boolean {
+  if (state.proposedScope === null) return false;
+  if (state.scopeExpired) return false;
+  return (
+    state.status === "proposed" ||
+    state.status === "starting" ||
+    state.status === "running"
+  );
+}
+
+export interface OfficeActivity {
+  /** Calls the ledger has settled here. */
+  readonly calls: number;
+  /** True between the agent arriving and finishing. */
+  readonly busy: boolean;
+  /** Why the boundary last refused a call here, if it did. */
+  readonly refusal: string | null;
+}
+
+/** Records something happening at one office, leaving the others untouched. */
+function atOffice(
+  state: LiveCityState,
+  office: string,
+  change: Partial<OfficeActivity>,
+): LiveCityState {
+  const current = state.officeActivity[office] ?? { calls: 0, busy: false, refusal: null };
+  return {
+    ...state,
+    officeActivity: { ...state.officeActivity, [office]: { ...current, ...change } },
+  };
 }
 
 export const initialLiveCityState: LiveCityState = {
@@ -33,6 +104,10 @@ export const initialLiveCityState: LiveCityState = {
   sandboxOpen: false,
   scopeExpired: false,
   yard: null,
+  proposedScope: null,
+  proposedTtlMs: null,
+  verification: null,
+  officeActivity: {},
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -99,11 +174,28 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
     const event = feed.event;
     switch (event.type) {
       case "call.allowed":
-        return addLog(moveAgent(state, event.office), `ALLOWED  ${event.office}`, "allowed", event.at);
+        // A settled call clears any earlier refusal at this office: the agent
+        // tried something out of scope, was refused, and then did something
+        // permitted. Leaving the building red would report the refusal as the
+        // current state when it is history.
+        return addLog(
+          atOffice(moveAgent(state, event.office), event.office, {
+            calls: (state.officeActivity[event.office]?.calls ?? 0) + 1,
+            busy: false,
+            refusal: null,
+          }),
+          `ALLOWED  ${event.office}`,
+          "allowed",
+          event.at,
+        );
       case "call.out_of_scope": {
         const plot = event.district ? plotFor(event.district) : undefined;
         return addLog(
-          { ...state, refusedAt: plot ? plot.landmark : state.refusedAt },
+          atOffice(
+            { ...state, refusedAt: plot ? plot.landmark : state.refusedAt },
+            event.office,
+            { busy: false, refusal: event.detail },
+          ),
           `OUT OF SCOPE  ${event.office} — ${event.detail}`,
           "refused",
           event.at,
@@ -128,6 +220,45 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       default:
         return state;
     }
+  }
+
+  // The scope arrives on the feed rather than only in the launch response, so a
+  // browser reconnecting mid-review replays the proposal instead of finding an
+  // empty panel and a mission it cannot explain.
+  if (feed.type === "scope.proposed") {
+    return {
+      ...addLog(state, `SCOPE PROPOSED  ${feed.scope.scopeId}`, "plain", Date.now()),
+      proposedScope: feed.scope,
+      // Captured when the proposal arrives, because the lease has not started.
+      //
+      // Showing `expiresAt - now` counted down while the operator read the Yard
+      // report, so a ten-minute lease advertised nine and then eight -- while
+      // the server restarts the clock at grant and hands over the full term.
+      // The number on the review screen has to be the term being offered, not a
+      // countdown on a lease nobody has taken out.
+      proposedTtlMs: Math.max(0, feed.scope.expiresAt - Date.now()),
+    };
+  }
+
+  if (feed.type === "scope.granted") {
+    return addLog(
+      { ...state, proposedScope: feed.scope },
+      `SCOPE GRANTED  ${feed.scope.scopeId}`,
+      "allowed",
+      feed.at,
+    );
+  }
+
+  if (feed.type === "scope.denied") {
+    // Closed, not merely logged. A denial that left the scope effective would
+    // keep the limits drawn and the lease counting down for authority nobody
+    // granted -- the most misleading thing this reducer could do.
+    return addLog(
+      { ...state, scopeExpired: true },
+      "SCOPE DENIED  the agent was never dispatched",
+      "refused",
+      feed.at,
+    );
   }
 
   if (feed.type === "yard.report") {
@@ -161,7 +292,9 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
           : [...new Set([...state.online, event.district])],
       };
     case "agent.arrived":
-      return moveAgent(state, event.office);
+      return atOffice(moveAgent(state, event.office), event.office, { busy: true });
+    case "agent.finished":
+      return atOffice(state, event.office, { busy: false });
     case "field.joined": {
       const index = state.figures.filter((figure) => figure.kind === "team").length;
       const plot = plotFor("exchequer")!;
@@ -213,6 +346,17 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
         pendingGates: state.pendingGates.filter((gate) => gate.toolCallId !== event.toolCallId),
       };
     }
+    case "yard.verified":
+      // Stored as well as logged. The gate needs it beside the decision it
+      // justifies; the log needs it in sequence, so the record shows the
+      // check happening before the approval rather than after.
+      return addLog(
+        { ...state, verification: { script: event.script, output: event.output, passed: event.passed } },
+        `SANDBOX  ${event.passed ? "verified" : "CHECK FAILED"}`,
+        event.passed ? "allowed" : "refused",
+        event.at,
+      );
+
     case "yard.opened":
       return {
         ...state,
@@ -228,7 +372,7 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
   }
 }
 
-interface WireScope {
+export interface WireScope {
   readonly scopeId: string;
   readonly job: string;
   readonly offices: readonly string[];
@@ -239,7 +383,15 @@ interface WireScope {
     readonly maxCalls?: Readonly<Record<string, number>>;
   };
   readonly expiresAt: number;
-  readonly grantedAt: number;
+  /**
+   * Null while the scope is only proposed.
+   *
+   * A scope waiting on a human has not been granted, so there is no grant time
+   * to report. Typing this as a plain number let a proposal be treated as a
+   * grant with a timestamp of zero, which reads on screen as a lease that
+   * expired decades ago.
+   */
+  readonly grantedAt: number | null;
 }
 
 export function scopeViewFromWire(scope: WireScope): ScopeView {
@@ -265,7 +417,10 @@ export function scopeViewFromWire(scope: WireScope): ScopeView {
         ([office, count]) => `${office} × ${count}`,
       ),
     ],
-    expiresInMs: Math.max(0, scope.expiresAt - scope.grantedAt),
+    // Measured from the grant when there is one, and from now when the scope
+    // is still a proposal -- the lease has not started ticking yet, so the
+    // honest number is its full length.
+    expiresInMs: Math.max(0, scope.expiresAt - (scope.grantedAt ?? Date.now())),
     expiresAt: scope.expiresAt,
   };
 }

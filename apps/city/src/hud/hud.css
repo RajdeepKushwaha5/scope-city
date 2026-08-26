@@ -782,10 +782,249 @@ body {
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--hud-dim, #7f8c9b);
+}
+
 .console__expire {
   width: 100%;
   margin-top: 8px;
   font-size: 10px;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+}
+
+.order__hint--inline {
+  display: inline-block;
+  margin-left: 8px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  vertical-align: middle;
+}
+
+/* ---- GRANT THE SCOPE ----------------------------------------------------- */
+
+.review__job {
+  font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.review__meta {
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  margin-bottom: 10px;
+}
+
+.review__section {
+  margin-bottom: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+}
+
+.review__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 11px;
+  padding: 2px 0;
+}
+
+.review__office {
+  color: var(--hud-fg, #e6edf3);
+}
+
+.review__limits {
+  color: var(--hud-dim, #7f8c9b);
+  text-align: right;
+  white-space: nowrap;
+}
+
+.review__findings,
+.review__clean {
+  margin-bottom: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+  font-size: 11px;
+}
+
+.review__clean {
+  color: var(--hud-dim, #7f8c9b);
+}
+
+.review__finding {
+  padding: 4px 8px;
+  margin-top: 4px;
+  border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+  line-height: 1.4;
+}
+
+.review__finding--critical { border-left-color: #ff4d4f; }
+.review__finding--warning  { border-left-color: #f0a020; }
+.review__finding--note     { border-left-color: rgba(255, 255, 255, 0.18); }
+
+.review__candidates {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.review__cf {
+  margin-top: 8px;
+  padding: 8px;
+  /* Amber rather than red: annexing a district is a consequence to weigh, not
+     an error to correct. */
+  border: 1px solid rgba(240, 160, 32, 0.35);
+  background: rgba(240, 160, 32, 0.06);
+}
+
+.review__cf-summary {
+  font-size: 12px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+}
+
+.review__cf-delta {
+  font-size: 10px;
+  color: var(--hud-dim, #7f8c9b);
+  margin-bottom: 6px;
+}
+
+.review__cf-clear {
+  margin-top: 6px;
+  font-size: 10px;
+}
+
+.review__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+}
+
+.review__actions .btn { flex: 1; }
+
+.review__hint {
+  margin-top: 8px;
+  font-size: 9px;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  line-height: 1.5;
+}
+
+/* ---- SANDBOX PROOF ------------------------------------------------------- */
+
+.proof {
+  margin-top: 10px;
+  padding: 8px 10px;
+  border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.12));
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.proof--pass { border-left-color: #3fb950; }
+.proof--fail { border-left-color: #ff4d4f; }
+
+.proof__head {
+  display: flex;
+  justify-content: space-between;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+  margin-bottom: 6px;
+}
+
+.proof--pass .proof__verdict { color: #3fb950; }
+.proof--fail .proof__verdict { color: #ff4d4f; }
+
+.proof__script,
+.proof__output {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.45;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 130px;
+  overflow-y: auto;
+}
+
+.proof__script {
+  color: var(--hud-dim, #7f8c9b);
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+}
+
+/* ---- BUILDING INSPECTOR -------------------------------------------------- */
+
+.inspector__close {
+  padding: 0 6px;
+  font-size: 11px;
+  line-height: 1.4;
+}
+
+.inspector__badges {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 10px;
+}
+
+.inspector__badge {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.15));
+  color: var(--hud-dim, #7f8c9b);
+}
+
+/* Authority. Amber for a decision still pending, cyan once it is granted, red
+   only for a gate that is actively waiting on a person. */
+.inspector__badge--proposed { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--allowed  { border-color: #3fb0d0; color: #3fb0d0; }
+.inspector__badge--gated    { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--absent   { border-color: rgba(255, 255, 255, 0.12); }
+
+.inspector__badge--activity-working { border-color: #3fb0d0; color: #3fb0d0; }
+.inspector__badge--activity-waiting { border-color: #f0a020; color: #f0a020; }
+.inspector__badge--activity-done    { border-color: #3fb950; color: #3fb950; }
+.inspector__badge--activity-refused { border-color: #ff4d4f; color: #ff4d4f; }
+
+.inspector__row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font-size: 11px;
+}
+
+.inspector__value {
+  text-align: right;
+  word-break: break-word;
+}
+
+.inspector__absent,
+.inspector__note {
+  font-size: 11px;
+  line-height: 1.5;
+  color: var(--hud-dim, #7f8c9b);
+  margin: 4px 0 0;
+}
+
+.inspector__refusal {
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-left: 2px solid #ff4d4f;
+  background: rgba(255, 77, 79, 0.06);
+  font-size: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
 }

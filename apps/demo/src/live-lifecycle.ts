@@ -1,7 +1,23 @@
 import type { CityFeedEvent } from "@scope-city/mission";
 import type { Scope } from "@scope-city/scope";
 
-export type LiveMissionStatus = "starting" | "running" | "completed" | "failed" | "cancelled";
+/**
+ * `proposed` is the state a mission spends waiting for a human.
+ *
+ * It exists because the product's central claim is that the operator sees the
+ * authority before the agent holds it, and a mission that goes straight to
+ * `starting` has no room in it for that to be true. Nothing is registered with
+ * the proxy and no TrueForge session exists while a mission is proposed, so a
+ * scope that is never granted was never reachable.
+ */
+export type LiveMissionStatus =
+  | "proposed"
+  | "denied"
+  | "starting"
+  | "running"
+  | "completed"
+  | "failed"
+  | "cancelled";
 
 export interface ManagedLiveMission {
   readonly id: string;
@@ -17,7 +33,17 @@ export interface ExpiringLiveMission extends ManagedLiveMission {
 }
 
 export function isTerminalMissionStatus(status: LiveMissionStatus): boolean {
-  return status === "completed" || status === "failed" || status === "cancelled";
+  return (
+    status === "completed" ||
+    status === "failed" ||
+    status === "cancelled" ||
+    status === "denied"
+  );
+}
+
+/** Whether a mission is still waiting on the operator to grant or deny it. */
+export function isAwaitingGrant(status: LiveMissionStatus): boolean {
+  return status === "proposed";
 }
 
 /** Revokes every server-side capability before publishing a terminal status. */

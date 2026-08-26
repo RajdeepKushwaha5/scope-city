@@ -1,8 +1,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { CityFeedEvent } from "@scope-city/mission";
+import { cityViewFrom } from "./city-view.js";
 import { initialLiveCityState, reduceLiveCity, scopeViewFromWire } from "./live-state.js";
 import { OFFICES, type ScopeView } from "./useMission.js";
 import { LaunchGuard } from "./launch-guard.js";
+import type { CounterfactualView } from "./counterfactual-view.js";
 
 interface LaunchResponse {
   readonly missionId: string;
@@ -112,6 +114,58 @@ export function useLiveMission() {
   }, [closeSource, connect]);
 
   /**
+   * Grants the proposed scope, which is what actually starts the agent.
+   *
+   * Kept separate from launching on purpose. Launching derives a scope and
+   * runs the Yard over it; nothing is registered with the proxy and no
+   * TrueForge session exists until this call. That gap is the product: the
+   * operator sees the authority before anything can use it.
+   */
+  const grant = useCallback(async () => {
+    if (!missionId) return;
+    try {
+      const response = await fetch(`/api/missions/${missionId}/grant`, { method: "POST" });
+      if (!response.ok) {
+        const body = (await response.json().catch(() => ({}))) as { error?: string };
+        setError(body.error ?? "The scope could not be granted.");
+      }
+    } catch (cause) {
+      setError(cause instanceof Error ? cause.message : String(cause));
+    }
+  }, [missionId]);
+
+  /** Refuses the proposed scope. Nothing was ever registered, so nothing is revoked. */
+  const denyScope = useCallback(async () => {
+    if (!missionId) return;
+    await fetch(`/api/missions/${missionId}/deny`, { method: "POST" }).catch(() => undefined);
+  }, [missionId]);
+
+  /**
+   * Asks what one more office would cost, before it is granted.
+   *
+   * Answered by the server against the proposed scope, using the same engine
+   * the backtest uses, so the "what if" and the report cannot disagree.
+   */
+  const askCounterfactual = useCallback(
+    async (office: string) => {
+      if (!missionId) return null;
+      try {
+        const response = await fetch(`/api/missions/${missionId}/counterfactual`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify({ office }),
+        });
+        if (!response.ok) return null;
+        const body = (await response.json()) as { counterfactual?: unknown };
+        return (body.counterfactual ?? null) as CounterfactualView | null;
+      } catch {
+        return null;
+      }
+    },
+    [missionId],
+  );
+
+  /**
    * Closes the city limits now instead of waiting out the lease.
    *
    * The server moves the scope to `expired` through the same path its timer
@@ -168,51 +222,31 @@ export function useLiveMission() {
     setConnection("offline");
   }, [closeSource, missionId, state.status]);
 
-  const scopeEffective = Boolean(
-    scope &&
-      !state.scopeExpired &&
-      state.status !== "cancelled" &&
-      state.status !== "failed" &&
-      state.status !== "completed" &&
-      expiresIn !== 0,
-  );
-  const granted = useMemo(
-    () => (scopeEffective
-      ? ["records", "exchequer", "post-house"]
-      : []),
-    [scopeEffective],
-  );
+  // Presentation comes from the shared mapping, so a recorded replay of this
+  // mission renders identically to the mission itself.
+  const view = cityViewFrom({ state, scope, expiresIn, idleJob: "No live mission" });
 
   return {
+    ...view,
     active,
     connection,
     error,
     launch,
     leave,
-    phase: state.phase,
-    scope,
-    scopeState: scopeEffective ? "granted" as const : "none" as const,
-    online: state.online,
-    offices: OFFICES,
-    figures: state.figures,
-    gate: state.gate,
-    pendingGateCount: state.pendingGates.length,
-    gateDistricts: state.gate ? [state.gate.district] : [],
-    log: state.log,
-    refusedAt: state.refusedAt,
-    sandboxOpen: state.sandboxOpen,
-    yard: state.yard,
     missionId,
-    treasury: 0,
+    awaitingGrant: state.status === "proposed",
+    proposedScope: state.proposedScope,
+    proposedTtlMs: state.proposedTtlMs,
+    report: state.yard,
+    verification: state.verification,
+    // The raw reducer state, for views that derive rather than read.
+    rawState: state,
     inspecting,
-    expiresIn,
-    job: scope?.job ?? "No live mission",
-    granted,
-    proposed: [] as readonly string[],
     inspect: setInspecting,
+    grant,
+    denyScope,
+    askCounterfactual,
     propose: () => undefined,
-    grant: () => undefined,
-    denyScope: () => undefined,
     revoke: leave,
     countersign,
     expireNow,

@@ -7,6 +7,7 @@ import {
   recordsSystem,
   type SystemDefinition,
 } from "@scope-city/mcp";
+import { missionSystems } from "./systems.js";
 import { fingerprintCall, type Mission } from "@scope-city/proxy";
 import type { CountersignBook } from "@scope-city/mission";
 import type { EmitProxyEvent } from "@scope-city/proxy";
@@ -39,7 +40,7 @@ export function createFixtureMission(params: {
   scope?: Scope;
 }): FixtureMission {
   const now = params.now ?? Date.now();
-  const systems = [recordsSystem(), exchequerSystem(), postHouseSystem()];
+  const systems = missionSystems();
   const handlers = new Map(
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );
@@ -81,10 +82,12 @@ export function createFixtureMission(params: {
     scope,
     registry: officeRegistry(),
     ledger: new QuotaLedger(),
-    upstream: async (call) => {
+    upstream: async (call, context) => {
       const handler = handlers.get(call.office);
       if (!handler) throw new Error(`no system implements ${call.office}`);
-      return handler.call(call.args);
+      // The proxy's key is passed through untouched. It is the only identifier
+      // that distinguishes a retry from a second, legitimate, identical action.
+      return handler.call(call.args, context);
     },
     countersign: async (request) => {
       const fingerprint = fingerprintCall({

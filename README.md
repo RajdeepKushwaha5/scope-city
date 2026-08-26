@@ -101,6 +101,15 @@ every branch reachable from a test.
   `bwrap`, `socat` or `ripgrep` does nothing for it. Set `DAYTONA_API_KEY` and
   `SCOPE_SANDBOX=true` and the control plane configures the provider at boot.
 
+  **Scope the key to three permissions: Sandboxes, Snapshots, Volumes.** A key
+  scoped to Sandboxes alone is refused — TrueForge's validation reaches
+  further, and Daytona answers 403 on `/api/volumes`, which surfaces as
+  "Daytona rejected the API key — check the credentials" and sends you to
+  check a credential that works. Those three are what a working key needs;
+  verified by probing each endpoint, with `api-keys` still 403 on the key that
+  configures successfully. There is no reason to grant more than that, least
+  of all in this project.
+
   Without a key, everything else still runs. The startup log says the sandbox is
   unavailable and the mission brief omits its verification step, rather than
   asking the agent for working it has no way to produce.
@@ -128,13 +137,59 @@ do not delete it. Start the hackathon instance with an isolated database:
 SQLITE_PATH=/tmp/scope-city-trueforge.sqlite npx @truefoundry/trueforge
 ```
 
-### Fixture systems and offline replay
+### Real systems, and fixtures
 
-The ticket, payment, and mail systems are local deterministic fixtures. No
-Stripe, helpdesk, or email credentials are needed, and no real refund or email
-is sent. A live mission still needs one configured model key. The clearly
-labelled **Offline security replays** in the UI and the full test suite need no
-network or credentials.
+The Exchequer talks to **Stripe test mode** when `STRIPE_API_KEY` is set. A
+refund issued there is genuinely irreversible in the test ledger, which is the
+property the gate exists to protect — a demo whose "irreversible action" is a
+counter in memory is asking to be taken on faith.
+
+```bash
+node scripts/seed-stripe.mjs   # creates the charges the demo refunds
+```
+
+Scope the key to **Charges and Refunds: write** and **Payment Intents: read**,
+and nothing else. That is the entire surface the Exchequer uses. It is worth
+doing properly: our first attempt looked correct — the two permissions we
+wanted were set — and probing what the key could actually reach found write
+access to payouts, transfers and top-ups, inherited from a group toggle. Stated
+permissions and actual reach are different things, which is the same argument
+the Yard makes about the agent.
+
+Records and Post House remain fixtures. `SCOPE_FIXTURES=true` forces every
+district to its fixture regardless of what is configured, so the whole demo
+runs with no accounts at all — and the test suite sets it, so no test can reach
+a payment API by accident.
+
+The clearly labelled **Offline security replays** in the UI need no network or
+credentials either.
+
+## Judge mode — no install, no credentials
+
+The city is a static build. Deploying `apps/city` gives a public URL with no
+sign-in, no backend, and no keys, and the **Replay a real run** button plays a
+mission that actually happened.
+
+That recording is not a script. It is what the control plane produced during a
+live TrueForge session — the derivation, the Yard's 46 probes, the gates, the
+countersigns, the quota — and it is hash-chained, so anyone doubting the order
+of events can check it:
+
+```bash
+# the same file the UI replays
+cat apps/city/public/replays/refund-184.json
+```
+
+It replays through the **same reducer the live stream drives**, so there is no
+second code path that could flatter the first.
+
+```bash
+pnpm --filter @scope-city/city build   # -> apps/city/dist, deploy anywhere static
+```
+
+The scripted **Offline security replays** sit alongside it and are labelled
+differently on purpose: those illustrate a scenario, the recording is one that
+happened.
 
 ## Verifying the claim
 

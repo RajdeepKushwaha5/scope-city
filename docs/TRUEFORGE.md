@@ -151,6 +151,26 @@ Dynamic and parallel, **one level deep**, sharing the root's tools and sandbox.
 our own turns server-side, and animate `thread.created` / `thread.done` where the
 harness genuinely spawns something.
 
+## Reconnection, verified
+
+A pending approval survives the browser going away, and this is the property
+that makes The Gate usable rather than a demo trick. Proven against a running
+instance rather than assumed:
+
+1. Mission granted, agent runs, `charge.refund` raises a gate.
+2. The event stream is closed -- what a reload does.
+3. A fresh connection asks from cursor 0 and replays the whole mission,
+   including the pending gate and its exact arguments.
+4. The recovered `toolCallId` is approved and accepted; the turn resumes.
+
+None of the state lives in the browser, which is why the refresh costs
+nothing: TrueForge keeps the turn paused, the queue holds the pending call
+server-side, and the feed replays from any cursor.
+
+Note the claim is **browser refresh**, not server restart. Missions are held in
+memory, so restarting the control plane loses them. Saying otherwise on camera
+would be the kind of overclaim that unravels in a question.
+
 ## Verified live for Scope City
 
 - [x] TrueForge reaches the local authenticated MCP proxy.

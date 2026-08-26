@@ -8,10 +8,19 @@ import {
   missionAgentSpec,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
-import { buildRecord, verifyRecord, CountersignBook, missionBrief, type CityFeedEvent } from "@scope-city/mission";
+import {
+  buildRecord,
+  verifyRecord,
+  proofAuthorises,
+  CountersignBook,
+  missionBrief,
+  type CityFeedEvent,
+} from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { missionSystems, systemsSummary } from "./systems.js";
+import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
@@ -30,6 +39,24 @@ const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
 const SANDBOX = process.env.SCOPE_SANDBOX === "true";
 const DAYTONA_API_KEY = process.env.DAYTONA_API_KEY ?? "";
+
+/**
+ * Whether this run has a sandbox, decided once at boot.
+ *
+ * Gates whether an approval requires the agent's working. With no sandbox the
+ * brief never asked for a check, so demanding one would refuse every approval
+ * on a build behaving exactly as configured.
+ */
+const SANDBOX_AVAILABLE = { value: false };
+
+/**
+ * How long a mission will wait for a model to come off cooldown.
+ *
+ * Long enough to ride out the per-minute rate limits free-tier keys hit
+ * constantly, short enough that a genuinely dead pool is reported rather than
+ * hidden behind a city that appears to be thinking.
+ */
+const POOL_WAIT_BUDGET_MS = 4 * 60 * 1000;
 /**
  * Models to rotate across, pinned by configuration if anyone asked.
  *
@@ -47,7 +74,11 @@ interface LiveMission extends ManagedLiveMission {
   readonly order: string;
   readonly feed: MissionFeed;
   readonly gates: OperatorGateQueue;
-  readonly scope: ReturnType<typeof createFixtureMission>["scope"];
+  readonly book: CountersignBook;
+  /** The most recent sandbox check, if the agent ran one. */
+  verification?: { script: string; output: string; passed: boolean };
+  readonly report: ReturnType<typeof backtest>;
+  scope: ReturnType<typeof createFixtureMission>["scope"];
   readonly startedAt: number;
   sessionId?: string;
 }
@@ -107,6 +138,13 @@ async function main(): Promise<void> {
   // `type` enum has exactly one member. Installing bwrap, socat and ripgrep
   // does nothing for this build, whatever other versions may support.
   const sandbox = await resolveSandbox(driver);
+
+  // Held in a box rather than closed over directly so the request handlers,
+  // which are defined below, read the value settled at boot rather than a
+  // binding that has not been initialised when they are created.
+  SANDBOX_AVAILABLE.value = sandbox;
+
+  console.log(systemsSummary());
 
   async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
     if (!SANDBOX) return false;
@@ -195,6 +233,57 @@ async function main(): Promise<void> {
 
       const id = newMissionId();
 
+      // The comparison run: the authority an ordinary integration hands over.
+      //
+      // Deliberately the same pipeline, not a bypass. Switching the proxy off
+      // would compare "our enforcement" against "no enforcement" and prove only
+      // that code which runs does something. This runs the same evaluator, the
+      // same proxy and the same map against a scope that grants everything --
+      // which is what inheriting a user's access actually means, written down.
+      if (body.mode === "unscoped") {
+        const scope = await unscopedScope({
+          missionId: id,
+          job: order,
+          systems: missionSystems(),
+          now: Date.now(),
+        });
+
+        const feed = new MissionFeed();
+        const gates = new OperatorGateQueue();
+        const book = new CountersignBook();
+        const fixture = createFixtureMission({
+          missionId: id,
+          book,
+          emit: (event) => feed.append({ type: "proxy", event }),
+          scope,
+        });
+        registry.register(fixture.mission);
+
+        const live: LiveMission = {
+          id,
+          order,
+          feed,
+          gates,
+          book,
+          scope,
+          // The Yard still runs, and this is the most useful thing it ever
+          // reports: every probe it fires is *allowed*, so the findings are the
+          // shape of the blast radius rather than a clean sheet.
+          report: backtest({ scope, registry: officeRegistry(), now: Date.now() }),
+          startedAt: Date.now(),
+          status: "starting",
+        };
+        missions.set(id, live);
+
+        feed.append({ type: "scope.granted", scope, at: Date.now() });
+        feed.append({ type: "yard.report", report: live.report });
+        feed.append({ type: "mission.status", status: "starting" });
+        void runLiveMission(live, book).catch(() => undefined);
+
+        json(res, 202, { missionId: id, status: live.status, scope, mode: "unscoped" });
+        return;
+      }
+
       // Stage 1 and 2 of sealing, before anything else exists.
       //
       // Deliberately ahead of the feed, the ledger and the session: if the
@@ -222,14 +311,19 @@ async function main(): Promise<void> {
         return;
       }
 
-      // The Yard, before the mission exists.
+      // The Yard, before anything is granted.
       //
-      // Run here rather than after dispatch because a backtest is only useful
-      // at the one moment its answer can still change the decision. Afterwards
-      // it is a postmortem. Nothing it does touches a system or spends
-      // anything -- every check is the pure evaluator against a generated call,
-      // or a walk over declared shapes -- so it is safe to run on a scope that
-      // has not been granted, which is the entire point.
+      // Run here because a backtest is only useful at the one moment its answer
+      // can still change the decision; afterwards it is a postmortem. Nothing
+      // it does touches a system or spends anything -- every check is the pure
+      // evaluator against a generated call, or a walk over declared shapes --
+      // so it is safe to run on a scope nobody has approved, which is the
+      // entire point.
+      //
+      // It probes the scope *as if granted*, because that is the authority the
+      // operator is being asked about. Probing the proposed state would refuse
+      // everything for `scope_not_active` and report a clean sheet that means
+      // nothing.
       const report = backtest({
         scope: { ...derived.scope, state: "granted" },
         registry: officeRegistry(),
@@ -239,46 +333,44 @@ async function main(): Promise<void> {
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
       const book = new CountersignBook();
-      const fixture = createFixtureMission({
-        missionId: id,
-        book,
-        emit: (event) => feed.append({ type: "proxy", event }),
-        // Granted here because the operator's act of dispatching *is* the
-        // grant in this build. The state exists so a separate propose/grant
-        // screen can slot in without the enforcement layer changing.
-        scope: { ...derived.scope, state: "granted", grantedBy: "operator:scope-city", grantedAt: Date.now(), version: 1 },
-      });
-      registry.register(fixture.mission);
 
+      // Proposed, and nothing else.
+      //
+      // No proxy registration and no TrueForge session exist yet. That is the
+      // difference between a product that shows you a scope and one that asks
+      // your permission: until grant, there is nothing for an agent to reach
+      // even if one were somehow started, because the mission is not in the
+      // registry the proxy consults.
       const live: LiveMission = {
         id,
         order,
         feed,
         gates,
-        scope: fixture.scope,
+        book,
+        scope: derived.scope,
+        report,
         startedAt: Date.now(),
-        status: "starting",
+        status: "proposed",
       };
       missions.set(id, live);
-      live.expiryTimer = setTimeout(() => void expireMission(live), Math.max(0, live.scope.expiresAt - Date.now()));
 
-      async function expireMission(expiring: LiveMission): Promise<void> {
-        await expireLiveMission(expiring, registry, (sessionId) => driver.cancel(sessionId));
-      }
+      feed.append({ type: "scope.proposed", scope: derived.scope });
       feed.append({ type: "yard.report", report });
-      feed.append({ type: "mission.status", status: "starting" });
-      void runLiveMission(live, book).catch(() => undefined);
+      feed.append({ type: "mission.status", status: "proposed" });
 
-      json(res, 202, {
+      json(res, 200, {
         missionId: id,
         status: live.status,
-        scope: fixture.scope,
+        scope: derived.scope,
+        report,
+        dropped: derived.dropped,
         eventUrl: `/api/missions/${id}/events`,
+        grantUrl: `/api/missions/${id}/grant`,
       });
       return;
     }
 
-    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire)$/);
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire|grant|deny|counterfactual)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -298,21 +390,197 @@ async function main(): Promise<void> {
     if (req.method === "POST" && match[2] === "decisions") {
       const body = await readJson(req);
       const toolCallId = typeof body.toolCallId === "string" ? body.toolCallId : "";
+      // Set only if this decision is checked against a proof, so the clear
+      // below cannot touch a proof belonging to a different pending gate.
+      let spendsProof = false;
       const approved = body.approved === true;
       const reason = typeof body.reason === "string" ? body.reason : undefined;
       if (!toolCallId) {
         json(res, 400, { error: "toolCallId is required" });
         return;
       }
+      // An approval needs the working behind it, when there is a sandbox to
+      // produce working.
+      //
+      // The brief asks the agent to verify an irreversible amount before
+      // requesting it, and the point of asking is that the answer gates the
+      // request. Accepting a countersign while the check failed -- or while no
+      // check was ever run -- would make the sandbox decorative: a step the
+      // agent performs and nobody depends on. Refusing here is what turns it
+      // into the thing that earns the approval.
+      //
+      // Only when a sandbox exists. Without one the brief never asked for a
+      // check, so demanding evidence of one would refuse every approval on a
+      // build that is running exactly as configured.
+      // Checked for a denial too, so a refusal spends the proof it was made on
+      // rather than leaving it for a retry -- but only that proof, and only if
+      // it was about this call.
+      if (SANDBOX_AVAILABLE.value) {
+        // Bound to *this* call, and spent only once the approval lands.
+        //
+        // Keeping only the most recent verification meant any passing check
+        // authorised any pending gate: the shipped recording shows a refund
+        // being verified and then a `mail.send` approved on the strength of it,
+        // with nothing ever checked about the mail. That is the same drift the
+        // countersign fingerprint exists to catch, one layer up.
+        const pending = mission.gates.pending(toolCallId);
+
+        // Checked before the proof, because a missing gate supplies no
+        // arguments and a proof with nothing to match against passes trivially
+        // -- so a stale or mistyped id would destroy a valid proof and then
+        // return 409, leaving the real pending gate unapprovable and the agent
+        // paused on a decision that can no longer be made.
+        if (!pending) {
+          json(res, 409, { error: "that gate is not waiting" });
+          return;
+        }
+
+        const verdict = proofAuthorises(mission.verification, pending.args);
+
+        // An approval needs the working. A denial does not -- refusing an
+        // action nobody verified is always allowed, and demanding proof to say
+        // no would trap the operator into approving.
+        if (approved && !verdict.ok) {
+          json(res, 428, {
+            error: verdict.reason,
+            ...(verdict.detail ? { detail: verdict.detail } : {}),
+          });
+          return;
+        }
+        spendsProof = verdict.ok;
+      }
+
       if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {
         json(res, 409, { error: "that gate is not waiting" });
         return;
       }
+
+      // Spent only when this decision was actually made on that proof.
+      //
+      // Two failures to avoid at once. Clearing on approval alone left a denied
+      // gate's passing check available to authorise a retry with the same
+      // arguments -- refuse an action, be asked again, and it rides on working
+      // from before the refusal. But clearing on *every* decision was worse:
+      // several gates can be pending together, so denying gate A destroyed the
+      // proof that had arrived for gate B, and B's approval then failed for
+      // missing working nobody had spent.
+      //
+      // A proof is consumed by the decision it justified, and by nothing else.
+      if (spendsProof) mission.verification = undefined;
       mission.feed.append({
         type: "world",
         event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
       });
       json(res, 200, { accepted: true });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "grant") {
+      if (mission.status !== "proposed") {
+        json(res, 409, { error: "that mission is not awaiting a grant" });
+        return;
+      }
+
+      // Re-checked here, not only at proposal.
+      //
+      // Several proposals can wait at once -- proposing costs nothing and
+      // starts nothing -- so checking only that *this* one is awaiting a grant
+      // let two of them be granted in turn, each starting a TrueForge session
+      // through a control plane that assumes one. The singleton has to hold at
+      // the moment authority is actually handed over.
+      const running = [...missions.values()].find(
+        (other) => other.status === "starting" || other.status === "running",
+      );
+      if (running) {
+        json(res, 409, { error: "a mission is already active", missionId: running.id });
+        return;
+      }
+
+      // The lease starts now, not when the scope was drafted.
+      //
+      // `expiresAt` was computed during derivation, so an operator who spent
+      // two minutes reading the Yard report would have granted a scope with two
+      // minutes already spent -- and a ten-minute lease that expires in eight
+      // is not the lease they were shown. Recomputing at grant makes the
+      // countdown mean what the screen said.
+      const grantedAt = Date.now();
+      const ttl = mission.scope.expiresAt - mission.startedAt;
+      const granted = {
+        ...mission.scope,
+        state: "granted" as const,
+        grantedBy: "operator:scope-city",
+        grantedAt,
+        expiresAt: grantedAt + Math.max(1, ttl),
+        version: mission.scope.version + 1,
+      };
+
+      const fixture = createFixtureMission({
+        missionId: mission.id,
+        book: mission.book,
+        emit: (event) => mission.feed.append({ type: "proxy", event }),
+        scope: granted,
+      });
+
+      // Only now does the proxy know this mission exists.
+      registry.register(fixture.mission);
+
+      mission.scope = granted;
+      mission.status = "starting";
+      mission.expiryTimer = setTimeout(
+        () => void expireLiveMission(mission, registry, (sid) => driver.cancel(sid)),
+        Math.max(0, granted.expiresAt - Date.now()),
+      );
+
+      mission.feed.append({ type: "scope.granted", scope: granted, at: grantedAt });
+      mission.feed.append({ type: "mission.status", status: "starting" });
+      void runLiveMission(mission, mission.book).catch(() => undefined);
+
+      json(res, 202, { missionId: mission.id, status: mission.status, scope: granted });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "deny") {
+      if (mission.status !== "proposed") {
+        json(res, 409, { error: "that mission is not awaiting a grant" });
+        return;
+      }
+
+      // Deliberately no singleton check here.
+      //
+      // The grant handler has one, because granting starts a session. Denial
+      // starts nothing, revokes nothing, and touches no other mission, so
+      // blocking it while an unrelated run is active would strand valid
+      // proposals in `proposed` until something they have nothing to do with
+      // finishes. Refusing authority must always be available.
+      //
+      // Nothing to revoke either: a denied scope was never registered with the
+      // proxy and never had a session. Denial is simply the mission ending.
+      mission.status = "denied";
+      mission.feed.append({ type: "scope.denied", at: Date.now() });
+      mission.feed.append({ type: "mission.status", status: "denied" });
+      json(res, 200, { denied: true });
+      return;
+    }
+
+    if (req.method === "POST" && match[2] === "counterfactual") {
+      const body = await readJson(req);
+      const office = typeof body.office === "string" ? body.office : "";
+      if (!office) {
+        json(res, 400, { error: "office is required" });
+        return;
+      }
+
+      // Answered against the proposed scope, which is the only time the answer
+      // is actionable: once granted, "what would this cost" is a question about
+      // authority the agent already holds.
+      json(res, 200, {
+        counterfactual: counterfactual({
+          scope: { ...mission.scope, state: "granted" },
+          registry: officeRegistry(),
+          office,
+          now: Date.now(),
+        }),
+      });
       return;
     }
 
@@ -411,16 +679,62 @@ async function main(): Promise<void> {
 
       const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
-      for (const model of pool.available(Date.now())) {
+
+      // Iterated live rather than over a snapshot of what was available at the
+      // start, and willing to wait when nothing is.
+      //
+      // `pool.available()` taken once meant that if every model happened to be
+      // cooling at that instant the loop body never ran and the mission failed
+      // outright. On free-tier keys that is not an edge case: three keys
+      // rate-limiting within a few seconds of each other is the normal way a
+      // busy afternoon goes, and giving up while every one of them is sixty
+      // seconds from working again wastes the whole mission.
+      //
+      // Bounded, because waiting forever is its own failure -- an operator
+      // watching a city do nothing deserves to be told it has given up rather
+      // than left to guess.
+      const poolDeadline = Date.now() + POOL_WAIT_BUDGET_MS;
+
+      for (;;) {
+        const model = pool.next(Date.now());
+
+        if (model === undefined) {
+          const readyAt = pool.nextAvailableAt(Date.now());
+          if (readyAt === undefined || readyAt > poolDeadline) break;
+
+          const waitMs = Math.max(0, readyAt - Date.now()) + 250;
+          live.feed.append({
+            type: "mission.status",
+            status: "starting",
+            detail: `every model is cooling; waiting ${Math.ceil(waitMs / 1000)}s`,
+          });
+          await new Promise((resolve) => setTimeout(resolve, waitMs));
+          if (isTerminalMissionStatus(live.status)) return;
+          continue;
+        }
+
         let attemptSessionId: string | undefined;
         try {
           attemptSessionId = await driver.createSession(
             missionAgentSpec({
               model,
               proxyName,
-              gatedTools: [...IRREVERSIBLE_OFFICES],
+              // From the scope, not a constant.
+              //
+              // The scope decides what stops for a human; passing a fixed list
+              // meant the comparison run -- whose whole point is that nothing
+              // stops to ask -- still raised a TrueForge approval for every
+              // irreversible office. It demonstrated the opposite of what it
+              // claimed, which is worse than not demonstrating it.
+              gatedTools: [...live.scope.countersignRequired],
               sandbox,
-              instructions: missionBrief({ ticketId: "tkt_184", sandbox }),
+              // The comparison run is briefed as an ordinary integration is,
+              // without our framing about untrusted content or limited reach.
+              instructions: missionBrief({
+                scope: live.scope,
+                sandbox,
+                plain: live.scope.scopeId === "NO-SCOPE",
+              }),
             }),
           );
           live.sessionId = attemptSessionId;
@@ -452,6 +766,17 @@ async function main(): Promise<void> {
                   office: event.office,
                   args: (event.args ?? {}) as Record<string, unknown>,
                 });
+              }
+              // Kept server-side as well as published, because the approval
+              // endpoint consults it. A verification that only existed in the
+              // browser would let a client that never rendered it approve
+              // anyway, which is the wrong place for the check to live.
+              if (event.type === "yard.verified") {
+                live.verification = {
+                  script: event.script,
+                  output: event.output,
+                  passed: event.passed,
+                };
               }
               live.feed.append({ type: "world", event });
             },

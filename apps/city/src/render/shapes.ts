@@ -791,3 +791,140 @@ export function drawShip(
   }
   ctx.restore();
 }
+
+/**
+ * A marker on a building's roof saying what state it is in.
+ *
+ * Drawn live rather than baked into the sprite, because these pulse and the
+ * sprite cache is keyed by appearance -- baking a phase would mean a cache
+ * entry per frame.
+ *
+ * Shape carries the meaning as well as colour. A viewer who cannot distinguish
+ * amber from green, or a screenshot printed in grey, still separates a ring
+ * from a bar from a cross. Colour alone would make the whole city unreadable to
+ * some people and unciteable in a written report, and this is the layer that
+ * tells an operator what needs them.
+ */
+export type BuildingMarker =
+  | "gated"
+  | "waiting"
+  | "working"
+  | "done"
+  | "refused"
+  | "proposed"
+  | "none";
+
+const MARKER_COLOUR: Record<Exclude<BuildingMarker, "none">, string> = {
+  gated: "#f0a020",
+  waiting: "#f0a020",
+  working: "#3fb0d0",
+  done: "#3fb950",
+  refused: "#ff4d4f",
+  proposed: "#f0a020",
+};
+
+export function drawBuildingMarker(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  height: number,
+  marker: BuildingMarker,
+  /** 0..1, for the states that pulse. */
+  phase: number,
+): void {
+  if (marker === "none") return;
+
+  const top = toScreen(u, v, height + 0.18);
+  const colour = MARKER_COLOUR[marker];
+
+  ctx.save();
+  ctx.strokeStyle = colour;
+  ctx.fillStyle = colour;
+  ctx.lineWidth = 1.5;
+
+  switch (marker) {
+    case "waiting": {
+      // A ring that breathes: the only state that is asking a human for
+      // something, so it is the one allowed to move.
+      const r = 4 + Math.sin(phase * Math.PI * 2) * 1.6;
+      ctx.globalAlpha = 0.55 + Math.sin(phase * Math.PI * 2) * 0.35;
+      ctx.beginPath();
+      ctx.arc(top.x, top.y, r, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case "gated": {
+      // A static ring. Same shape as waiting, still: this office *would* stop
+      // for a countersign, but nothing is pending.
+      ctx.globalAlpha = 0.7;
+      ctx.beginPath();
+      ctx.arc(top.x, top.y, 3.2, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+    case "working": {
+      const r = 2.6 + Math.sin(phase * Math.PI * 2) * 0.9;
+      ctx.globalAlpha = 0.85;
+      ctx.beginPath();
+      ctx.arc(top.x, top.y, r, 0, Math.PI * 2);
+      ctx.fill();
+      break;
+    }
+    case "done": {
+      // A short bar. Deliberately quiet -- finished work should not compete for
+      // attention with work that needs a decision.
+      ctx.globalAlpha = 0.8;
+      ctx.fillRect(top.x - 3, top.y - 1, 6, 2);
+      break;
+    }
+    case "refused": {
+      // A cross, and the only marker that reads as a stop rather than a status.
+      ctx.globalAlpha = 0.95;
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      ctx.moveTo(top.x - 3.5, top.y - 3.5);
+      ctx.lineTo(top.x + 3.5, top.y + 3.5);
+      ctx.moveTo(top.x + 3.5, top.y - 3.5);
+      ctx.lineTo(top.x - 3.5, top.y + 3.5);
+      ctx.stroke();
+      break;
+    }
+    case "proposed": {
+      // Hollow and dashed: authority that has been asked for and not yet given.
+      ctx.globalAlpha = 0.75;
+      ctx.setLineDash([2, 2]);
+      ctx.beginPath();
+      ctx.arc(top.x, top.y, 3.4, 0, Math.PI * 2);
+      ctx.stroke();
+      break;
+    }
+  }
+
+  ctx.restore();
+}
+
+/** A gold outline around the footprint of the selected building. */
+export function drawSelection(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  height: number,
+): void {
+  ctx.save();
+  ctx.strokeStyle = "#f5c451";
+  ctx.lineWidth = 1.5;
+  ctx.globalAlpha = 0.9;
+
+  // The roof outline rather than the ground footprint: the ground is hidden
+  // behind the building itself from this angle, so an outline there would be
+  // drawn and then painted over.
+  const c = toScreen(u, v, height);
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y - TILE_H / 2);
+  ctx.lineTo(c.x + TILE_W / 2, c.y);
+  ctx.lineTo(c.x, c.y + TILE_H / 2);
+  ctx.lineTo(c.x - TILE_W / 2, c.y);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.restore();
+}

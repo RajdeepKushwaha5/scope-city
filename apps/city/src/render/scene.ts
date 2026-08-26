@@ -1,4 +1,4 @@
-import { UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
+import { TILE_H, TILE_W, UNIT_H, blockBounds, depth, toScreen } from "../iso/projection.js";
 import {
   AGENT,
   COAST,
@@ -32,6 +32,7 @@ import {
   drawTree,
   drawVehicle,
 } from "./shapes.js";
+import { drawBuildingMarker, drawSelection, type BuildingMarker } from "./shapes.js";
 import { bake, blit } from "./bake.js";
 import {
   blendAmount,
@@ -49,6 +50,7 @@ import {
   isInScope,
   layOutCity,
   perimeterOf,
+  plotFor,
   roadConnections,
   tileKindAt,
   treeCells,
@@ -84,6 +86,31 @@ export interface SceneState {
   readonly gates: readonly string[];
   readonly refusedAt: { u: number; v: number } | null;
   readonly scopeState: "none" | "proposed" | "granted";
+  /**
+   * Per-building state, keyed by office.
+   *
+   * Passed in rather than derived here: the scene renders, it does not decide
+   * what a building means, and a second derivation would drift from the one the
+   * inspector reads.
+   */
+  readonly buildings?: ReadonlyMap<string, { authority: string; activity: string }>;
+  /** The office the operator has selected, if any. */
+  readonly selected?: string | null;
+  /** Animation phase, 0..1, for the states that pulse. */
+  readonly phase?: number;
+  /**
+   * The office being considered but not granted, and the districts it would
+   * bring inside the limits.
+   *
+   * Drawn as a hypothetical rather than folded into `granted`, because the
+   * whole value of a counterfactual is that it is visibly *not* the scope. An
+   * operator who cannot tell the preview from the grant has been shown
+   * authority they did not give.
+   */
+  readonly counterfactual?: {
+    readonly office: string;
+    readonly districts: readonly string[];
+  } | null;
 }
 
 interface Drawable {
@@ -97,7 +124,15 @@ let cachedCity: Building[] = [];
 let cachedTrees: { u: number; v: number }[] = [];
 let cachedFountains: { u: number; v: number }[] = [];
 
-function cityFor(offices: readonly { office: string; district: string }[]): {
+/**
+ * The laid-out city for a set of offices, memoised.
+ *
+ * Exported so the interaction layer can pick against the same buildings the
+ * renderer drew. Laying out a second copy for hit-testing would work until the
+ * two disagreed, and then the operator would be clicking one city and reading
+ * about another.
+ */
+export function cityFor(offices: readonly { office: string; district: string }[]): {
   buildings: Building[];
   trees: { u: number; v: number }[];
   fountains: { u: number; v: number }[];
@@ -119,6 +154,13 @@ export function drawScene(
   size: { width: number; height: number },
   time: number,
 ): void {
+  // The pulse phase is derived from the frame clock rather than passed in, so a
+  // caller cannot forget it and leave every beacon frozen. Roughly a
+  // second-and-a-half cycle: slow enough to read as breathing rather than
+  // blinking, which matters because the only pulsing state is the one asking a
+  // person for a decision.
+  const framed: SceneState = { ...state, phase: (time % 1500) / 1500 };
+
   ctx.save();
   ctx.fillStyle = UI.sky;
   ctx.fillRect(0, 0, size.width, size.height);
@@ -127,24 +169,27 @@ export function drawScene(
   ctx.scale(camera.zoom, camera.zoom);
   ctx.imageSmoothingEnabled = false;
 
-  const { buildings, trees, fountains } = cityFor(state.offices);
+  const { buildings, trees, fountains } = cityFor(framed.offices);
 
   const items: Drawable[] = [
-    ...groundItems(state),
+    ...groundItems(framed),
     ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...buildingItems(buildings, state),
-    ...landmarkItems(state),
-    ...trafficItems(state, time),
+    ...landmarkItems(framed),
+    ...trafficItems(framed, time),
     ...maritimeItems(time),
-    ...figureItems(state),
+    ...figureItems(framed),
   ];
 
   items.sort((a, b) => a.z - b.z);
   for (const item of items) item.draw(ctx);
 
-  drawScopeWall(ctx, state, time);
+  drawScopeWall(ctx, framed, time);
+  // After the real boundary, so a hypothetical annexation reads as something
+  // laid over the scope rather than part of it.
+  drawCounterfactual(ctx, framed, time);
   drawRefusal(ctx, state, time);
 
   ctx.restore();
@@ -337,6 +382,25 @@ function fountainItems(
   });
 }
 
+/**
+ * Which marker a building's state earns.
+ *
+ * Activity wins over authority when something is happening, because an operator
+ * scanning the city is looking for what needs them now -- a gated office that
+ * is actually waiting should not read the same as one merely capable of
+ * waiting. When nothing is happening, authority shows instead, so the map still
+ * says which offices would stop for a countersign.
+ */
+function markerFor(runtime: { authority: string; activity: string }): BuildingMarker {
+  if (runtime.activity === "waiting") return "waiting";
+  if (runtime.activity === "refused") return "refused";
+  if (runtime.activity === "working") return "working";
+  if (runtime.activity === "done") return "done";
+  if (runtime.authority === "gated") return "gated";
+  if (runtime.authority === "proposed") return "proposed";
+  return "none";
+}
+
 function buildingItems(buildings: readonly Building[], state: SceneState): Drawable[] {
   return buildings.map((building) => {
     const { u, v } = building.cell;
@@ -367,6 +431,17 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
         );
         const anchor = toScreen(u, v, 0);
         blit(ctx, sprite, anchor.x, anchor.y);
+
+        // Markers are drawn after the sprite and never baked into it. They
+        // pulse, and the sprite cache is keyed by appearance, so baking a phase
+        // would mean a cache entry per frame.
+        if (building.office) {
+          const runtime = state.buildings?.get(building.office);
+          if (runtime) {
+            drawBuildingMarker(ctx, u, v, height, markerFor(runtime), state.phase ?? 0);
+          }
+          if (state.selected === building.office) drawSelection(ctx, u, v, height);
+        }
       },
     };
   });
@@ -502,6 +577,71 @@ function drawScopeWall(ctx: CanvasRenderingContext2D, state: SceneState, time: n
     UI.wall,
     `rgba(255, 194, 71, ${pulse.toFixed(3)})`,
     state.scopeState === "proposed",
+  );
+}
+
+/**
+ * The city as it would be, drawn over the city as it is.
+ *
+ * Permissions have always been a JSON diff nobody reads. Drawing the annexation
+ * is the one interaction that turns the map from a picture of a decision into
+ * the instrument for making it: granting `customer.list` visibly takes in a
+ * district, and the operator sees the cost before agreeing to it rather than
+ * reading a number that says so.
+ *
+ * Deliberately distinguishable from the real boundary at a glance. The granted
+ * limits are a solid amber line; this is a dashed red one over a translucent
+ * wash, so no still frame of the demo can be mistaken for authority that was
+ * actually handed over.
+ */
+function drawCounterfactual(
+  ctx: CanvasRenderingContext2D,
+  state: SceneState,
+  time: number,
+): void {
+  const preview = state.counterfactual;
+  if (!preview) return;
+
+  // Only the districts the addition would newly reach. Redrawing the whole
+  // proposed boundary would say "all of this is hypothetical" when most of it
+  // is exactly what the operator is already being asked to grant.
+  const granted = new Set(state.scopeState === "proposed" ? state.proposed : state.granted);
+  const annexed = preview.districts.filter((d) => !granted.has(d));
+  if (annexed.length === 0) return;
+
+  const pulse = 0.1 + Math.sin(time / 500) * 0.05;
+
+  ctx.save();
+  for (const district of annexed) {
+    const plot = plotFor(district);
+    if (!plot) continue;
+
+    // A wash over the annexed ground, so the eye lands on the area rather than
+    // hunting for a line.
+    ctx.fillStyle = `rgba(224, 90, 74, ${pulse.toFixed(3)})`;
+    for (let u = plot.u0; u <= plot.u1; u += 1) {
+      for (let v = plot.v0; v <= plot.v1; v += 1) {
+        const c = toScreen(u, v, 0);
+        ctx.beginPath();
+        ctx.moveTo(c.x, c.y - TILE_H / 2);
+        ctx.lineTo(c.x + TILE_W / 2, c.y);
+        ctx.lineTo(c.x, c.y + TILE_H / 2);
+        ctx.lineTo(c.x - TILE_W / 2, c.y);
+        ctx.closePath();
+        ctx.fill();
+      }
+    }
+  }
+  ctx.restore();
+
+  drawPerimeter(
+    ctx,
+    perimeterOf(annexed),
+    "rgba(224, 90, 74, 0.9)",
+    `rgba(224, 90, 74, ${(pulse * 1.4).toFixed(3)})`,
+    // Dashed, always. The granted boundary is solid, and the difference has to
+    // survive a screenshot.
+    true,
   );
 }
 

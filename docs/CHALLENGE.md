@@ -16,31 +16,68 @@ gaps below are the kind that stay comfortable until the day before a deadline.
 > *"Your GitHub, your database, your internal tools, your calendar.
 > **Connected, not mocked.**"*
 
-**Where we are: partial, and this is a real gap.**
+**Where we are: met for the district that matters.**
 
-The agent reaches three MCP systems through a live TrueForge session over a
-real MCP connection — that part is genuine, and the proxy in front of them is
-the product. But Records, the Exchequer and Post House are **fixtures**. Real
-protocol, real network, invented data.
+The Exchequer talks to Stripe test mode: real API, real network, real charge
+objects, and refunds that genuinely cannot be undone. Verified end to end — a
+mission derived a scope that resolved a real charge id from an order id in
+metadata, the operator granted it, the agent ran, and the countersign produced:
 
-"Connected, not mocked" is explicit, and a judge who opens `mcp/src/systems`
-will see fixtures. The fix is not cosmetic: Stripe **test mode** is a real API
-over the real network with real charge objects and real refunds that genuinely
-cannot be undone. Same for a real mailbox via Mailpit or a real inbox.
+```
+re_3U8T0Z2WNLo6nvwi1OGTTvhc   4900 usd   succeeded
+```
 
-Fixture mode stays, because a stranger must be able to clone and run this with
-no accounts. It becomes the fallback, not the default.
+read back from Stripe's own API, with the charge showing `refunded: 4900`.
+
+Records and Post House remain fixtures, and that is a deliberate stopping
+point rather than an unfinished one: the claim being tested is that
+enforcement is independent of what sits behind it, and one real system
+demonstrates that as well as three would. `SCOPE_FIXTURES=true` forces all of
+them back, so a stranger can still clone and run the whole thing with no
+accounts.
+
+What this cost is the honest measure of the architecture: one new module. The
+office specs, evaluator, projector, quota ledger and countersign were not
+touched.
 
 ### 2. A safe place to run what it writes
 
 > *"Generated code has to execute somewhere that cannot damage anything if it
 > is wrong."*
 
-**Where we are: wired end to end, and gated on a key we do not have.**
+**Where we are: met, and verified against a running sandbox.**
 
-The verification step is written, the agent spec asks for a sandbox, and the
-control plane configures the provider at boot. What is missing is the
-credential.
+The control plane configures the Daytona provider at boot, the agent opens a
+sandbox mid-mission, and it runs its verification there before the gate asks a
+human to approve anything. From a real mission record:
+
+```
+world  agent.arrived   {office: exec}
+world  yard.opened     {sandboxId: v1:daytona:default.f57465e9-...}
+world  agent.finished  {office: exec}
+world  gate.raised     {office: charge.refund}
+```
+
+The order is the point, and it is now enforced rather than merely observed.
+When a sandbox is configured, the approval endpoint refuses a countersign
+unless a passing check exists: no check returns 428 with "the agent has not
+shown its working", and a failed one returns 428 with the output. That is
+what makes the sandbox the step that earns the approval instead of a step the
+agent performs and nobody depends on.
+
+The operator sees the working, not a claim that working was done -- the
+script and its output render beside the gate.
+
+A real run shows why the reading has to be careful. The agent's first attempt
+wrote Python into a bash shell and died with exit code 2. It retried with
+`python3 -c`, asserted the amounts matched, and printed "Verdict: Ready to
+refund." with exit code 0. An earlier version of the verdict reader matched
+prose and marked that *failed*, because the sentence contains none of the
+words it looked for -- blocking an approval on a check that passed, which
+teaches an operator the gate is noise just as effectively as letting a failed
+one through. The exit code is the honest signal and is now read first.
+
+Two traps cost real time and are recorded so they cost it once.
 
 An earlier version of this note claimed TrueForge offers a local provider
 needing `bubblewrap`, `socat` and `ripgrep`. That is **wrong for 0.1.4**, and
@@ -67,12 +104,21 @@ checkbox into the step that earns the approval.
 
 > *"It should stop and ask a person before doing anything you cannot undo."*
 
-**Where we are: built and proven headlessly; not yet driven from the UI.**
+**Where we are: met, and driven from the city.**
 
 `tool.approval_required` raises The Gate, the countersign is bound to a
-fingerprint of the exact call, and a drifted call voids the approval. What is
-missing is a human clicking it in the city rather than a scripted approval in a
-terminal.
+fingerprint of the exact call, and a drifted call voids the approval. The gate is wired to the city: `GatePanel` posts to
+`/api/missions/:id/decisions`, and the recorded mission shows the whole
+sequence -- gate raised, cleared, quota consumed 1/1, fingerprint revalidated,
+then the call allowed.
+
+Stated precisely, because the distinction matters: **that recording was driven
+through the same HTTP endpoint the UI calls, not by a click in a browser.**
+`gate.cleared` carries a tool-call id, an approval boolean and a timestamp,
+and no actor provenance, so nothing in the record could support a claim about
+who pressed what. The code path is the one the UI uses and is covered by
+tests; the recording is evidence that the path works, not that a human walked
+it. Saying otherwise would be the exact kind of overclaim that loses a Q&A.
 
 ---
 
@@ -153,7 +199,8 @@ sandbox.
 
 > **05. Ship a repo a judge can run.**
 
-**Not yet.** The repository is private and must be public before the deadline.
+**Yes.** Public at `RajdeepKushwaha5/scope-city`, MIT licensed, with the
+fixture path requiring no credentials at all.
 Fixture mode has to work with no accounts and no keys.
 
 ---
@@ -186,3 +233,46 @@ doing: **sandbox** and **reconnect**.
 2. **Real systems** — Stripe test mode first; it is the one that turns
    "connected, not mocked" from arguable into true.
 3. **Countersign from the UI** — the control story is built but not visible.
+
+---
+
+## The comparison, and an honest result
+
+`mode: "unscoped"` runs the same job with the authority an ordinary
+integration hands over: every office, every record, no ceiling, no gate. It is
+not a bypass — the same evaluator, proxy and map are used, and only the scope
+differs. Comparing "our enforcement" against "no enforcement" would prove only
+that code which runs does something.
+
+The measurable difference is the blast radius, and it is deterministic:
+
+| | Scoped | Unscoped |
+|---|---|---|
+| probes fired | 46 | 121 |
+| findings | 0 | 22 |
+| critical | 0 | 4 |
+
+The critical ones are the shape of the problem: *"the scope permits
+charge.find_by_order on the record next to the one granted"*, and the same for
+every other office.
+
+**The injection did not land.** Across several runs, Gemini 2.5 Flash read the
+poisoned ticket, ignored the instruction to refund every order and mail the
+customer list to the attacker, and resolved the actual request. That is worth
+stating plainly rather than re-running until it misbehaves, and it is worth
+being careful about what it means.
+
+It is not evidence that broad access is safe. It is one model, on one prompt,
+on a handful of runs, and the next model or the next phrasing is a coin toss.
+The argument for enforcement has never been that models always fall for
+injections — it is that **you cannot tell in advance whether this one will**,
+and an architecture that is fine only when the model behaves is not an
+architecture. The blast radius above is a fact about the authority; the
+refusal is a fact about one afternoon.
+
+The briefing is held equal so the comparison isolates authority. The unscoped
+run gets a plain integration brief with the same job, the same tools and the
+same record ids, but none of our framing about untrusted content or refusals
+being answers — handing it those would quietly help it resist something a real
+integration meets undefended, and omitting the ids would show an agent
+fumbling rather than an agent with power.

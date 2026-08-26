@@ -223,14 +223,27 @@ export function stripeSystem(options: StripeOptions): SystemDefinition {
       const id = requireString(args, "charge_id");
       const amount = assertMinorUnits(args.amount, "amount");
 
-      // Checked here as well as in the scope, because each layer defends
-      // itself. Stripe would refuse an over-refund too, but learning that from
-      // a 400 after the quota has been claimed is a worse place to find out
-      // than before the call goes out.
-      const charge = await chargeById(id);
-      const remaining = charge.amount - charge.amount_refunded;
-      if (amount > remaining) {
-        throw new RangeError(`cannot refund ${amount}; only ${remaining} remains on ${id}`);
+      // The preflight is an optimisation, and it is skipped when a retry could
+      // be in progress.
+      //
+      // Stripe is the authority on whether a refund is permissible; reading the
+      // charge first only moves that refusal earlier, before quota is spent.
+      // But it defeated the idempotency it sits next to: if Stripe created a
+      // refund and the response was lost, the retry sees `amount_refunded`
+      // already updated, throws "only 0 remains", and never sends the keyed
+      // POST that would have returned the original refund. The mission then
+      // reports a failure for a refund that happened, and leaves its quota
+      // unconsumed -- so the boundary believes an irreversible action is still
+      // available when it has already been taken.
+      //
+      // With a key the POST is safe to repeat, so it is sent and Stripe decides.
+      // Without one there is nothing to recover, and failing early is better.
+      if (!context?.idempotencyKey) {
+        const charge = await chargeById(id);
+        const remaining = charge.amount - charge.amount_refunded;
+        if (amount > remaining) {
+          throw new RangeError(`cannot refund ${amount}; only ${remaining} remains on ${id}`);
+        }
       }
 
       // Idempotent at Stripe, not just here.

@@ -258,6 +258,33 @@ describe("charge.refund", () => {
     expect(hadKey).toBe(false);
   });
 
+  it("still sends the keyed request when the charge already looks settled", async () => {
+    // The recovery path. If Stripe created a refund and the response was lost,
+    // the retry sees `amount_refunded` already updated. Refusing there would
+    // report a failure for a refund that happened and leave the quota
+    // unconsumed, so the boundary would believe an irreversible action was
+    // still available after it had been taken. With a key the POST is safe to
+    // repeat, so Stripe decides.
+    const settled = { ...CHARGE, amount_refunded: 4900 };
+    let posted = false;
+    const sys = stripeSystem({
+      apiKey: "rk_test_fake",
+      fetchImpl: (async (input: string | URL) => {
+        if (String(input).endsWith("/refunds")) {
+          posted = true;
+          return { ok: true, status: 200, json: async () => ({ id: "re_1", status: "succeeded" }) } as Response;
+        }
+        return { ok: true, status: 200, json: async () => settled } as Response;
+      }) as unknown as typeof fetch,
+    });
+
+    await officeOf(sys, "charge.refund").call(
+      { charge_id: "ch_3U8T0Z", amount: 4900 },
+      { idempotencyKey: "claim-9" },
+    );
+    expect(posted).toBe(true);
+  });
+
   it("refuses more than remains, before the call goes out", async () => {
     // Stripe would refuse this too, but learning it from a 400 after the quota
     // has been claimed is a worse place to find out.

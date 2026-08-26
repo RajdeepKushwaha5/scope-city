@@ -356,11 +356,26 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       // with a decision they never made; the run ended with the question still
       // standing, which is a fact about the people rather than the agent.
       const seconds = Math.round(event.waitedMs / 1000);
-      const cleared = {
-        ...state,
-        gate: state.gate?.toolCallId === event.toolCallId ? null : state.gate,
-        pendingGates: state.pendingGates.filter((gate) => gate.toolCallId !== event.toolCallId),
-      };
+
+      // Promoted the same way a decision promotes, because abandonment removes
+      // a gate exactly as a decision does. Nulling the active one without
+      // pulling the next up left the city showing no gate at all while another
+      // was still waiting -- and still in `awaiting_countersign`, holding for a
+      // question it had stopped displaying.
+      const remaining = state.pendingGates.filter(
+        (gate) => gate.toolCallId !== event.toolCallId,
+      );
+      const wasActive = state.gate?.toolCallId === event.toolCallId;
+      const [next, ...rest] = remaining;
+
+      const cleared = wasActive
+        ? {
+            ...state,
+            gate: next ?? null,
+            pendingGates: rest,
+            phase: next ? ("awaiting_countersign" as const) : ("running" as const),
+          }
+        : { ...state, pendingGates: remaining };
 
       return addLog(
         cleared,

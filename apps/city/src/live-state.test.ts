@@ -193,7 +193,11 @@ describe("a gate that nobody answered", () => {
     expect(state.log[state.log.length - 1]!.what).toContain("92s");
   });
 
-  it("leaves other pending gates alone", () => {
+  it("promotes the next gate rather than showing none", () => {
+    // The looser version of this test only checked that tc_2 was still
+    // somewhere in state. It was -- sitting in `pendingGates` while `gate` was
+    // null, so the city displayed no gate at all and stayed in
+    // awaiting_countersign for a question it had stopped showing.
     const second = {
       type: "world",
       event: {
@@ -210,8 +214,51 @@ describe("a gate that nobody answered", () => {
     state = reduceLiveCity(state, second);
     state = reduceLiveCity(state, abandoned);
 
-    const remaining = [state.gate, ...state.pendingGates].filter(Boolean);
-    expect(remaining.some((g) => g!.toolCallId === "tc_2")).toBe(true);
-    expect(remaining.some((g) => g!.toolCallId === "tc_1")).toBe(false);
+    expect(state.gate?.toolCallId).toBe("tc_2");
+    expect(state.pendingGates).toHaveLength(0);
+    expect(state.phase).toBe("awaiting_countersign");
+  });
+
+  it("returns to running when the abandoned gate was the last one", () => {
+    const state = reduceLiveCity(reduceLiveCity(initialLiveCityState, raised), abandoned);
+
+    expect(state.gate).toBeNull();
+    expect(state.phase).toBe("running");
+  });
+
+  it("does not disturb the active gate when a queued one is abandoned", () => {
+    // The other direction: abandoning something further down the queue must
+    // leave whatever the operator is currently looking at exactly where it is.
+    const second = {
+      type: "world",
+      event: {
+        type: "gate.raised",
+        threadId: "main",
+        toolCallId: "tc_2",
+        office: "mail.send",
+        args: {},
+        at: 2,
+      },
+    } as never;
+
+    const abandonSecond = {
+      type: "world",
+      event: {
+        type: "gate.abandoned",
+        toolCallId: "tc_2",
+        office: "mail.send",
+        waitedMs: 1_000,
+        reason: "scope expired",
+        at: 3,
+      },
+    } as never;
+
+    let state = reduceLiveCity(initialLiveCityState, raised);
+    state = reduceLiveCity(state, second);
+    state = reduceLiveCity(state, abandonSecond);
+
+    expect(state.gate?.toolCallId).toBe("tc_1");
+    expect(state.pendingGates).toHaveLength(0);
+    expect(state.phase).toBe("awaiting_countersign");
   });
 });

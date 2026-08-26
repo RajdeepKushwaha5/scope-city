@@ -116,7 +116,13 @@ every branch reachable from a test.
 
 - **Linux or macOS** for the TrueForge server. On Windows use WSL2 — the
   standalone server segfaults on `win32`.
-- Node.js >= 22.13, pnpm 11.10
+- **Node.js 22 LTS**, pnpm 11.10. There is an `.nvmrc`, so `nvm use` picks it up.
+
+  Node 22 specifically, not "22 or newer". pnpm 11 imports `node:sqlite`, which
+  Node 23 only exposes behind `--experimental-sqlite` -- so on Node 23 every
+  pnpm command, `install` included, dies with `ERR_UNKNOWN_BUILTIN_MODULE`
+  before anything in this repository runs. Node 24 is fine; Node 23 is the
+  broken middle, and it is a non-LTS line worth avoiding anyway.
 - **The sandbox is optional, and needs a Daytona key.** TrueForge 0.1.4 accepts
   exactly one sandbox provider — the manifest's `type` enum has a single member,
   `daytona` — so there is no local provider on this version and installing

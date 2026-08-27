@@ -20,6 +20,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { controlPlaneSignpost } from "./signpost.js";
 
 import { missionSystems, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
@@ -214,23 +215,7 @@ async function main(): Promise<void> {
      * A signpost costs nothing and saves the guess.
      */
     if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/api")) {
-      json(res, 200, {
-        service: "Scope City control plane",
-        note: "This is the API. The city itself runs on the Vite dev server, not this port.",
-        city: `http://127.0.0.1:${CITY_DEV_PORT}`,
-        routes: [
-          "GET  /api/health",
-          "POST /api/missions",
-          "POST /api/missions/:id/grant",
-          "POST /api/missions/:id/deny",
-          "POST /api/missions/:id/decisions",
-          "POST /api/missions/:id/cancel",
-          "POST /api/missions/:id/expire",
-          "POST /api/missions/:id/counterfactual",
-          "GET  /api/missions/:id/events",
-          "GET  /api/missions/:id/record",
-        ],
-      });
+      json(res, 200, controlPlaneSignpost(CITY_DEV_PORT));
       return;
     }
 

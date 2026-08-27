@@ -1,38 +1,82 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
+import { CONTROL_PLANE_ROUTES, controlPlaneSignpost } from "../src/signpost.js";
 
 /**
  * The control plane serves `/api/*` and nothing else, so `/` answered
  * `{"error":"not found"}` -- true, and useless to whoever just typed the port
- * into a browser. The city runs elsewhere and a bare 404 gives no way to work
- * that out.
+ * into a browser.
+ *
+ * These assert the value the route returns, not the text of the file that
+ * builds it. The first version grepped `live-server.ts` for strings and would
+ * have passed against a route that was never registered.
  */
 const source = readFileSync(
   fileURLToPath(new URL("../src/live-server.ts", import.meta.url)),
   "utf8",
 );
 
-describe("the control plane says what it is", () => {
-  it("answers the root rather than 404ing it", () => {
-    expect(source).toContain('url.pathname === "/" || url.pathname === "/api"');
+describe("the control plane signpost", () => {
+  it("names itself and says it is not the city", () => {
+    const signpost = controlPlaneSignpost(5180);
+
+    expect(signpost.service).toContain("Scope City");
+    expect(signpost.note).toMatch(/not this port/i);
   });
 
-  it("points at the city rather than only naming itself", () => {
-    // Naming the service without saying where the UI is would leave the reader
-    // exactly where the 404 did.
-    expect(source).toContain("CITY_DEV_PORT");
-    expect(source).toMatch(/city:\s*`http/);
-  });
-
-  it("takes the city port from the environment rather than hardcoding it", () => {
-    // The dev server port is configurable; a signpost that always claims 5180
+  it("points at the port it is given, not a hardcoded one", () => {
+    // The dev server port is configurable. A signpost that always claims 5180
     // would be confidently wrong for anyone who changed it.
-    expect(source).toContain("SCOPE_CITY_PORT");
+    expect(controlPlaneSignpost(5180).city).toBe("http://127.0.0.1:5180");
+    expect(controlPlaneSignpost(4321).city).toBe("http://127.0.0.1:4321");
   });
 
-  it("still 404s an unknown api route", () => {
-    // The signpost is for the root, not a catch-all that swallows typos.
+  it("lists every route the server actually handles", () => {
+    // Derived from the source rather than restated, so a route added without a
+    // signpost entry fails here instead of going unmentioned.
+    const handled = new Set(
+      [...source.matchAll(/url\.pathname === "(\/api\/[a-z]*)"/g)].map((m) => m[1]!),
+    );
+    handled.add("/api/health");
+
+    for (const path of handled) {
+      expect(
+        CONTROL_PLANE_ROUTES.some((route) => route.includes(path)),
+        `${path} is served but not listed`,
+      ).toBe(true);
+    }
+  });
+
+  it("lists the mission sub-routes the matcher accepts", () => {
+    const matcher = /\(events\|decisions\|cancel\|record\|expire\|grant\|deny\|counterfactual\)/;
+    expect(source).toMatch(matcher);
+
+    for (const verb of [
+      "events",
+      "decisions",
+      "cancel",
+      "record",
+      "expire",
+      "grant",
+      "deny",
+      "counterfactual",
+    ]) {
+      expect(
+        CONTROL_PLANE_ROUTES.some((route) => route.endsWith(`/${verb}`)),
+        `${verb} is accepted but not listed`,
+      ).toBe(true);
+    }
+  });
+
+  it("is wired to the root and to /api, and only those", () => {
+    expect(source).toContain('url.pathname === "/" || url.pathname === "/api"');
+    expect(source).toContain("controlPlaneSignpost(CITY_DEV_PORT)");
+  });
+
+  it("leaves the 404 in place for an unknown api route", () => {
+    // The signpost answers the root, not everything. A catch-all would meet a
+    // misspelled route with a cheerful description of the ones that exist.
     expect(source).toContain('json(res, 404, { error: "not found" })');
   });
 });

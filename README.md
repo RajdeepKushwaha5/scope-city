@@ -246,6 +246,18 @@ The tests that matter most:
 - `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
 - `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
 - `packages/proxy` — the poisoned ticket refused end to end, and the countersign
+### What we did not get working
+
+Subagents spawn and the map draws them -- six child threads on one live run,
+titled from the brief. A *delegated* mission still cannot finish on a free-tier
+key, because delegation fires enough calls to trip the per-minute limit partway
+through, and rotating to the next key means a new session that starts from
+nothing. Availability survives a rotation; progress does not.
+
+So the shipped recording is single-threaded on purpose: it is a mission that
+completed. The measurements are in
+[docs/TRUEFORGE.md](docs/TRUEFORGE.md#what-delegation-costs-measured).
+
 ### Checking the record yourself
 
 The recording the city replays is a hash-chained mission record, and you do not

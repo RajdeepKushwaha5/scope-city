@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { soundEngine } from "./sound-engine.js";
+import type { Scenario } from "./ScenarioBanner.js";
 
 export function TopNav(props: {
   connection: "offline" | "connecting" | "live" | "reconnecting";
-  activeScenario?: "recorded" | "clean" | "poisoned" | "noscope" | null;
-  onSelectScenario: (scenario: "recorded" | "clean" | "poisoned" | "noscope") => void;
+  activeScenario?: Scenario | null;
+  onSelectScenario: (scenario: Scenario) => void;
   onOpenCommand: () => void;
   onOpenIntro: () => void;
   onTakeSnapshot: () => void;

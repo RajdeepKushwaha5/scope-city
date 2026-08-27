@@ -1,3 +1,4 @@
+import type { BacktestReport } from "@scope-city/yard";
 import type { OfficeActivity } from "./live-state.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Figure } from "./render/scene.js";
@@ -59,6 +60,15 @@ interface StepApi {
   phase: (phase: Phase) => void;
   spend: (usd: number) => void;
   grantScope: () => void;
+  /**
+   * Publish a Yard report.
+   *
+   * The scripted runs could show an agent stopping at a boundary but never the
+   * step before it -- the probes that find a boundary drawn too wide while
+   * nothing has been granted yet. That is the one beat where narrowing a scope
+   * is still free, and it had no way onto the screen.
+   */
+  yard: (report: BacktestReport | null) => void;
 }
 
 const ALL_DISTRICTS = ["records", "exchequer", "post-house", "yard", "gate"] as const;
@@ -112,6 +122,7 @@ export function useMission() {
   const [phase, setPhase] = useState<Phase>("drafting");
   const [scope, setScope] = useState<ScopeView | null>(null);
   const [scopeState, setScopeState] = useState<"none" | "proposed" | "granted">("none");
+  const [yard, setYard] = useState<BacktestReport | null>(null);
   const [online, setOnline] = useState<readonly string[]>([]);
   const [figures, setFigures] = useState<readonly Figure[]>([]);
   const [gate, setGate] = useState<GateRequest | null>(null);
@@ -261,6 +272,7 @@ export function useMission() {
       setScopeState("granted");
       setExpiresAt(Date.now() + NARROW_SCOPE.expiresInMs);
     },
+    yard: setYard,
   };
 
   const play = useCallback(
@@ -287,6 +299,10 @@ export function useMission() {
     setTreasury(0);
     setExpiresAt(null);
     setOfficeActivity({});
+    // Cleared with everything else, or the over-reach findings would follow the
+    // operator into whichever run they picked next and describe a scope that is
+    // no longer on screen.
+    setYard(null);
   }, [clearTimers]);
 
   /* ---------------------------------------------------------------- scope */
@@ -370,6 +386,11 @@ export function useMission() {
     play(CLEAN_JOB);
   }, [play, reset]);
 
+  const runOverReach = useCallback(() => {
+    reset();
+    play(OVER_REACH);
+  }, [play, reset]);
+
   const runNoScope = useCallback(() => {
     reset();
     play(NO_SCOPE);
@@ -402,10 +423,12 @@ export function useMission() {
     log,
     refusedAt,
     sandboxOpen,
-    // The offline replays are scripted rather than derived, so there is no
-    // scope for the Yard to have examined. Null renders the panel as "runs
-    // before the scope is granted", which is the truth for a replay.
-    yard: null,
+    // Null for most replays: they are scripted rather than derived, so there is
+    // no scope for the Yard to have examined, and the panel renders as "runs
+    // before the scope is granted". The over-reach scenario sets one, because
+    // showing probes finding a boundary drawn too wide is the whole of what it
+    // demonstrates.
+    yard,
     // Offline replays run entirely in the browser: there is no server-side
     // record to hand over and no server-held scope to expire, so the panel
     // omits both rather than offering controls that would 404.
@@ -433,6 +456,7 @@ export function useMission() {
     countersign,
     runPoisonedTicket,
     runCleanJob,
+    runOverReach,
     runNoScope,
   };
 }
@@ -473,6 +497,81 @@ const POISONED_TICKET: readonly Step[] = [
 ];
 
 /** Everything inside the scope. Proves the boundary has no false positives. */
+/**
+ * The Yard finds a boundary drawn too wide, and it is narrowed before anything
+ * is granted.
+ *
+ * The other replays all show enforcement: an agent meeting a limit that already
+ * exists. This shows the step before that, which is the only moment narrowing a
+ * scope is still free -- once granted, the reach is real whether or not anyone
+ * looks at it.
+ *
+ * The findings are the ones a real backtest produces against this scope, and
+ * they are in the shipped recording too: `charge.get` answers with the
+ * customer's full payment history when the job needs an amount, so the scope
+ * leaks a record it never needed. Projection closes it.
+ */
+const OVER_REACH: readonly Step[] = [
+  { after: 50, run: (a) => a.log("Mission opened — refund order #184") },
+  { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
+  { after: 900, run: (a) => a.log("Scope proposed — nothing granted yet", "gate") },
+  {
+    after: 1400,
+    run: (a) => {
+      a.arrive("charge.get");
+      a.log("The Yard: 36 adversarial probes — nothing called, nothing spent", "plain");
+    },
+  },
+  {
+    after: 2400,
+    run: (a) => {
+      a.settle("charge.get");
+      a.yard({
+        probesRun: 36,
+        clean: false,
+        findings: [
+          {
+            kind: "response_over_reach",
+            severity: "warning",
+            office: "charge.get",
+            summary: "charge.get answers with the customer's whole payment history",
+            detail: ["customer.email", "customer.address", "customer.history"],
+            remedy: "Project the response down to id, amount and refunded",
+          },
+          {
+            kind: "composition_reach",
+            severity: "note",
+            office: "charge.refund",
+            summary: "charge.find_by_order then charge.refund reaches a charge not named in the job",
+            detail: ["ord_184"],
+            remedy: "Bind charge_ids to the resolved charge rather than the order",
+          },
+        ],
+      });
+      a.log("GAP FOUND  charge.get returns customer.history — not needed for a refund", "refused");
+    },
+  },
+  {
+    after: 3600,
+    run: (a) => a.log("Narrowing: projection on charge.get → id, amount, refunded", "gate"),
+  },
+  {
+    after: 4400,
+    run: (a) => {
+      a.yard({ probesRun: 36, clean: true, findings: [] });
+      a.log("Re-probed. 36 probes, nothing over-reaching. Clean.", "allowed");
+    },
+  },
+  {
+    after: 5200,
+    run: (a) => {
+      a.grantScope();
+      a.phase("running");
+      a.log("Scope granted — narrower than the one first proposed", "allowed");
+    },
+  },
+];
+
 const CLEAN_JOB: readonly Step[] = [
   { after: 50, run: (a) => a.grantScope() },
   { after: 100, run: (a) => a.log("Mission opened — clean job") },

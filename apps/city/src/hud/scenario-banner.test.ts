@@ -9,7 +9,7 @@ import { SCENARIO_BILLING, type Scenario } from "./ScenarioBanner.js";
  * every run and is not quietly boilerplate.
  */
 
-const SCENARIOS: readonly Scenario[] = ["recorded", "clean", "poisoned", "noscope"];
+const SCENARIOS: readonly Scenario[] = ["recorded", "clean", "poisoned", "overreach", "noscope"];
 
 describe("scenario billing", () => {
   it("covers every scenario the app can run", () => {
@@ -69,6 +69,9 @@ describe("scenario billing", () => {
     for (const [scenario, marker] of [
       ["clean", "const CLEAN_JOB"],
       ["poisoned", "const POISONED"],
+      // OVER_REACH is deliberately absent: it is the one scripted run that ends
+      // at a grant rather than a gate, which the assertions below would read as
+      // a broken claim. Its own ending is checked separately.
     ] as const) {
       const start = source.indexOf(marker);
       expect(start, `${marker} not found`).toBeGreaterThan(-1);
@@ -126,5 +129,21 @@ describe("scenario billing", () => {
     // viewer told to "watch how far it reaches" has no way to know that the
     // ending is the point.
     expect(SCENARIO_BILLING.noscope.watchFor).toMatch(/fail/i);
+  });
+
+  it("bills the over-reach run as ending in a narrowed grant, not a gate", () => {
+    // The only scripted run that ends before enforcement rather than at it.
+    // Billing it like the others would promise a held gate that never comes.
+    const source = readFileSync(
+      fileURLToPath(new URL("../useMission.ts", import.meta.url)),
+      "utf8",
+    );
+    const start = source.indexOf("const OVER_REACH");
+    const script = source.slice(start, source.indexOf("];", start));
+
+    expect(script).not.toContain("a.gate({");
+    expect(script).toContain("a.grantScope()");
+    expect(SCENARIO_BILLING.overreach.watchFor).toMatch(/narrow/i);
+    expect(SCENARIO_BILLING.overreach.watchFor).not.toMatch(/gate/i);
   });
 });

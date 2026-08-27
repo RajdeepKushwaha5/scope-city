@@ -1,6 +1,7 @@
 import {
   exchequerSystem,
   githubRecordsSystem,
+  mailpitSystem,
   postHouseSystem,
   recordsSystem,
   stripeSystem,
@@ -27,6 +28,8 @@ import {
 const STRIPE_API_KEY = process.env.STRIPE_API_KEY ?? "";
 const GITHUB_TOKEN = process.env.GITHUB_TOKEN ?? "";
 const GITHUB_REPOSITORY = process.env.GITHUB_REPOSITORY ?? "";
+const MAILPIT_HOST = process.env.MAILPIT_HOST ?? "";
+const MAILPIT_PORT = Number(process.env.MAILPIT_PORT ?? 1025);
 
 /**
  * Forces every district to its fixture, whatever else is configured.
@@ -49,6 +52,19 @@ export function exchequerIsLive(): boolean {
   return STRIPE_API_KEY.includes("_test_");
 }
 
+/**
+ * True when the Post House hands mail to a real SMTP server.
+ *
+ * Off unless a host is configured, because the fixture has to stay the default:
+ * a fresh clone with no Mailpit running must not fail its first mission on a
+ * connection refused, and mail is the one office the poisoned-ticket scenario
+ * depends on reaching.
+ */
+export function postHouseIsLive(): boolean {
+  if (FIXTURES_ONLY) return false;
+  return MAILPIT_HOST !== "";
+}
+
 /** True when Records is backed by a real GitHub Issues repository. */
 export function recordsIsLive(): boolean {
   if (FIXTURES_ONLY) return false;
@@ -64,7 +80,9 @@ export function missionSystems(): readonly SystemDefinition[] {
       ? githubRecordsSystem({ token: GITHUB_TOKEN, repository: GITHUB_REPOSITORY })
       : recordsSystem(),
     exchequerIsLive() ? stripeSystem({ apiKey: STRIPE_API_KEY }) : exchequerSystem(),
-    postHouseSystem(),
+    postHouseIsLive()
+      ? mailpitSystem({ host: MAILPIT_HOST, port: MAILPIT_PORT })
+      : postHouseSystem(),
   ];
 }
 
@@ -72,8 +90,9 @@ export function missionSystems(): readonly SystemDefinition[] {
 export function systemsSummary(): string {
   const records = recordsIsLive() ? `GitHub ${GITHUB_REPOSITORY}` : "fixture";
   const exchequer = exchequerIsLive() ? "Stripe test mode" : "fixture";
+  const post = postHouseIsLive() ? `Mailpit ${MAILPIT_HOST}:${MAILPIT_PORT}` : "fixture";
   if (FIXTURES_ONLY && (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")) {
     return "Systems: all fixtures — SCOPE_FIXTURES is set, so external credentials are ignored";
   }
-  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (fixture)`;
+  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})`;
 }

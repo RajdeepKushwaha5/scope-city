@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { encodeHeader, renderMessage, replyCode, stuffBody } from "../src/systems/smtp.js";
+import {
+  assertSafeAddress,
+  encodeHeader,
+  renderMessage,
+  replyCode,
+  stuffBody,
+} from "../src/systems/smtp.js";
 
 /**
  * The three things a hand-written SMTP client gets wrong, and one of them fails
@@ -83,5 +89,68 @@ describe("reading replies", () => {
     expect(replyCode("250 OK")).toBe(250);
     expect(replyCode("354 End data with <CR><LF>.<CR><LF>")).toBe(354);
     expect(replyCode("550 no such user")).toBe(550);
+  });
+});
+
+describe("addresses cannot carry commands", () => {
+  it("refuses a recipient containing CRLF", () => {
+    // The envelope writes this into a command line. A newline ends it and
+    // starts another, and one extra RCPT TO adds a silent second recipient.
+    expect(() =>
+      assertSafeAddress("buyer@example.test>\r\nRCPT TO:<attacker@evil.test", "to"),
+    ).toThrow(/newlines or angle brackets/);
+  });
+
+  it("refuses a bare newline and a null byte too", () => {
+    expect(() => assertSafeAddress("a@b.test\nRCPT TO:<c@d.test", "to")).toThrow();
+    expect(() => assertSafeAddress("a@b.test\0", "to")).toThrow();
+  });
+
+  it("refuses an address bringing its own angle brackets", () => {
+    // The envelope supplies them; one arriving inside the value can close the
+    // pair early and leave the rest outside it.
+    expect(() => assertSafeAddress("<a@b.test>", "to")).toThrow();
+  });
+
+  it("refuses something that is not an address at all", () => {
+    expect(() => assertSafeAddress("not-an-address", "to")).toThrow(/is not an address/);
+    expect(() => assertSafeAddress("", "to")).toThrow();
+    expect(() => assertSafeAddress(`${"a".repeat(320)}@b.test`, "to")).toThrow();
+  });
+
+  it("accepts the addresses this demo actually uses", () => {
+    expect(() => assertSafeAddress("buyer@example.test", "to")).not.toThrow();
+    expect(() => assertSafeAddress("scope-city@example.test", "from")).not.toThrow();
+  });
+});
+
+describe("long non-ASCII subjects", () => {
+  it("folds into several encoded words rather than one oversized one", () => {
+    // An encoded word may not exceed 75 characters including its wrapper. One
+    // long word is accepted by some servers and silently mangled by others.
+    const encoded = encodeHeader(`Refund issued — ${"café ☕ ".repeat(12)}`);
+
+    expect(encoded).toContain("\r\n ");
+    for (const word of encoded.split("\r\n ")) {
+      expect(word.length).toBeLessThanOrEqual(75);
+    }
+  });
+
+  it("never splits a multi-byte character across words", () => {
+    // Splitting by byte would cut a character in half and deliver a
+    // replacement glyph. Each word must decode back to valid text.
+    const original = "☕".repeat(40);
+    const decoded = encodeHeader(original)
+      .split("\r\n ")
+      .map((word) => Buffer.from(word.slice("=?UTF-8?B?".length, -"?=".length), "base64"))
+      .map((buf) => buf.toString("utf8"))
+      .join("");
+
+    expect(decoded).toBe(original);
+    expect(decoded).not.toContain("\uFFFD");
+  });
+
+  it("still leaves a short ASCII subject completely alone", () => {
+    expect(encodeHeader("Refund issued")).toBe("Refund issued");
   });
 });

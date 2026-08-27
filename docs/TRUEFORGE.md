@@ -157,6 +157,44 @@ separation, not capability isolation: TrueForge children inherit the session's
 tools. The proxy therefore continues to enforce the same sealed mission scope
 for every thread, while the ledger atomically serialises any attempted mutation.
 
+### What delegation costs, measured
+
+Delegation works. On a live run it produced six child threads titled from the
+brief -- "Source investigator", "Target verifier" -- and the map drew them.
+What it could not do is finish.
+
+A delegated mission fires enough model calls in quick succession to exceed the
+free tier's per-minute limit partway through. Rotation then moves to the next
+key, and this is where it comes apart: **a session is bound to a model, so
+rotating means `createSession` again, and the new session starts from nothing.**
+Availability carries across a rotation; progress does not.
+
+Measured on one run, before it was stopped:
+
+```
+attempts (running): 7      rotations: 6
+agent.arrived:     31      proxy calls: 16
+threads:           15      gates raised: 0
+```
+
+Seven attempts, each re-reading what the last one had already read, none
+reaching the refund. All four keys returned 200 within seconds of stopping, so
+this is burst limiting rather than exhausted quota -- the pool was never out of
+capacity, it was out of *continuity*.
+
+Two consequences worth stating rather than discovering on camera:
+
+- The shipped recording is single-threaded on purpose. It is a mission that
+  completed, which a delegated one could not.
+- A delegated run is still worth showing live, but as far as the gate and no
+  further.
+
+The fix is not a small one. Carrying progress across a rotation means either
+resuming a session whose turn has already failed, or keeping one session and
+swapping the provider's key underneath it -- a global config change, racy
+against any other mission. Neither is a thing to attempt days before a deadline
+on a path that currently works.
+
 ## Reconnection, verified
 
 A pending approval survives the browser going away, and this is the property
@@ -184,6 +222,8 @@ would be the kind of overclaim that unravels in a question.
 - [x] Approval ends a turn and a new approval-input turn resumes the exact call.
 - [x] Two sequential gates (refund, then mail) complete one mission.
 - [x] Browser-facing SSE replay resumes from the last Scope City sequence.
+- [x] Dynamic subagents genuinely spawn: six child threads on one run, titled
+      from the brief's two assignments, drawn on the map as separate figures.
 
 ## Still unverified
 
@@ -191,6 +231,9 @@ Kept honest so nothing unproven reaches the demo:
 
 - [ ] Whether a turn paused on `tool.approval_required` survives a **full server
       restart** (browser refresh is expected to be fine).
+- [ ] Whether a session whose turn failed on a 429 can be re-run rather than
+      recreated. If it can, delegated missions become completable on a free
+      tier; see "What delegation costs" above.
 - [ ] Whether `tools/list` is re-requested between turns, so a scope granted
       mid-session changes the visible tool set.
 - [ ] Sandbox execution on the demo machine. Needs a `DAYTONA_API_KEY`:

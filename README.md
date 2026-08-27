@@ -116,13 +116,20 @@ every branch reachable from a test.
 
 - **Linux or macOS** for the TrueForge server. On Windows use WSL2 — the
   standalone server segfaults on `win32`.
-- **Node.js 22 LTS**, pnpm 11.10. There is an `.nvmrc`, so `nvm use` picks it up.
+- **Node.js 22 LTS**, pnpm 11.10. There is an `.nvmrc` pinned to
+  22.13.0 -- a bare `22` would let `nvm use` select an already-installed 22.0-22.12,
+  which is the same broken class this is meant to avoid.
 
-  Node 22 specifically, not "22 or newer". pnpm 11 imports `node:sqlite`, which
-  Node 23 only exposes behind `--experimental-sqlite` -- so on Node 23 every
-  pnpm command, `install` included, dies with `ERR_UNKNOWN_BUILTIN_MODULE`
-  before anything in this repository runs. Node 24 is fine; Node 23 is the
-  broken middle, and it is a non-LTS line worth avoiding anyway.
+  Node 22.13 or later, not "22 or newer" -- and not Node 23. pnpm 11 imports
+  `node:sqlite`, which was flag-gated until 22.13 and which Node 23.2 still
+  only exposes behind `--experimental-sqlite`. Where it is gated, every pnpm
+  command including `install` dies with `ERR_UNKNOWN_BUILTIN_MODULE` before
+  anything in this repository runs.
+
+  Verified on 23.2 (gated, pnpm unusable) and 22.23 (available, pnpm fine).
+  Node 24 has it outright. The whole of 23 is excluded rather than bisected: it
+  is a non-LTS line, and pinning the supported range to what was actually tested
+  beats guessing which 23.x changed it.
 - **The sandbox is optional, and needs a Daytona key.** TrueForge 0.1.4 accepts
   exactly one sandbox provider — the manifest's `type` enum has a single member,
   `daytona` — so there is no local provider on this version and installing

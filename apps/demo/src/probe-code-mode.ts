@@ -37,6 +37,22 @@ import { judgeCodeMode } from "./code-mode-verdict.js";
 const PROBE_PORT = Number(process.env.SCOPE_PROBE_PORT ?? 8799);
 
 /**
+ * Where the probe's proxy listens, and the address it hands the harness.
+ *
+ * Two settings rather than one, for the same reason the demo has them: a
+ * TrueForge running in WSL or a container resolves 127.0.0.1 to itself, so a
+ * probe that both binds and advertises loopback is unreachable from exactly
+ * the setup the README describes. Code Mode would never reach the boundary and
+ * the probe would report that no model could run it -- a topology problem
+ * wearing the costume of a model problem.
+ *
+ * Loopback stays the default. Binding wider puts an MCP endpoint on whatever
+ * network the machine is on, so it should be a choice someone makes.
+ */
+const PROBE_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
+const PROBE_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
+
+/**
  * How long one model gets before the probe moves on.
  *
  * Needed because the model list includes whatever is registered, and a local
@@ -170,7 +186,7 @@ async function attempt(
 async function main(): Promise<void> {
   const registry = new MissionRegistry();
   const token = newProxyToken();
-  const proxy = await startProxyHttp({ registry, port: PROBE_PORT, host: "127.0.0.1", token });
+  const proxy = await startProxyHttp({ registry, port: PROBE_PORT, host: PROBE_BIND, token });
 
   const boundary: string[] = [];
   const missionId = newMissionId();
@@ -191,7 +207,7 @@ async function main(): Promise<void> {
   await driver.registerMcpServer({
     type: "remote",
     name,
-    url: `http://127.0.0.1:${PROBE_PORT}/mission/${missionId}/mcp`,
+    url: `http://${PROBE_PUBLIC_HOST}:${PROBE_PORT}/mission/${missionId}/mcp`,
     description: "Scope City boundary probe",
     auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
   });

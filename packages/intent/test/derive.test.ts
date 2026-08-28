@@ -200,6 +200,21 @@ describe("an id has to be in the sentence, not merely inside it", () => {
     expect(appearsInJob("notify ops@corp.io", "mail_ops@corp")).toBe(false);
   });
 
+  it("is not fooled by a non-ASCII character next to the id", () => {
+    // The boundary classes decide what counts as "more of a token", and in
+    // ASCII they said an accented letter and a fullwidth digit were neither --
+    // so `184` followed by one of them read as standalone and admitted
+    // `ord_184` all over again.
+    expect(appearsInJob("refund order 184é", "ord_184")).toBe(false);
+    expect(appearsInJob("refund order 184０", "ord_184")).toBe(false);
+    expect(appearsInJob("refund order é184", "ord_184")).toBe(false);
+  });
+
+  it("still reads an id from a sentence that happens to be non-ASCII", () => {
+    // The fix must not refuse ordinary text in another language.
+    expect(appearsInJob("échange order 184 please", "ord_184")).toBe(true);
+  });
+
   it("survives an id containing regex metacharacters", () => {
     // The token is interpolated into a RegExp. An id of `ch_.*` must not match
     // everything, and must not throw.

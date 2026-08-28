@@ -108,8 +108,16 @@ function mentions(text: string, token: string): boolean {
   // So a dot only ends the token when what follows it is not more of one:
   // `#184,` and a trailing `184.` still match, `buyer@example.test` does not
   // yield `buyer@example`.
+  //
+  // Unicode-aware, because the classes decide what counts as "more of a
+  // token". Written in ASCII they did not: `e` with an accent and a fullwidth
+  // digit are neither letters nor digits to `[a-z0-9]`, so `refund order 184e`
+  // -- with the accent -- read as a boundary and admitted `ord_184` again.
+  const CONT = String.raw`[\p{L}\p{M}\p{N}_@-]`;
+  const WORD = String.raw`[\p{L}\p{M}\p{N}]`;
   const bounded = new RegExp(
-    `(?<![a-z0-9_@-])(?<![a-z0-9]\\.)${escaped}(?![a-z0-9_@-])(?!\\.[a-z0-9])`,
+    `(?<!${CONT})(?<!${WORD}\\.)${escaped}(?!${CONT})(?!\\.${WORD})`,
+    "u",
   );
   return bounded.test(text);
 }

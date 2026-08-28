@@ -63,7 +63,11 @@ describe("the stated limits are still true", () => {
     // than none.
     for (const claim of ["Vault", "STS", "workload identity"]) {
       const at = limits.indexOf(claim);
-      if (at === -1) continue;
+      // Required, not skipped when missing. Skipping made the whole check
+      // vacuous: deleting the wishlist outright -- the drift most worth
+      // catching, since it leaves a limitations section claiming less than the
+      // project owes -- passed a test written to prevent it.
+      expect(at, `${claim} must still be named as future work`).toBeGreaterThan(-1);
       const sentence = limits.slice(Math.max(0, at - 200), at + 100);
       expect(sentence, `${claim} must read as future work`).toMatch(/honest fix|would|could|next/i);
     }

@@ -354,6 +354,16 @@ The full findings, including a place where TrueForge's own documentation says
 something the harness does not do, are in
 [docs/TRUEFORGE.md](docs/TRUEFORGE.md#code-mode-and-whether-it-is-a-way-round-the-scope).
 
+### Watching it, in the right order
+
+The two runs that matter are the same support ticket with and without a
+boundary, and they are the first two things in the palette for that reason.
+Press **1 · Without a scope**, then **2 · With a scope**. Everything else the
+city can show is evidence for what those two minutes claim.
+
+[docs/DEMO.md](docs/DEMO.md) is the three-minute running order, with the lines
+to read aloud and what to cut when you are over time.
+
 ### Checking the record yourself
 
 The recording the city replays is a hash-chained mission record, and you do not

@@ -389,6 +389,8 @@ describe("evaluate — arguments the office never declared", () => {
     });
 
     expect(decision).toMatchObject({ reason: "argument_not_declared" });
+  });
+
   it("still allows a call that names only what the office declares", () => {
     // The check must not cost the ordinary path anything.
     expect(
@@ -413,7 +415,5 @@ describe("evaluate — arguments the office never declared", () => {
         now: NOW,
       }),
     ).toEqual({ allowed: true, countersignRequired: false });
-  });
-
   });
 });

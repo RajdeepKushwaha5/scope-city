@@ -567,10 +567,16 @@ the revert.
 
 ### The record
 
-**Every merged pull request carries a Qodo review — 60 of 60.** Reviews run
-automatically on each push, so a PR that is fixed and pushed again is re-reviewed
-against the new commit, and several of the findings quoted above are second and third
-rounds on the same PR rather than first passes.
+**Every merged pull request carries a Qodo review.** Not most, and not the
+important ones — every one, and the
+[pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
+is how you check that rather than taking a number here on trust. A total printed
+here would be wrong again at the next merge, and this section has already carried
+one long after it stopped being true.
+
+Reviews run automatically on each push, so a PR that is fixed and pushed again is
+re-reviewed against the new commit. Several of the findings quoted above are second
+and third rounds on the same PR rather than first passes.
 
 Three commits predate the workflow: the scope evaluator, the quota ledger and the
 proxy enforcement pipeline were pushed directly on the first morning, before the

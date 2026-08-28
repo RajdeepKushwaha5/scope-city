@@ -20,10 +20,26 @@ const readme = readFileSync(
   fileURLToPath(new URL("../../../README.md", import.meta.url)),
   "utf8",
 );
-const section = readme.slice(
-  readme.indexOf("## Qodo Code Review Evidence"),
-  readme.indexOf("## How this was built"),
-);
+/**
+ * Sliced only after both headings are found.
+ *
+ * `indexOf` returns -1 for a heading that has been renamed, and `slice(n, -1)`
+ * then quietly hands back almost the whole README -- so every assertion below
+ * would go on passing against unrelated prose further down the file. A test
+ * that cannot tell the section is missing is worse than no test, because it
+ * reports the section as healthy.
+ */
+function evidenceSection(text: string): string {
+  const start = text.indexOf("## Qodo Code Review Evidence");
+  const end = text.indexOf("## How this was built");
+
+  expect(start, "the evidence heading must exist").toBeGreaterThan(-1);
+  expect(end, "the heading after it must exist, to bound the slice").toBeGreaterThan(start);
+
+  return text.slice(start, end);
+}
+
+const section = evidenceSection(readme);
 
 describe("the Qodo evidence section", () => {
   it("exists, and is where the hackathon says to put it", () => {
@@ -57,12 +73,23 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/predate the workflow/i);
   });
 
-  it("counts what is actually there", () => {
-    // The count was "32 of 32" long after it had moved. A number in the
-    // evidence section is a claim like any other.
-    const claimed = /(\d+) of (\d+)/.exec(section);
-    expect(claimed, "the section should state a count").not.toBeNull();
-    expect(claimed![1]).toBe(claimed![2]);
-    expect(Number(claimed![1])).toBeGreaterThanOrEqual(60);
+  it("does not state a total that goes stale on the next merge", () => {
+    // It said "32 of 32" long after it had moved, and "60 of 60" would have
+    // been wrong the moment the PR writing it merged. The durable claim is the
+    // invariant -- every merged PR has a review -- with the PR list as the
+    // proof, which is what the hackathon asks for anyway.
+    const total = section.slice(section.indexOf("### The record"));
+
+    expect(total).not.toMatch(/\d+ of \d+/);
+    expect(total).toMatch(/every merged pull request carries a Qodo review/i);
+    expect(total).toContain("is%3Amerged");
+  });
+
+  it("fails when the section is missing rather than reading the whole file", () => {
+    // The slice used to fail open. Proven against a README with the heading
+    // renamed: the helper must reject it instead of returning 500 lines of
+    // unrelated prose that happens to satisfy every other assertion here.
+    expect(() => evidenceSection(readme.replace("## Qodo Code Review Evidence", "## Gone"))).toThrow();
+    expect(() => evidenceSection(readme.replace("## How this was built", "## Gone"))).toThrow();
   });
 });

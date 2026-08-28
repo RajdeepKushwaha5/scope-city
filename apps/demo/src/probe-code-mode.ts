@@ -188,29 +188,10 @@ async function main(): Promise<void> {
   const token = newProxyToken();
   const proxy = await startProxyHttp({ registry, port: PROBE_PORT, host: PROBE_BIND, token });
 
-  const boundary: string[] = [];
-  const missionId = newMissionId();
-  const fixture = createFixtureMission({
-    missionId,
-    book: new CountersignBook(),
-    emit: (event) => {
-      const e = event as { type?: string; office?: string };
-      if (e.office) boundary.push(`${e.type} ${e.office}`);
-    },
-  });
-  registry.register(fixture.mission);
-
   const driver = new HarnessDriver({
     baseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790",
   });
   const name = "scope-city-probe";
-  await driver.registerMcpServer({
-    type: "remote",
-    name,
-    url: `http://${PROBE_PUBLIC_HOST}:${PROBE_PORT}/mission/${missionId}/mcp`,
-    description: "Scope City boundary probe",
-    auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
-  });
 
   // Every configured model in turn. A free-tier key that is cooling answers 429
   // before the agent writes a line, and reporting that as "the boundary held"
@@ -219,13 +200,47 @@ async function main(): Promise<void> {
   const candidates = configured.length > 0 ? configured : await driver.listModels();
 
   let output = "";
+  let boundary: readonly string[] = [];
   let used = "";
   let lastError = "";
 
   for (const model of candidates) {
-    // Cleared per model, so a verdict is never judged against what a previous
-    // key's half-finished attempt happened to leave behind.
-    boundary.length = 0;
+    /*
+     * A mission of its own for each attempt, rather than one mission whose
+     * event list is emptied between them.
+     *
+     * Giving up on a model does not stop it. The deadline resolves as soon as
+     * cancellation is *requested*, so the abandoned turn can still be running
+     * when the next model starts -- and a late `call.allowed` or
+     * `response.redacted` from it would land in the list the next model is
+     * about to be judged on. The probe would then credit one model's filtering
+     * to another, which is the same class of mistake as judging on text alone:
+     * evidence that is real but not about the thing being reported.
+     *
+     * Separate missions make that impossible rather than unlikely. A straggler
+     * writes into the array belonging to the attempt it came from, which
+     * nothing reads again.
+     */
+    const seen: string[] = [];
+    const missionId = newMissionId();
+    const fixture = createFixtureMission({
+      missionId,
+      book: new CountersignBook(),
+      emit: (event) => {
+        const e = event as { type?: string; office?: string };
+        if (e.office) seen.push(`${e.type} ${e.office}`);
+      },
+    });
+    registry.register(fixture.mission);
+
+    await driver.registerMcpServer({
+      type: "remote",
+      name,
+      url: `http://${PROBE_PUBLIC_HOST}:${PROBE_PORT}/mission/${missionId}/mcp`,
+      description: "Scope City boundary probe",
+      auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
+    });
+
     const sessionId = await driver.createSession(
       missionAgentSpec({
         model,
@@ -237,12 +252,19 @@ async function main(): Promise<void> {
     );
 
     const run = await attempt(driver, sessionId, PER_MODEL_MS);
-    output = run.output;
 
     if (run.status === "done") {
+      output = run.output;
+      boundary = seen;
       used = model;
       break;
     }
+
+    // Cancelled rather than abandoned. A session left behind on a rotation is
+    // still the harness's problem after the probe has stopped caring about it,
+    // and four keys means four of them.
+    await driver.cancel(sessionId).catch(() => undefined);
+
     lastError = `${model}: ${run.status} ${run.why}`.trim();
     console.log(`  ${model} could not run it (${run.why || run.status}); trying the next key`);
   }

@@ -328,7 +328,27 @@ export function missionAgentSpec(params: {
     config: {
       sandbox: { enabled: params.sandbox, fileDownloads: false },
       dynamicSubAgents: { enabled: true },
+      // Off, and the reason is the product rather than an oversight.
+      //
+      // Generative UI lets the model draw into the operator's view. Everything
+      // this project argues rests on the operator seeing what the *boundary*
+      // did, not what the model says it did -- every building, figure and held
+      // gate in the city is a harness event or a proxy decision. Handing the
+      // model a channel to render its own account of the mission would put the
+      // one untrusted party in the room in charge of the display, which is the
+      // contradiction this whole thing exists to avoid.
       generativeUi: { enabled: false },
+      // Off for a sharper reason: it is an unbound channel from the model to
+      // the operator.
+      //
+      // The Gate is the human interaction here, and it is bound to one call's
+      // exact arguments -- the operator is answering "may this run", about a
+      // specific call they can read. A clarifying question is free text with
+      // nothing behind it, and the model composing it has just read a support
+      // ticket written by a member of the public. An injected instruction that
+      // cannot reach a tool can still reach a person: "confirm you want the
+      // customer list sent" is a question, not a tool call, and it would arrive
+      // looking like the agent asking rather than the attacker.
       askUserQuestions: { enabled: false },
       // Scaled with the effort, not fixed.
       //

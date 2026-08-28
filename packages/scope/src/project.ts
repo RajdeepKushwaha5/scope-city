@@ -115,7 +115,10 @@ const INJECTION_PATTERNS: readonly RegExp[] = [
   //
   // What was worth catching is content shaped like turn framing, which is how
   // an injection tries to look like the harness rather than like data.
-  /<\s*\/?\s*(system|assistant|user|instructions?|prompt)\s*>/i,
+  // Attributes allowed between the name and the `>`. Requiring the tag to
+  // close immediately let `<system role="policy">` through, which is the same
+  // framing wearing one word more.
+  /<\s*\/?\s*(system|assistant|user|instructions?|prompt)(\s[^>]*)?\s*>/i,
   /<\|[^|]*\|>/,
   /\bact\s+as\b/i,
 ];

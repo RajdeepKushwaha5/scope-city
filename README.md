@@ -265,17 +265,23 @@ The tests that matter most:
 - `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
 - `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
 - `packages/proxy` — the poisoned ticket refused end to end, and the countersign
-### What we did not get working
+### Delegation, and the thing that nearly stopped it
 
-Subagents spawn and the map draws them -- six child threads on one live run,
-titled from the brief. A *delegated* mission still cannot finish on a free-tier
-key, because delegation fires enough calls to trip the per-minute limit partway
-through, and rotating to the next key means a new session that starts from
-nothing. Availability survives a rotation; progress does not.
+Subagents spawn and the map draws them, titled from the brief. For a while a
+*delegated* mission could not finish on a free-tier key: delegation fires enough
+calls to trip the per-minute limit partway through, and rotating to the next key
+meant a new session that started from nothing. Availability survived a rotation;
+progress did not.
 
-So the shipped recording is single-threaded on purpose: it is a mission that
-completed. The measurements are in
-[docs/TRUEFORGE.md](docs/TRUEFORGE.md#what-delegation-costs-measured).
+The fix was one fact, the wrong way round. A rate limit ends the *turn*, not the
+session -- TrueForge keeps the conversation -- so the rotation loop was throwing
+away work it could have kept. Holding the session and waiting for its own key
+took the same job from seven sessions to one, and from never reaching the gate
+to reaching it. The measurements, and the three pieces of state that had to
+travel with the held session, are in
+[docs/TRUEFORGE.md](docs/TRUEFORGE.md#what-delegation-cost-and-what-fixed-it).
+
+The shipped recording is that delegated run.
 
 ### Checking the record yourself
 
@@ -287,14 +293,16 @@ node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
 ```
 
 ```
-  entries   49
+  entries   71
 
-  chain intact, head 455e7a3c925ecb19…
+  chain intact, head fedb0da15fdaf944…
 
   what it attests to
     ended            completed
+    threads          3 (subagents ran)
     gates raised     1
     countersigned    1
+    refused at gate  0
     left unanswered  0
     sandbox checks   2
 

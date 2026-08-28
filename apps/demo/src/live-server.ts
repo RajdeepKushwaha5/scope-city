@@ -989,9 +989,14 @@ async function main(): Promise<void> {
     }
     await Promise.all([
       ...cancellations,
-      new Promise<void>((resolve, reject) =>
-        server.close((error) => (error ? reject(error) : resolve())),
-      ),
+      // Same reason the proxy drops its connections: `/api/missions/:id/events`
+      // is an SSE stream that stays open for as long as the city is on screen,
+      // and `close()` waits for open connections. With a browser tab open,
+      // Ctrl+C on this server hung until someone closed the tab or killed it.
+      new Promise<void>((resolve, reject) => {
+        server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
+      }),
       proxy.close(),
     ]);
   };

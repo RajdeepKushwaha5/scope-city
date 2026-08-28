@@ -119,9 +119,23 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
   return {
     server,
     url: (missionId: string) => `http://${host}:${options.port}/mission/${missionId}/mcp`,
+    /**
+     * Stops listening and drops what is still connected.
+     *
+     * `server.close()` alone stops accepting new connections and then waits for
+     * the open ones to end by themselves, which for this server means forever:
+     * an MCP session is a long-lived streaming HTTP request, so a harness
+     * holding one keeps the promise pending and the process alive. A shutdown
+     * that never finishes is worse than an abrupt one -- it reads as a hang,
+     * and the usual response is to kill the process anyway, having waited.
+     *
+     * So the sockets are closed rather than waited on. Anything in flight was
+     * going to be lost when the process exited regardless.
+     */
     close: () =>
       new Promise<void>((resolve, reject) => {
         server.close((error) => (error ? reject(error) : resolve()));
+        server.closeAllConnections();
       }),
   };
 }

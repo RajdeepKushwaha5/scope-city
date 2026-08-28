@@ -23,6 +23,22 @@ const NL = String.fromCharCode(10);
  * definition of `.hud__main` hidden inside a group would then have evaded the
  * uniqueness check entirely, which is the one thing that check exists to catch.
  */
+/**
+ * Selectors that legitimately appear twice.
+ *
+ * A block declaring `.a, .b` counts once for each, so a selector that is both
+ * grouped with a sibling and styled on its own is two entries and one design.
+ * Listed by name rather than inferred, so adding one is a decision.
+ */
+const GROUPED = new Set([
+  ".console__footer",
+  ".console__permit-title",
+  ".console__portrait",
+  ".console__section-title",
+  ".proof__script",
+  ".review__clean",
+]);
+
 function topLevelSelectors(): string[] {
   const out: string[] = [];
   let pending: string[] = [];
@@ -94,6 +110,27 @@ describe("the HUD stylesheet", () => {
       const count = topLevelSelectors().filter((s) => s === selector).length;
       expect(count, selector + " is defined " + count + " times").toBe(1);
     }
+  });
+
+  it("defines each component exactly once too", () => {
+    // The note above used to end "the rest of the file has its own duplication
+    // to answer for". This is that answer.
+    //
+    // A second half of this stylesheet had redeclared eighteen of these, and a
+    // later block wins silently: `.window` lost the hard offset shadow and the
+    // inset amber hairline that make a panel read as an instrument rather than
+    // a modal, and `.log` had its direction reversed so new lines arrived below
+    // the fold during a live mission.
+    const dupes = new Map<string, number>();
+    for (const selector of topLevelSelectors()) {
+      dupes.set(selector, (dupes.get(selector) ?? 0) + 1);
+    }
+
+    const repeated = [...dupes]
+      .filter(([selector, count]) => count > 1 && !GROUPED.has(selector))
+      .map(([selector, count]) => `${selector} (${count})`);
+
+    expect(repeated, "declared more than once").toEqual([]);
   });
 
   it("keeps the full-viewport containers transparent to the pointer", () => {

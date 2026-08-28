@@ -66,6 +66,29 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/automatically on each push/i);
   });
 
+  it("links to replies inside review threads, not only to the PRs", () => {
+    // The hackathon says a thread where a finding was answered reads better
+    // than a clean run nobody replied to, and it asks for dismissals to be
+    // recorded in the thread specifically. This section claimed a dismissal was
+    // "recorded in the review thread" while every thread in the repository had
+    // zero human replies -- true of the stylesheet, false of the thread.
+    // The three replies, by URL, rather than a count of anything that looks
+    // like one. Counting `#discussion_r<digits>` accepted plain text, a
+    // malformed URL, or a link to the bot's own comment -- so the clickable
+    // human replies could be swapped out while the test stayed green, which is
+    // the failure this test exists to prevent, one level up.
+    const REPLIES = [
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180",
+    ];
+
+    for (const url of REPLIES) {
+      // As a markdown link, so it is clickable rather than merely present.
+      expect(section, `should link ${url}`).toContain(`(${url})`);
+    }
+  });
+
   it("owns the three commits that predate the workflow", () => {
     // They are the scope evaluator, the ledger and the proxy -- the most
     // important code in the project. A judge running `git log` finds them in a

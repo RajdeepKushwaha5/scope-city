@@ -562,8 +562,28 @@ Firefox. Those are the same line pulling opposite ways. The stack is sized to it
 content, so what it captures is roughly forty pixels of strip *between* panels, while
 the scrollbar is how a short screen reaches panels below the fold. The trade was
 declined, with the reasoning recorded in the stylesheet and in the
-[review thread](https://github.com/RajdeepKushwaha5/scope-city/pull/33), and a test pins
-the revert.
+[review thread](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504),
+and a test pins the revert.
+
+### Where the reasoning lives
+
+Findings were answered in commit messages and pull request descriptions, which is
+where this project keeps its reasoning — but a decision recorded only there is a
+decision a reviewer has to go looking for. The threads themselves now carry the
+three that most needed it:
+
+- **[The dismissal above](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504)**
+  — why forty pixels of dead strip between panels is a better trade than a
+  scrollbar that cannot be dragged in Firefox.
+- **[A fix that diverges from what was suggested](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873)**
+  — two findings on the same PR pulled in opposite directions, one asking for
+  non-ASCII letters to continue an identifier and the next asking for the
+  opposite so that 退款订单184 still parses. Both cannot be satisfied by the same
+  class, which was the signal the rule was aimed at the wrong question.
+- **[How a security fix was verified](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180)**
+  — the SMTP injection, refused against a real Mailpit rather than by reading the
+  code, with a note on which of the four sibling findings were taken and why the
+  topology leak was the interesting one.
 
 ### The record
 

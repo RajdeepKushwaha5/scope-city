@@ -26,6 +26,15 @@ export interface MailpitOptions {
   readonly port: number;
   /** The envelope sender. Nothing receives replies; this only has to be valid. */
   readonly from?: string;
+  /**
+   * The mission this Post House belongs to, stamped onto every message.
+   *
+   * A message in an inbox is otherwise just a message. Carrying the mission and
+   * scope ids makes it traceable back to the hash-chained record, which is the
+   * difference between an agent claiming it mailed the customer and a delivered
+   * message you can match to the authority that permitted it.
+   */
+  readonly mission?: { readonly missionId?: string; readonly scopeId?: string };
 }
 
 interface SentRecord {
@@ -53,13 +62,33 @@ export function mailpitSystem(options: MailpitOptions): SystemDefinition {
     async call(args) {
       const to = requireString(args, "to");
       const body = requireString(args, "body");
-      const subject = typeof args.subject === "string" ? args.subject : "(no subject)";
+      // A mail with no subject is still a mail. "(no subject)" reads in an inbox
+      // as something having gone wrong, when what happened is that the agent
+      // did not write one.
+      const supplied = typeof args.subject === "string" ? args.subject.trim() : "";
+      const subject = supplied.length > 0 ? supplied : "Message from your support agent";
 
       // Nothing is recorded until the server has accepted it. Pushing first and
       // sending after would leave `mail.list` claiming a message that never
       // left, which is the one direction this must not be wrong in: an outbox
       // that over-reports makes a failed send look like a delivered one.
-      await sendMail({ from, to, subject, body }, { host: options.host, port: options.port });
+      await sendMail(
+        {
+          from,
+          to,
+          subject,
+          body,
+          // A display name, so an inbox shows a sender rather than an address.
+          fromName: "Scope City",
+          trace: {
+            ...(options.mission?.missionId
+              ? { "X-Scope-City-Mission": options.mission.missionId }
+              : {}),
+            ...(options.mission?.scopeId ? { "X-Scope-City-Scope": options.mission.scopeId } : {}),
+          },
+        },
+        { host: options.host, port: options.port },
+      );
 
       const record: SentRecord = { id: `msg_${sent.length + 1}`, to, subject };
       sent.push(record);

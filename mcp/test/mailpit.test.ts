@@ -35,3 +35,35 @@ describe("the Mailpit-backed Post House", () => {
     await expect(send.call({ to: "buyer@example.test" })).rejects.toThrow();
   });
 });
+
+describe("the port it is given", () => {
+  it("refuses a port that is not a usable one", async () => {
+    // MAILPIT_PORT comes from the environment, so it can arrive as NaN or
+    // nonsense. Without this the failure is a socket error that reads like the
+    // server being down rather than the configuration being wrong.
+    for (const port of [Number.NaN, 0, -1, 70_000, 1.5]) {
+      const send = mailpitSystem({ host: "127.0.0.1", port }).offices.find(
+        (o) => o.office === "mail.send",
+      )!;
+
+      await expect(
+        send.call({ to: "buyer@example.test", body: "hello" }),
+        `port ${port} should be refused`,
+      ).rejects.toThrow(/not a usable port/);
+    }
+  });
+
+  it("does not name the mail server in a timeout the agent will read", async () => {
+    // This error reaches the agent through a tool result. An agent that cannot
+    // see the mail server should not learn its address by failing to reach it.
+    const send = mailpitSystem({ host: "192.0.2.1", port: 1025 }).offices.find(
+      (o) => o.office === "mail.send",
+    )!;
+
+    await expect(send.call({ to: "buyer@example.test", body: "hi" })).rejects.toThrow();
+    await send.call({ to: "buyer@example.test", body: "hi" }).catch((error: Error) => {
+      expect(error.message).not.toContain("192.0.2.1");
+      expect(error.message).not.toContain("1025");
+    });
+  }, 30_000);
+});

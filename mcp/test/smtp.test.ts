@@ -3,6 +3,7 @@ import {
   assertSafeAddress,
   encodeHeader,
   renderMessage,
+  assertSafeHeaderValue,
   replyCode,
   stuffBody,
 } from "../src/systems/smtp.js";
@@ -152,5 +153,70 @@ describe("long non-ASCII subjects", () => {
 
   it("still leaves a short ASCII subject completely alone", () => {
     expect(encodeHeader("Refund issued")).toBe("Refund issued");
+  });
+});
+
+describe("what lands in an inbox", () => {
+  const base = {
+    from: "scope-city@example.test",
+    to: "buyer@example.test",
+    subject: "Your refund for order #184",
+    body: "We have refunded $49.00.",
+  };
+
+  it("shows a sender name rather than a bare address", () => {
+    const rendered = renderMessage({ ...base, fromName: "Scope City" }, new Date(0));
+    expect(rendered).toContain("From: Scope City <scope-city@example.test>");
+  });
+
+  it("falls back to the address when no name is given", () => {
+    expect(renderMessage(base, new Date(0))).toContain("From: scope-city@example.test");
+  });
+
+  it("stamps the mission and scope onto the message", () => {
+    // A message in an inbox is otherwise just a message. These are what let
+    // someone holding the record match the two up.
+    const rendered = renderMessage(
+      { ...base, trace: { "X-Scope-City-Mission": "m_abc", "X-Scope-City-Scope": "SC-1" } },
+      new Date(0),
+    );
+
+    expect(rendered).toContain("X-Scope-City-Mission: m_abc");
+    expect(rendered).toContain("X-Scope-City-Scope: SC-1");
+  });
+
+  it("keeps trace headers above the blank line, not in the body", () => {
+    const rendered = renderMessage({ ...base, trace: { "X-A": "1" } }, new Date(0));
+    const [headers, body] = rendered.split("\r\n\r\n");
+
+    expect(headers).toContain("X-A: 1");
+    expect(body).not.toContain("X-A");
+  });
+
+  it("refuses a trace value carrying a newline", () => {
+    // A header is another place a line break splits a line and adds one nobody
+    // wrote -- the same hole as the recipient, one field along.
+    expect(() =>
+      renderMessage({ ...base, trace: { "X-A": "1\r\nBcc: attacker@evil.test" } }, new Date(0)),
+    ).toThrow(/may not contain newlines/);
+  });
+
+  it("encodes a sender name that is not plain ASCII", () => {
+    const rendered = renderMessage({ ...base, fromName: "Café Support" }, new Date(0));
+    expect(rendered).toContain("=?UTF-8?B?");
+    expect(rendered).toContain("<scope-city@example.test>");
+  });
+});
+
+describe("line endings that are not CRLF", () => {
+  it("normalises a bare carriage return", () => {
+    // A mail server treats a lone CR as a line break. Left alone it sends a
+    // line this code never accounted for -- including one that could start with
+    // a dot and arrive unstuffed.
+    expect(stuffBody("one\rtwo")).toBe("one\r\ntwo");
+  });
+
+  it("stuffs a dot that only a bare CR revealed", () => {
+    expect(stuffBody("before\r.hidden")).toBe("before\r\n..hidden");
   });
 });

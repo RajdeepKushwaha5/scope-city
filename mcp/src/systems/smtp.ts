@@ -27,6 +27,20 @@ export interface SmtpMessage {
   readonly to: string;
   readonly subject: string;
   readonly body: string;
+  /** Shown instead of the bare address, so an inbox reads as a sender. */
+  readonly fromName?: string;
+  /**
+   * Headers tying the message to the mission that sent it.
+   *
+   * A message in an inbox is otherwise just a message. With the mission and
+   * scope ids on it, anyone holding the hash-chained record can match the two
+   * up -- the difference between "the agent says it mailed the customer" and a
+   * delivered message traceable to the authority that permitted it.
+   *
+   * Values are checked the way addresses are, because a header is another place
+   * a newline splits a line and adds one nobody wrote.
+   */
+  readonly trace?: Readonly<Record<string, string>>;
 }
 
 export interface SmtpOptions {
@@ -103,23 +117,45 @@ export function encodeHeader(value: string): string {
  * and blindly appending `\r` to every `\n` would double them.
  */
 export function stuffBody(body: string): string {
+  // Every line ending, not just CRLF. A bare CR is a line break to a mail
+  // server and invisible here, so leaving it in place sends a line this code
+  // never accounted for -- including, potentially, one starting with a dot
+  // that arrives unstuffed.
   return body
-    .replace(/\r\n/g, "\n")
+    .replace(/\r\n|\r/g, "\n")
     .split("\n")
     .map((line) => (line.startsWith(".") ? `.${line}` : line))
     .join("\r\n");
 }
 
 /** The message as the server will receive it, headers and all. */
+/** A header value cannot carry a line break, for the same reason an address cannot. */
+export function assertSafeHeaderValue(value: string, field: string): void {
+  if (/[\r\n\0]/.test(value)) {
+    throw new Error(`SMTP: ${field} may not contain newlines`);
+  }
+}
+
 export function renderMessage(message: SmtpMessage, at: Date = new Date()): string {
+  const sender = message.fromName
+    ? `${encodeHeader(message.fromName)} <${message.from}>`
+    : message.from;
+
+  const trace = Object.entries(message.trace ?? {}).map(([name, value]) => {
+    assertSafeHeaderValue(name, "header name");
+    assertSafeHeaderValue(value, `header ${name}`);
+    return `${name}: ${value}`;
+  });
+
   return [
-    `From: ${message.from}`,
+    `From: ${sender}`,
     `To: ${message.to}`,
     `Subject: ${encodeHeader(message.subject)}`,
     `Date: ${at.toUTCString()}`,
     "MIME-Version: 1.0",
-    'Content-Type: text/plain; charset="utf-8"',
+    'Content-Type: text/plain; charset=\"utf-8\"',
     "Content-Transfer-Encoding: 8bit",
+    ...trace,
     "",
     stuffBody(message.body),
   ].join("\r\n");
@@ -201,6 +237,13 @@ export async function sendMail(message: SmtpMessage, options: SmtpOptions): Prom
   assertSafeAddress(message.from, "from");
   assertSafeAddress(message.to, "to");
 
+  // A port read from the environment can arrive as NaN or nonsense, and the
+  // failure it produces otherwise is a socket error that reads like the server
+  // being down rather than the configuration being wrong.
+  if (!Number.isInteger(options.port) || options.port < 1 || options.port > 65_535) {
+    throw new Error(`SMTP: ${String(options.port)} is not a usable port`);
+  }
+
   const timeoutMs = options.timeoutMs ?? 10_000;
 
   const socket = await new Promise<Socket>((resolve, reject) => {
@@ -209,7 +252,11 @@ export async function sendMail(message: SmtpMessage, options: SmtpOptions): Prom
     s.once("connect", () => resolve(s));
     s.once("timeout", () => {
       s.destroy();
-      reject(new Error(`SMTP: no response from ${options.host}:${options.port} in ${timeoutMs}ms`));
+      // No host or port in the message. This error reaches the agent through a
+      // tool result, and an agent that cannot see the mail server should not
+      // learn its address by failing to reach it. The operator has the address
+      // in their own configuration and in the systems line at startup.
+      reject(new Error(`SMTP: no response from the mail server in ${timeoutMs}ms`));
     });
     s.once("error", reject);
   });

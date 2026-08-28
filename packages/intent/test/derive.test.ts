@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildRegistry, type OfficeSpec } from "@scope-city/scope";
-import { constrainEnvelope, type DerivationBounds } from "../src/derive.js";
+import { appearsInJob, constrainEnvelope, type DerivationBounds } from "../src/derive.js";
 
 const SPECS: OfficeSpec[] = [
   {
@@ -134,5 +134,106 @@ describe("constrainEnvelope narrows and never widens", () => {
       const env = run({ offices } as never);
       for (const office of env.offices) expect(BOUNDS.registry.has(office)).toBe(true);
     }
+  });
+});
+
+/**
+ * The claim for stage 1 is that the envelope comes from the operator's own
+ * sentence. A plain substring test does not deliver that: it admits ids nobody
+ * wrote, reached by *shortening* a real one rather than inventing a new one --
+ * which is the harder case to notice on a grant screen, because every id on it
+ * looks plausible.
+ */
+describe("an id has to be in the sentence, not merely inside it", () => {
+  const JOB = "Refund order #184, max $49, for 30 minutes";
+
+  it("drops fragments of the id the operator did write", () => {
+    // Each of these was admitted before: 1, 4, 8 and 18 are all pieces of 184.
+    for (const id of ["ch_1", "ch_4", "ch_8", "ch_18"]) {
+      expect(appearsInJob(JOB, id), id).toBe(false);
+    }
+  });
+
+  it("drops an id matching a digit from somewhere else entirely", () => {
+    // `ch_0` used to pass on the zero in "30 minutes", which is the clearest
+    // statement of how little a substring match proves.
+    expect(appearsInJob(JOB, "ch_0")).toBe(false);
+  });
+
+  it("still admits the ids the operator actually named", () => {
+    for (const id of ["ord_184", "ch_184", "tkt_184"]) {
+      expect(appearsInJob(JOB, id), id).toBe(true);
+    }
+  });
+
+  it("does not treat a longer number as the one that was written", () => {
+    // 184 is a prefix of 1840. Neither should stand in for the other.
+    expect(appearsInJob(JOB, "ord_1840")).toBe(false);
+    expect(appearsInJob("refund the charge for order 1840", "ord_184")).toBe(false);
+  });
+
+  it("reads an id written out in full", () => {
+    expect(appearsInJob("close ticket tkt_184 and refund ch_184", "ch_184")).toBe(true);
+    // And does not infer an order from a sentence that names none, even though
+    // 184 is present -- it is present only inside other ids.
+    expect(appearsInJob("close ticket tkt_184 and refund ch_184", "ord_184")).toBe(false);
+  });
+
+  it("does not shorten an address to a domain somebody else owns", () => {
+    // Worse than a shortened order id. `mail_to` is the recipient of an
+    // irreversible send, and a dot ends a sentence as readily as it separates
+    // a domain -- so treating it as a plain boundary let `buyer@example`
+    // through on a job naming `buyer@example.test`.
+    const job = "email buyer@example.test about order 184";
+
+    expect(appearsInJob(job, "mail_buyer@example.test")).toBe(true);
+    expect(appearsInJob(job, "mail_buyer@example")).toBe(false);
+    expect(appearsInJob(job, "mail_buyer")).toBe(false);
+    expect(appearsInJob(job, "mail_example.test")).toBe(false);
+  });
+
+  it("still reads an id that ends the sentence", () => {
+    // The reason the dot cannot simply be an id character: it belongs to the
+    // address in the middle and to the sentence at the end.
+    expect(appearsInJob("Refund order #184.", "ord_184")).toBe(true);
+    expect(appearsInJob("notify ops@corp.io", "mail_ops@corp.io")).toBe(true);
+    expect(appearsInJob("notify ops@corp.io", "mail_ops@corp")).toBe(false);
+  });
+
+  it("is not fooled by a digit in another numbering system", () => {
+    // `184` followed by a fullwidth zero is `1840` written differently, so the
+    // continuation class is any decimal digit rather than 0-9.
+    expect(appearsInJob("refund order 184０", "ord_184")).toBe(false);
+  });
+
+  it("reads an id from text that does not put spaces around it", () => {
+    // The question the boundary asks is whether the neighbour could be more of
+    // *this* id, and these ids are ASCII. A non-ASCII letter cannot continue
+    // one -- so `184` beside a word is still `184`, and CJK, which writes
+    // "refund order 184" with no spaces at all, is read rather than refused.
+    expect(appearsInJob("退款订单184", "ord_184")).toBe(true);
+    expect(appearsInJob("refund order 184é", "ord_184")).toBe(true);
+    expect(appearsInJob("échange order 184 please", "ord_184")).toBe(true);
+  });
+
+  it("still refuses a longer number, whatever script surrounds it", () => {
+    expect(appearsInJob("注销订单1840", "ord_184")).toBe(false);
+  });
+
+  it("survives an id containing regex metacharacters", () => {
+    // The token is interpolated into a RegExp. An id of `ch_.*` must not match
+    // everything, and must not throw.
+    expect(appearsInJob(JOB, "ch_.*")).toBe(false);
+    expect(() => appearsInJob(JOB, "ch_[")).not.toThrow();
+  });
+
+  it("keeps the ids out of the envelope, not just out of the helper", () => {
+    const env = constrainEnvelope({
+      job: JOB,
+      raw: { offices: ["charge.refund"], named: { charge_ids: ["ch_184", "ch_1", "ch_0"] } },
+      bounds: BOUNDS,
+    });
+
+    expect(env.named["charge_ids"]).toEqual(["ch_184"]);
   });
 });

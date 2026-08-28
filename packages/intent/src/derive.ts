@@ -64,17 +64,67 @@ function stringArray(value: unknown): string[] {
  *
  * Canonical prefixes are stripped before comparing, because the drafter adds
  * them: the operator writes "184" and means `ord_184`.
+ *
+ * Matched on token boundaries, not as a bare substring. A plain `includes`
+ * admitted ids nobody wrote: against "Refund order #184, max $49, for 30
+ * minutes" it let through `ch_1`, `ch_4`, `ch_8` and `ch_18`, each of them a
+ * fragment of 184 -- and `ch_0`, which matched the zero in "30 minutes". A
+ * drafter that proposed those would have had them granted, which is precisely
+ * the failure this function exists to prevent, reached by shortening the id
+ * rather than inventing one.
  */
 export function appearsInJob(job: string, id: string): boolean {
   const haystack = job.toLowerCase();
   const needle = id.toLowerCase();
-  if (haystack.includes(needle)) return true;
+  if (mentions(haystack, needle)) return true;
 
   // `ord_184` -> `184`. Only the part after a known prefix separator, so a bare
   // token cannot be whittled down until it matches something by accident.
   const core = /^[a-z]+_(.+)$/.exec(needle)?.[1];
   if (!core || core.length === 0) return false;
-  return haystack.includes(core);
+  return mentions(haystack, core);
+}
+
+/**
+ * Whether `token` appears in `text` as its own word.
+ *
+ * The boundary is "not another id character", so `#184`, `184,` and `184` at
+ * the end of the sentence all count, while the `184` inside `1840` does not.
+ * Written with lookaround rather than a word boundary, because an id may
+ * contain the underscores and hyphens a word boundary treats as boundaries
+ * itself -- `ch_1` would then be judged to start at its digit.
+ */
+function mentions(text: string, token: string): boolean {
+  const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Two boundary rules, because identifiers do not all end the same way.
+  //
+  // `[a-z0-9_@-]` is the obvious part. The dot needs its own: it belongs to
+  // an address in the middle and to a sentence at the end, so treating it as
+  // a plain boundary let `buyer@example` match inside `buyer@example.test`.
+  // A shortened address is worse than a shortened order id -- mail_to is the
+  // recipient of an irreversible send, and `buyer@example` is a domain
+  // somebody else owns.
+  //
+  // So a dot only ends the token when what follows it is not more of one:
+  // `#184,` and a trailing `184.` still match, `buyer@example.test` does not
+  // yield `buyer@example`.
+  //
+  // The classes ask one question: could the neighbouring character be more of
+  // *this* id? Ids here are ASCII -- `ord_184`, `buyer@example.test` -- so the
+  // continuation set is ASCII letters, any decimal digit, and the punctuation
+  // an id may carry.
+  //
+  // Any decimal digit rather than 0-9, so a fullwidth `184０` cannot pass as a
+  // standalone 184. And letters only in ASCII, because a non-ASCII letter
+  // cannot continue an ASCII id: `184é` is 184 next to a word, and CJK writes
+  // 退款订单184 with no space at all, so treating every Unicode letter as
+  // continuation refused an id the operator had plainly written.
+  const CONT = String.raw`[a-z0-9_@\-\p{Nd}]`;
+  const bounded = new RegExp(
+    `(?<!${CONT})(?<![a-z0-9]\\.)${escaped}(?!${CONT})(?!\\.[a-z0-9])`,
+    "u",
+  );
+  return bounded.test(text);
 }
 
 function numberRecord(value: unknown): Record<string, number> {

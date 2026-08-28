@@ -275,6 +275,17 @@ describe("checkFingerprint — the binding the proxy actually uses", () => {
  * worst.
  */
 describe("a spent countersign is not offered again", () => {
+  it("lets an expired gate be asked again", () => {
+    // The failure case first. Nothing ran, so the operator missed their chance
+    // rather than used it, and a tombstone here would silently drop a request
+    // that was never answered.
+    const book = new CountersignBook();
+    raise(book);
+    expect(book.sweep(NOW + 60_000, 30_000)).toEqual(["tc1"]);
+
+    expect(book.settled("tc1")).toBe(false);
+  });
+
   it("recognises a gate whose approval has already been spent", () => {
     const book = new CountersignBook();
     raise(book);
@@ -314,13 +325,4 @@ describe("a spent countersign is not offered again", () => {
     expect(book.settled("tc1")).toBe(true);
   });
 
-  it("lets an expired gate be asked again", () => {
-    // Nothing ran, so the operator missed their chance rather than used it.
-    // A tombstone here would silently drop a request never answered.
-    const book = new CountersignBook();
-    raise(book);
-    expect(book.sweep(NOW + 60_000, 30_000)).toEqual(["tc1"]);
-
-    expect(book.settled("tc1")).toBe(false);
-  });
 });

@@ -1,4 +1,6 @@
+import { useState } from "react";
 import { Meter, Stat, Window } from "./Window.js";
+import { soundEngine } from "./sound-engine.js";
 import type { GateRequest, LogLine } from "../useMission.js";
 
 const PHASE_LABEL: Record<string, string> = {
@@ -42,7 +44,10 @@ export function CityConsole(props: {
     readonly output: string;
     readonly passed: boolean;
   } | null;
+  /** Absent in the scripted replays, which have nothing to explain. */
+  onOpenIntro?: () => void;
 }): React.JSX.Element {
+  const [sound, setSound] = useState(() => soundEngine.isEnabled());
   const total = 10 * 60 * 1000;
   const remaining = props.expiresIn ?? 0;
 
@@ -50,10 +55,47 @@ export function CityConsole(props: {
     <Window
       title="Scope City"
       right={
-        <span className={`status-chip status-chip--${props.connection}`}>
-          <span className="status-chip__dot" />
-          {props.connection}
-        </span>
+        <>
+          <span className={`status-chip status-chip--${props.connection}`}>
+            <span className="status-chip__dot" />
+            {props.connection}
+          </span>
+          {/*
+            * The two controls that had nowhere else to live.
+            *
+            * A full-width bar used to carry these, and everything else on it
+            * was a second copy of a control that already existed in a panel or
+            * the palette. These two were the exceptions, so they moved into
+            * the title bar of the window that already names the city.
+            */}
+          <button
+            type="button"
+            className="window__icon"
+            aria-label={sound ? "Mute" : "Unmute"}
+            title={sound ? "Mute" : "Unmute"}
+            onClick={() => {
+              const next = soundEngine.toggle();
+              setSound(next);
+              if (next) soundEngine.playClick();
+            }}
+          >
+            {sound ? "▶" : "✖"}
+          </button>
+          {props.onOpenIntro ? (
+            <button
+              type="button"
+              className="window__icon"
+              aria-label="What am I looking at?"
+              title="What am I looking at?"
+              onClick={() => {
+                soundEngine.playClick();
+                props.onOpenIntro?.();
+              }}
+            >
+              ?
+            </button>
+          ) : null}
+        </>
       }
     >
       <div className="console__masthead">

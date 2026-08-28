@@ -17,7 +17,6 @@ import { ScenarioBanner, type Scenario } from "./hud/ScenarioBanner.js";
 import { placeTooltip } from "./hud/tooltip-placement.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
-import { TopNav } from "./hud/TopNav.js";
 import { MapControls } from "./hud/MapControls.js";
 import { IntroDialogue } from "./hud/IntroDialogue.js";
 import { CommandPalette, type CommandItem } from "./hud/CommandPalette.js";
@@ -504,16 +503,21 @@ export function App(): React.JSX.Element {
 
   return (
     <>
-      <TopNav
-        connection={live.connection}
-        activeScenario={activeScenario}
-        onSelectScenario={runScenario}
-        onOpenCommand={() => setCommandOpen(true)}
-        onOpenIntro={() => setIntroOpen(true)}
-        onTakeSnapshot={takeSnapshot}
-        onResetView={() => setCamera(fitCamera(size))}
-      />
-
+      {/*
+        * No bar across the top, so the city runs to the edge of the screen.
+        *
+        * There was one, and almost everything on it was a second copy of a
+        * control that already existed: the scenario pills are in the mission
+        * panel and the command palette, the snapshot is its own panel, the
+        * city's name and connection are the console's own title bar, and
+        * Ctrl+K opens the palette without a button to press. Two surfaces for
+        * one control is how they drift -- the bar was still offering "Poisoned
+        * Ticket" and "No Scope" after those runs had been renamed and paired
+        * as one comparison, so a visitor could start the same run from two
+        * places and be told two different things about it.
+        *
+        * What it cost was the top of the map, permanently, on every screen.
+        */}
       <canvas
         ref={canvasRef}
         className="world"
@@ -676,6 +680,7 @@ export function App(): React.JSX.Element {
             missionId={mission.missionId}
             onExpireNow={() => void mission.expireNow()}
             verification={mission.verification}
+            onOpenIntro={() => setIntroOpen(true)}
           />
         </div>
       </div>

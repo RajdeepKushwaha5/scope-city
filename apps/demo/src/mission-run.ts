@@ -92,6 +92,13 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
           // will later fingerprint what it is *about to run*, and the two must
           // agree. Raising from the proxy's own request instead would make the
           // check tautological -- it would approve itself.
+          // A resumed session replays what it was doing, so a gate the operator
+          // has already answered can arrive again. Raising it a second time
+          // would ask for a countersign they have given, on a call that may by
+          // then have run -- and the operator would have no way to tell the
+          // repeat from a genuine second request.
+          if (book.settled(worldEvent.toolCallId)) continue;
+
           if (worldEvent.office) {
             book.raise({
               scope,

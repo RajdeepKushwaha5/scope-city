@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { classifyFailure, isWorthRotating } from "@scope-city/harness";
+import { isWorkEvent, shouldKeepSession } from "../src/resume-policy.js";
 
 /**
  * A rate limit ends the turn, not the session.
@@ -41,18 +42,44 @@ describe("which failures are worth waiting for", () => {
   });
 });
 
-describe("the control plane keeps a session that did something", () => {
-  it("holds it only for a rate limit", () => {
+describe("the policy that decides whether to keep a session", () => {
+  const session = "s_1";
+
+  it("holds one only for a rate limit", () => {
     // A rejected credential, an exhausted quota or a malformed spec will fail
     // the same way after any wait.
-    expect(server).toContain('kind === "rate_limited" && progressed');
+    expect(shouldKeepSession({ kind: "rate_limited", didWork: true, sessionId: session })).toBe(true);
+
+    for (const kind of ["quota_exhausted", "credential_rejected", "unavailable", "other"] as const) {
+      expect(shouldKeepSession({ kind, didWork: true, sessionId: session }), kind).toBe(false);
+    }
   });
 
-  it("requires the attempt to have progressed", () => {
+  it("requires the agent to have actually done something", () => {
     // A session that fell over before doing anything holds nothing worth
-    // carrying, so there is no reason to prefer it over the next model.
-    expect(server).toContain("const feedBeforeAttempt = live.feed.latest");
-    expect(server).toContain("live.feed.latest > feedBeforeAttempt");
+    // carrying, and keeping it pins the mission to a cooling key for no gain.
+    expect(shouldKeepSession({ kind: "rate_limited", didWork: false, sessionId: session })).toBe(false);
+  });
+
+  it("needs a session to keep", () => {
+    expect(shouldKeepSession({ kind: "rate_limited", didWork: true, sessionId: undefined })).toBe(false);
+  });
+
+  it("does not count the control plane narrating itself as work", () => {
+    // `mission.status` goes onto the same feed, and "running" is published
+    // before the turn starts -- so a cursor comparison called every attempt
+    // productive, including one whose first call failed.
+    expect(isWorkEvent("mission.status")).toBe(false);
+    for (const type of ["agent.arrived", "gate.raised", "yard.verified", "field.joined"]) {
+      expect(isWorkEvent(type), type).toBe(true);
+    }
+  });
+
+  it("is decided by a pure function rather than inline", () => {
+    // It has three conditions that each look obviously right and are each wrong
+    // in a different direction. Testing them needed no control plane.
+    expect(server).toContain("shouldKeepSession({");
+    expect(server).toContain("didWork: didWorkThisAttempt");
   });
 
   it("does not cancel a session it means to keep", () => {
@@ -82,5 +109,27 @@ describe("a resumed session is not asked to start again", () => {
   it("is only set when the control plane actually resumed one", () => {
     expect(server).toContain("resuming: resumedThisAttempt");
     expect(server).toContain("resumedThisAttempt = true");
+  });
+});
+
+describe("a resumed session stays on its own model", () => {
+  it("does not let the pool pick a different one", () => {
+    // An agent spec names its model at creation and cannot be re-pointed, so a
+    // resumed session runs on the model it started with. Letting the loop
+    // choose meant the pool credited and blamed a model the session never used.
+    expect(server).toContain("resume?.model ?? pool.next(Date.now())");
+    expect(server).toContain("resume = { sessionId: attemptSessionId, model }");
+  });
+
+  it("cancels a held session that is never picked up", () => {
+    // Falling out of the loop with one open leaks it for as long as the
+    // instance runs.
+    expect(server).toMatch(/if \(resume !== undefined\) \{[\s\S]{0,200}driver\.cancel\(resume\.sessionId\)/);
+  });
+
+  it("does not put an answered gate back in front of the operator", () => {
+    // The harness replays what it was doing, so a settled gate can arrive
+    // again -- and a repeat is indistinguishable from a genuine second request.
+    expect(run).toContain("book.settled(worldEvent.toolCallId)");
   });
 });

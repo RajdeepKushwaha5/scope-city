@@ -71,6 +71,18 @@ export class CountersignBook {
     return this.#pending.get(toolCallId);
   }
 
+  /**
+   * Whether this call has already been decided.
+   *
+   * Asked when a session is resumed after an interruption. The harness replays
+   * what it was doing, so a gate the operator already answered can arrive a
+   * second time -- and putting it back in front of them would ask for a
+   * countersign they have given, on a call that may by then have run.
+   */
+  settled(toolCallId: string): boolean {
+    return this.#verdicts.has(toolCallId);
+  }
+
   /** Everything currently awaiting a human, for the map to render as raised gates. */
   allPending(): readonly PendingCountersign[] {
     return [...this.#pending.values()];

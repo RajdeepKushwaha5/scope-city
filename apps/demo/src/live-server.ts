@@ -6,6 +6,7 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  iterationLimitFor,
   parseReasoningEffort,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
@@ -20,6 +21,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { controlPlaneSignpost } from "./signpost.js";
 
 import { missionSystems, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
@@ -36,6 +38,8 @@ import {
 } from "./live-lifecycle.js";
 
 const CONTROL_PORT = Number(process.env.SCOPE_CONTROL_PORT ?? 8787);
+/** Where the city is served from, for the signpost on `/`. Display only. */
+const CITY_DEV_PORT = Number(process.env.SCOPE_CITY_PORT ?? 5180);
 const PROXY_PORT = Number(process.env.SCOPE_PROXY_PORT ?? 8791);
 const PROXY_BIND = process.env.SCOPE_PROXY_BIND ?? "127.0.0.1";
 const PROXY_PUBLIC_HOST = process.env.SCOPE_PROXY_PUBLIC_HOST ?? "127.0.0.1";
@@ -202,6 +206,19 @@ async function main(): Promise<void> {
 
   async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
     const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
+
+    /*
+     * The root says what this port is, because someone will open it.
+     *
+     * This is the control plane, and it serves `/api/*` only -- so visiting `/`
+     * answered `{"error":"not found"}`, which is true and useless. The city
+     * runs on a different port, and a bare 404 gives no way to work that out.
+     * A signpost costs nothing and saves the guess.
+     */
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/api")) {
+      json(res, 200, controlPlaneSignpost(CITY_DEV_PORT));
+      return;
+    }
 
     if (req.method === "GET" && url.pathname === "/api/health") {
       const harness = await driver.reachable();
@@ -759,6 +776,10 @@ async function main(): Promise<void> {
               instructions: missionBrief({
                 scope: live.scope,
                 sandbox,
+                // The same number the spec is built with, from the same
+                // function, so the brief cannot promise a budget the run does
+                // not get.
+                iterationLimit: iterationLimitFor(live.reasoningEffort),
                 registry: officeRegistry(),
                 plain: live.scope.scopeId === "NO-SCOPE",
               }),

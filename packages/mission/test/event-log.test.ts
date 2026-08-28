@@ -296,3 +296,44 @@ describe("readVerdict — an unreadable check is a failed check", () => {
     expect(readVerdict("")).toBe(false);
   });
 });
+
+describe("the brief tells the agent its turn budget", () => {
+  it("states the number when the budget is not the default", async () => {
+    // The budget became variable with the effort setting. An agent that does
+    // not know it has twelve turns plans for twenty-four and gets cut off in
+    // the middle of the work, which looks like the agent failing rather than
+    // the budget ending.
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
+
+    expect(brief).toContain("12 steps");
+  });
+
+  it("says nothing when no budget was given", async () => {
+    // A brief that invents a number would be worse than one that omits it.
+    const { missionBrief } = await import("../src/index.js");
+    expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/\d+ steps/);
+  });
+
+  it("does not call them turns, which mean something else in the run loop", async () => {
+    // `maxTurns` counts how many times the session is resumed after a
+    // countersign -- a different budget in a different unit. Using one word for
+    // both told the agent it could count on twelve of something that another
+    // cap limited to eight.
+    const { missionBrief } = await import("../src/index.js");
+    const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
+
+    expect(brief).not.toMatch(/\d+ turns/);
+  });
+
+  it("tells it what to do when the turns run short", async () => {
+    // Stopping mid-sentence and stopping with a report are different outcomes
+    // for whoever reads the record afterwards.
+    const { missionBrief } = await import("../src/index.js");
+    const flat = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 })
+      .replace(/\s+/g, " ");
+
+    expect(flat).toMatch(/running short/i);
+    expect(flat).toMatch(/what remains/i);
+  });
+});

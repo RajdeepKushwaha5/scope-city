@@ -43,3 +43,70 @@ describe("thinking effort reaches the provider", () => {
     expect(spec.config?.dynamicSubAgents?.enabled).toBe(true);
   });
 });
+
+describe("effort buys turns, not just thinking", () => {
+  it("gives a low-effort run a smaller budget than a high-effort one", () => {
+    // Before this, effort reached the provider and nothing else: "low" still
+    // had the full twenty-four iterations to grind through the job, so the
+    // label described the thinking and not the work.
+    const low = missionAgentSpec({ ...base, reasoningEffort: "low" });
+    const high = missionAgentSpec({ ...base, reasoningEffort: "high" });
+
+    expect(low.config?.iterationLimit).toBeLessThan(high.config?.iterationLimit ?? 0);
+  });
+
+  it("keeps the ceiling where every previous run had it", () => {
+    // High is the behaviour every mission has run with until now, so only the
+    // lower settings change anything.
+    expect(missionAgentSpec({ ...base, reasoningEffort: "high" }).config?.iterationLimit).toBe(24);
+    expect(missionAgentSpec(base).config?.iterationLimit).toBe(24);
+  });
+
+  it("orders the budgets the same way it orders the efforts", () => {
+    const budgets = (["low", "medium", "high"] as const).map(
+      (effort) => missionAgentSpec({ ...base, reasoningEffort: effort }).config?.iterationLimit ?? 0,
+    );
+
+    expect(budgets).toEqual([...budgets].sort((a, b) => a - b));
+    expect(new Set(budgets).size).toBe(3);
+  });
+
+  it("never hands out a budget of zero", () => {
+    // A run that cannot take a single turn is not a cheap run, it is a broken
+    // one, and it would look identical to a mission that failed instantly.
+    for (const effort of ["low", "medium", "high"] as const) {
+      expect(
+        missionAgentSpec({ ...base, reasoningEffort: effort }).config?.iterationLimit ?? 0,
+      ).toBeGreaterThan(0);
+    }
+  });
+});
+
+describe("an unrecognised effort still gets a real budget", () => {
+  it("falls back to the ceiling rather than to undefined", () => {
+    // The call site used to cast, and a cast is not a check. "xhigh" is a real
+    // TrueForge level that these slots do not register, so it reached the
+    // lookup, missed, and put `undefined` into the agent spec -- a run with no
+    // iteration budget at all, which is not the cheap run the label promised.
+    for (const bad of ["xhigh", "max", "none", "", "HIGH", "banana"]) {
+      const spec = missionAgentSpec({ ...base, reasoningEffort: bad });
+      expect(spec.config?.iterationLimit, `${bad} produced no budget`).toBe(24);
+    }
+  });
+
+  it("gives the same ceiling whether the effort is absent or unrecognised", () => {
+    // Both mean "no usable preference", and they should not behave differently.
+    expect(missionAgentSpec(base).config?.iterationLimit).toBe(
+      missionAgentSpec({ ...base, reasoningEffort: "nonsense" }).config?.iterationLimit,
+    );
+  });
+
+  it("still passes the unrecognised value through to the provider", () => {
+    // Deliberate: the harness decides the budget, TrueForge decides whether the
+    // effort is acceptable. Swallowing it here would turn a 422 that names the
+    // problem into a run that quietly ignored what was asked for.
+    expect(missionAgentSpec({ ...base, reasoningEffort: "xhigh" }).model.params).toEqual({
+      reasoningEffort: "xhigh",
+    });
+  });
+});

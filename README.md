@@ -130,6 +130,12 @@ every branch reachable from a test.
   Node 24 has it outright. The whole of 23 is excluded rather than bisected: it
   is a non-LTS line, and pinning the supported range to what was actually tested
   beats guessing which 23.x changed it.
+- **Mail is optional, and needs no account.** Without it the Post House keeps an
+  in-memory outbox, which enforces correctly but cannot be looked at. Point
+  `MAILPIT_HOST` at a running [Mailpit](https://mailpit.axllent.org) and the
+  same office delivers to a real inbox at `http://127.0.0.1:8025`, so "the mail
+  reached only the authorised recipient" is something a viewer opens rather than
+  something the demo asserts.
 - **The sandbox is optional, and needs a Daytona key.** TrueForge 0.1.4 accepts
   exactly one sandbox provider — the manifest's `type` enum has a single member,
   `daytona` — so there is no local provider on this version and installing

@@ -71,6 +71,26 @@ describe("the local slot", () => {
   });
 });
 
+describe("an empty pool is not the same as a broken harness", () => {
+  it("tells the two apart before falling back", () => {
+    // Filtering the local provider out of discovery created a third outcome:
+    // discovery succeeded and found nothing to rotate onto. Treating that as a
+    // failure substituted the hard-coded gemini-a/flash-a, so a machine with
+    // only a local model registered started normally and pointed every mission
+    // at a model the harness has never heard of.
+    expect(server).toContain("let discovered = false;");
+    expect(server).toContain("discovered ? [] : [\"gemini-a/flash-a\"]");
+  });
+
+  it("says the pool is empty rather than inventing one", () => {
+    // The server still boots -- a control plane that cannot start cannot tell
+    // anyone what is wrong -- but it has to say so.
+    expect(server).toContain("none discovered");
+    expect(server).toMatch(/Discovery found nothing to rotate onto/);
+    expect(server).toMatch(/Set SCOPE_MODELS to name it/);
+  });
+});
+
 describe("the effort is not sent to a model that would refuse it", () => {
   it("drops it when the model declares it does not take one", () => {
     // Ollama answers a reasoning effort with 400, and TrueForge refuses it with

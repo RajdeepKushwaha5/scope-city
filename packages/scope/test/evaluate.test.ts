@@ -376,6 +376,19 @@ describe("evaluate — arguments the office never declared", () => {
     });
   });
 
+  it("refuses before spending anything on the call", () => {
+    // Ordered ahead of the quota check, so a malformed call cannot burn a
+    // unit of a budget it was never going to be allowed to use.
+    const decision = evaluate({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900, x: 1 }, attemptedAt: NOW },
+      registry,
+      // Already exhausted: if quota were checked first this would say so.
+      consumed: { "charge.refund": 1 },
+      now: NOW,
+    });
+
+    expect(decision).toMatchObject({ reason: "argument_not_declared" });
   it("still allows a call that names only what the office declares", () => {
     // The check must not cost the ordinary path anything.
     expect(
@@ -402,18 +415,5 @@ describe("evaluate — arguments the office never declared", () => {
     ).toEqual({ allowed: true, countersignRequired: false });
   });
 
-  it("refuses before spending anything on the call", () => {
-    // Ordered ahead of the quota check, so a malformed call cannot burn a
-    // unit of a budget it was never going to be allowed to use.
-    const decision = evaluate({
-      scope: scope(),
-      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900, x: 1 }, attemptedAt: NOW },
-      registry,
-      // Already exhausted: if quota were checked first this would say so.
-      consumed: { "charge.refund": 1 },
-      now: NOW,
-    });
-
-    expect(decision).toMatchObject({ reason: "argument_not_declared" });
   });
 });

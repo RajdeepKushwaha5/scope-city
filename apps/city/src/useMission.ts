@@ -163,6 +163,15 @@ export function useMission() {
   const [officeActivity, setOfficeActivity] = useState<Readonly<Record<string, OfficeActivity>>>({});
 
   const timers = useRef<number[]>([]);
+  /**
+   * The current scope, readable from a callback that must not close over it.
+   *
+   * The operator's handlers are built once, so reading `scope` directly would
+   * give them whatever it was on first render. Reaching for a state updater to
+   * get the fresh value instead put side effects inside one, which React is
+   * free to run twice -- and does, under the StrictMode this app is wrapped in.
+   */
+  const scopeRef = useRef<ScopeView | null>(null);
 
   const schedule = useCallback((run: () => void, after: number) => {
     const timer = window.setTimeout(() => {
@@ -179,6 +188,11 @@ export function useMission() {
   }, []);
 
   useEffect(() => clearTimers, [clearTimers]);
+  // Mirrors the scope for handlers that cannot close over it. Written after
+  // commit, so it holds what was actually rendered.
+  useEffect(() => {
+    scopeRef.current = scope;
+  }, [scope]);
 
   // The expiry countdown ticks locally so the wall can visibly close without a
   // message per second from the server.
@@ -361,8 +375,15 @@ export function useMission() {
   }, []);
 
   const grant = useCallback(() => {
-    setScopeState("granted");
-    setPhase("running");
+    // The operator has taken the decision the replay was going to narrate, so
+    // the replay stops -- the same as deny and revoke already do.
+    //
+    // Without this, granting during the over-reach run left the scripted steps
+    // running: they went on to report a finding, narrow the scope and grant
+    // again, while the log still said nothing had been granted yet. A scenario
+    // whose whole claim is that the gap was found *before* anything was granted
+    // must not go on asserting that after someone has granted.
+    clearTimers();
 
     // Counted from the scope being granted rather than written as a constant.
     //
@@ -371,19 +392,24 @@ export function useMission() {
     // gated" then described the narrow scope while the wide one was on the map
     // -- the log telling them something other than what they just did, in the
     // one place a record of it is being written.
-    setScope((current) => {
-      const granted = current ?? NARROW_SCOPE;
-      const allowed = granted.offices.filter((o) => o.disposition === "allowed").length;
-      const gated = granted.offices.filter((o) => o.disposition === "gated").length;
+    //
+    // Read from a ref rather than from inside a state updater. An updater may
+    // run more than once, and does under StrictMode, so logging and setting the
+    // expiry in there wrote the grant into the operator's audit trail twice and
+    // started the clock twice from slightly different instants.
+    const granted = scopeRef.current ?? NARROW_SCOPE;
+    const allowed = granted.offices.filter((o) => o.disposition === "allowed").length;
+    const gated = granted.offices.filter((o) => o.disposition === "gated").length;
 
-      setExpiresAt(Date.now() + granted.expiresInMs);
-      api.log(
-        `Scope granted. ${allowed} offices allowed, ${gated} gated, everything else absent.`,
-        "allowed",
-      );
-      return granted;
-    });
-  }, []);
+    setScope(granted);
+    setScopeState("granted");
+    setPhase("running");
+    setExpiresAt(Date.now() + granted.expiresInMs);
+    api.log(
+      `Scope granted. ${allowed} offices allowed, ${gated} gated, everything else absent.`,
+      "allowed",
+    );
+  }, [clearTimers]);
 
   const denyScope = useCallback(() => {
     clearTimers();

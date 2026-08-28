@@ -5,18 +5,16 @@ import { fileURLToPath } from "node:url";
 /**
  * Two properties of the operator's Grant button that no pure function holds.
  *
- * Both were reported by review on the over-reach scenario, and both are about
- * the same thing: a scripted scenario is a claim, and an operator acting during
- * one must not leave the city asserting something that is no longer true.
+ * Both came from review of the over-reach scenario, and both are the same
+ * concern: a scripted scenario is a claim, and an operator acting during one
+ * must not leave the city asserting something that is no longer true.
  *
- * Read from the source deliberately. There is no DOM in this suite and no React
- * renderer, so the alternative was not a better test but no test -- and these
- * are exactly the lines someone tidying the handler would undo without noticing.
+ * What the grant *says* is tested for real in grant-summary.test.ts. What is
+ * left here is wiring -- there is no DOM in this suite and no React renderer,
+ * so the alternative was not a better test but none, and these are exactly the
+ * lines someone tidying the handler would undo without noticing.
  */
-const source = readFileSync(
-  fileURLToPath(new URL("./useMission.ts", import.meta.url)),
-  "utf8",
-);
+const source = readFileSync(fileURLToPath(new URL("./useMission.ts", import.meta.url)), "utf8");
 
 const grant = source.slice(
   source.indexOf("const grant = useCallback"),
@@ -31,7 +29,6 @@ describe("granting during a scripted run takes the run over", () => {
     // and grant again, while the log still said nothing had been granted --
     // the scenario contradicting its own central claim.
     expect(grant).toContain("clearTimers()");
-    expect(source).toMatch(/const grant = useCallback\([\s\S]{0,3000}?\}, \[clearTimers\]\)/);
   });
 
   it("is the operator's grant, not the scripted one", () => {
@@ -42,29 +39,25 @@ describe("granting during a scripted run takes the run over", () => {
   });
 });
 
-describe("granting once records it once", () => {
-  it("keeps side effects out of the state updater", () => {
-    // React may run an updater more than once and does under the StrictMode
-    // this app is wrapped in, so logging the grant inside one wrote it into the
-    // operator's audit trail twice and started the expiry clock twice from
-    // slightly different instants. An audit line that appears twice for one
-    // decision is the wrong kind of wrong in this project.
+describe("granting authorises what is on the screen, once", () => {
+  it("reads the scope from rendered state", () => {
+    // Two wrong ways were tried first. A state updater gives the fresh scope
+    // but may run twice, and does under StrictMode, so the grant went into the
+    // operator's audit trail twice for one click. A ref synchronised by an
+    // effect is pure but runs after paint, leaving a window where the panel
+    // shows the narrowed scope and the ref still holds the wide one -- a grant
+    // there authorises something other than what is displayed.
+    expect(grant).toContain("const granted = scope ?? NARROW_SCOPE;");
+    expect(source).not.toContain("scopeRef");
+  });
+
+  it("is rebuilt when the scope changes, which is how it stays current", () => {
+    expect(source).toMatch(/const grant = useCallback\([\s\S]{0,2500}?\}, \[clearTimers, scope\]\)/);
+  });
+
+  it("keeps every state change out of the updater", () => {
     expect(grant).not.toMatch(/setScope\(\s*\(current\)/);
-    expect(grant).toContain("scopeRef.current ?? NARROW_SCOPE");
-  });
-
-  it("still logs what was actually granted", () => {
-    // The counts come from the granted scope rather than a constant: the
-    // over-reach run lets the operator grant either the wide scope or the
-    // narrowed one, and the log has to say which.
-    expect(grant).toContain('granted.offices.filter((o) => o.disposition === "allowed")');
+    expect(grant).toContain("setScope(granted);");
     expect(grant).toContain("Date.now() + granted.expiresInMs");
-  });
-
-  it("keeps the mirror that makes reading the scope safe", () => {
-    // The ref replaces the updater. Without it the handler closes over the
-    // scope from first render and grants whatever was proposed then.
-    expect(source).toContain("scopeRef.current = scope;");
-    expect(source).toMatch(/scopeRef\.current = scope;\s*\}, \[scope\]\)/);
   });
 });

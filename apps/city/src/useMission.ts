@@ -3,6 +3,7 @@ import type { OfficeActivity } from "./live-state.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { Figure } from "./render/scene.js";
 import { plotFor } from "./render/world.js";
+import { grantLine } from "./grant-summary.js";
 import { scriptedRawState } from "./scripted-state.js";
 
 /**
@@ -102,7 +103,7 @@ export const OFFICES = [
   { office: "mail.list", district: "post-house", consumes: [] },
 ];
 
-const NARROW_SCOPE: ScopeView = {
+export const NARROW_SCOPE: ScopeView = {
   id: "SC-184",
   job: "Refund order #184 and notify its owner",
   offices: [
@@ -131,7 +132,7 @@ const NARROW_SCOPE: ScopeView = {
  * this to NARROW_SCOPE, which is a change to the city limits somebody can see
  * -- rather than a line of log text claiming one happened.
  */
-const WIDE_SCOPE: ScopeView = {
+export const WIDE_SCOPE: ScopeView = {
   ...NARROW_SCOPE,
   offices: [
     { office: "ticket.get", disposition: "allowed" },
@@ -163,15 +164,7 @@ export function useMission() {
   const [officeActivity, setOfficeActivity] = useState<Readonly<Record<string, OfficeActivity>>>({});
 
   const timers = useRef<number[]>([]);
-  /**
-   * The current scope, readable from a callback that must not close over it.
-   *
-   * The operator's handlers are built once, so reading `scope` directly would
-   * give them whatever it was on first render. Reaching for a state updater to
-   * get the fresh value instead put side effects inside one, which React is
-   * free to run twice -- and does, under the StrictMode this app is wrapped in.
-   */
-  const scopeRef = useRef<ScopeView | null>(null);
+
 
   const schedule = useCallback((run: () => void, after: number) => {
     const timer = window.setTimeout(() => {
@@ -188,11 +181,6 @@ export function useMission() {
   }, []);
 
   useEffect(() => clearTimers, [clearTimers]);
-  // Mirrors the scope for handlers that cannot close over it. Written after
-  // commit, so it holds what was actually rendered.
-  useEffect(() => {
-    scopeRef.current = scope;
-  }, [scope]);
 
   // The expiry countdown ticks locally so the wall can visibly close without a
   // message per second from the server.
@@ -393,23 +381,28 @@ export function useMission() {
     // -- the log telling them something other than what they just did, in the
     // one place a record of it is being written.
     //
-    // Read from a ref rather than from inside a state updater. An updater may
-    // run more than once, and does under StrictMode, so logging and setting the
-    // expiry in there wrote the grant into the operator's audit trail twice and
-    // started the clock twice from slightly different instants.
-    const granted = scopeRef.current ?? NARROW_SCOPE;
-    const allowed = granted.offices.filter((o) => o.disposition === "allowed").length;
-    const gated = granted.offices.filter((o) => o.disposition === "gated").length;
+    // Read from the rendered state, which is the only value the operator can
+    // have been looking at when they clicked.
+    //
+    // Two wrong ways to get it were tried first. A state updater gives the
+    // fresh scope but is allowed to run more than once, and does under the
+    // StrictMode this app is wrapped in, so the logging and the expiry inside
+    // one happened twice for a single click. A ref synchronised by an effect
+    // is pure but runs after paint, leaving a window in which the panel shows
+    // the narrowed scope while the ref still holds the wide one -- and a grant
+    // in that window authorises something other than what is on screen, which
+    // is worse than either.
+    //
+    // So the handler depends on the scope and is rebuilt when it changes. That
+    // is what a dependency array is for; the empty one was habit.
+    const granted = scope ?? NARROW_SCOPE;
 
     setScope(granted);
     setScopeState("granted");
     setPhase("running");
     setExpiresAt(Date.now() + granted.expiresInMs);
-    api.log(
-      `Scope granted. ${allowed} offices allowed, ${gated} gated, everything else absent.`,
-      "allowed",
-    );
-  }, [clearTimers]);
+    api.log(grantLine(granted), "allowed");
+  }, [clearTimers, scope]);
 
   const denyScope = useCallback(() => {
     clearTimers();

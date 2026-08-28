@@ -109,14 +109,19 @@ function mentions(text: string, token: string): boolean {
   // `#184,` and a trailing `184.` still match, `buyer@example.test` does not
   // yield `buyer@example`.
   //
-  // Unicode-aware, because the classes decide what counts as "more of a
-  // token". Written in ASCII they did not: `e` with an accent and a fullwidth
-  // digit are neither letters nor digits to `[a-z0-9]`, so `refund order 184e`
-  // -- with the accent -- read as a boundary and admitted `ord_184` again.
-  const CONT = String.raw`[\p{L}\p{M}\p{N}_@-]`;
-  const WORD = String.raw`[\p{L}\p{M}\p{N}]`;
+  // The classes ask one question: could the neighbouring character be more of
+  // *this* id? Ids here are ASCII -- `ord_184`, `buyer@example.test` -- so the
+  // continuation set is ASCII letters, any decimal digit, and the punctuation
+  // an id may carry.
+  //
+  // Any decimal digit rather than 0-9, so a fullwidth `184０` cannot pass as a
+  // standalone 184. And letters only in ASCII, because a non-ASCII letter
+  // cannot continue an ASCII id: `184é` is 184 next to a word, and CJK writes
+  // 退款订单184 with no space at all, so treating every Unicode letter as
+  // continuation refused an id the operator had plainly written.
+  const CONT = String.raw`[a-z0-9_@\-\p{Nd}]`;
   const bounded = new RegExp(
-    `(?<!${CONT})(?<!${WORD}\\.)${escaped}(?!${CONT})(?!\\.${WORD})`,
+    `(?<!${CONT})(?<![a-z0-9]\\.)${escaped}(?!${CONT})(?!\\.[a-z0-9])`,
     "u",
   );
   return bounded.test(text);

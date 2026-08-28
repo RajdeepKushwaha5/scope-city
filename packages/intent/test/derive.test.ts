@@ -200,19 +200,24 @@ describe("an id has to be in the sentence, not merely inside it", () => {
     expect(appearsInJob("notify ops@corp.io", "mail_ops@corp")).toBe(false);
   });
 
-  it("is not fooled by a non-ASCII character next to the id", () => {
-    // The boundary classes decide what counts as "more of a token", and in
-    // ASCII they said an accented letter and a fullwidth digit were neither --
-    // so `184` followed by one of them read as standalone and admitted
-    // `ord_184` all over again.
-    expect(appearsInJob("refund order 184é", "ord_184")).toBe(false);
+  it("is not fooled by a digit in another numbering system", () => {
+    // `184` followed by a fullwidth zero is `1840` written differently, so the
+    // continuation class is any decimal digit rather than 0-9.
     expect(appearsInJob("refund order 184０", "ord_184")).toBe(false);
-    expect(appearsInJob("refund order é184", "ord_184")).toBe(false);
   });
 
-  it("still reads an id from a sentence that happens to be non-ASCII", () => {
-    // The fix must not refuse ordinary text in another language.
+  it("reads an id from text that does not put spaces around it", () => {
+    // The question the boundary asks is whether the neighbour could be more of
+    // *this* id, and these ids are ASCII. A non-ASCII letter cannot continue
+    // one -- so `184` beside a word is still `184`, and CJK, which writes
+    // "refund order 184" with no spaces at all, is read rather than refused.
+    expect(appearsInJob("退款订单184", "ord_184")).toBe(true);
+    expect(appearsInJob("refund order 184é", "ord_184")).toBe(true);
     expect(appearsInJob("échange order 184 please", "ord_184")).toBe(true);
+  });
+
+  it("still refuses a longer number, whatever script surrounds it", () => {
+    expect(appearsInJob("注销订单1840", "ord_184")).toBe(false);
   });
 
   it("survives an id containing regex metacharacters", () => {

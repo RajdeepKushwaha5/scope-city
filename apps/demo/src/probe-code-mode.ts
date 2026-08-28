@@ -191,7 +191,6 @@ async function main(): Promise<void> {
   const driver = new HarnessDriver({
     baseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790",
   });
-  const name = "scope-city-probe";
 
   // Every configured model in turn. A free-tier key that is cooling answers 429
   // before the agent writes a line, and reporting that as "the boundary held"
@@ -204,7 +203,7 @@ async function main(): Promise<void> {
   let used = "";
   let lastError = "";
 
-  for (const model of candidates) {
+  for (const [index, model] of candidates.entries()) {
     /*
      * A mission of its own for each attempt, rather than one mission whose
      * event list is emptied between them.
@@ -220,9 +219,18 @@ async function main(): Promise<void> {
      * Separate missions make that impossible rather than unlikely. A straggler
      * writes into the array belonging to the attempt it came from, which
      * nothing reads again.
+     *
+     * The connector is per attempt for the same reason. Registering every
+     * attempt under one name meant each retry repointed the *existing*
+     * connector at the new mission -- so a late call from a session that had
+     * already been given up on would arrive at the mission the next model was
+     * being judged on, and the separate arrays would not help, because the
+     * event really was recorded against the new mission. A name of its own
+     * keeps an abandoned session pointed at the mission it started with.
      */
     const seen: string[] = [];
     const missionId = newMissionId();
+    const name = `scope-city-probe-${index + 1}`;
     const fixture = createFixtureMission({
       missionId,
       book: new CountersignBook(),

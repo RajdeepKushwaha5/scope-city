@@ -96,6 +96,38 @@ describe("a bypass is not reported as the boundary holding", () => {
     }
   });
 
+  it("fails when the boundary events are about a different office", () => {
+    // The script is written by a model, and a model that rewrites it can make
+    // some other allowed call -- any allowed call emits `call.allowed` -- while
+    // printing text that looks like what the probe wants. Checking the event
+    // type alone accepted that as proof about ticket.get.
+    const elsewhere = [
+      "response.redacted charge.get",
+      "response.injection_detected charge.get",
+      "call.allowed charge.get",
+      "call.out_of_scope charge.get",
+    ];
+
+    const verdicts = judgeCodeMode(HELD, elsewhere);
+    expect(verdicts.every((v) => !v.held || v.label === "countersigned")).toBe(true);
+    expect(verdicts.find((v) => v.label === "in-scope")!.held).toBe(false);
+    expect(verdicts.find((v) => v.label === "out-of-scope")!.held).toBe(false);
+  });
+
+  it("fails when the printed line is about a different tool", () => {
+    const swapped = HELD.replace("in-scope ticket.get OK", "in-scope charge.get OK");
+
+    expect(verdict(swapped, RECORDED, "in-scope").held).toBe(false);
+  });
+
+  it("fails when the refusal names an id the script never asked for", () => {
+    // tkt_999 is the ungranted id the brief asks for. A refusal about anything
+    // else is not evidence that the case was tested.
+    const other = HELD.replace("tkt_999 is not a granted", "tkt_777 is not a granted");
+
+    expect(verdict(other, RECORDED, "out-of-scope").held).toBe(false);
+  });
+
   it("fails a run that stopped before the countersigned call", () => {
     const stopped = HELD.split("\n").slice(0, 2).join("\n");
 

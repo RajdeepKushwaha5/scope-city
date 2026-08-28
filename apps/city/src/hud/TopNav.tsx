@@ -78,18 +78,21 @@ export function TopNav(props: {
 
         <button
           type="button"
-          className={`topnav__pill topnav__pill--danger ${props.activeScenario === "overreach" ? "topnav__pill--active" : ""}`}
+          className={`topnav__pill ${props.activeScenario === "overreach" ? "topnav__pill--active" : ""}`}
           onClick={() => {
-            soundEngine.playRefusal();
+            soundEngine.playClick();
             props.onSelectScenario("overreach");
           }}
           title="The Yard finds a gap before anything is granted"
         >
-          <span className="topnav__pill-icon">&#10007;</span>
-          <span>No Scope</span>
-            Over-reach
-          </button>
-          <button
+          {/* Not the danger styling the no-scope pill uses. Nothing goes wrong
+              in this run: the Yard finds a boundary drawn too wide and it is
+              narrowed before anything is granted, which is the system working. */}
+          <span className="topnav__pill-icon">&#9707;</span>
+          <span>Over-reach</span>
+        </button>
+
+        <button
           type="button"
           className={`topnav__pill topnav__pill--danger ${props.activeScenario === "noscope" ? "topnav__pill--active" : ""}`}
           onClick={() => {

@@ -238,3 +238,37 @@ describe("a probed office is not a called office", () => {
     expect(inspector).toContain("probed, not called");
   });
 });
+
+describe("the quick-nav pills", () => {
+  const nav = readFileSync(fileURLToPath(new URL("./TopNav.tsx", import.meta.url)), "utf8");
+
+  it("offers every scenario the app can run", () => {
+    // The over-reach run existed in the command palette and the mission panel
+    // but not in the row of pills a judge actually clicks.
+    for (const scenario of SCENARIOS) {
+      expect(nav, `${scenario} has no pill`).toContain(`onSelectScenario("${scenario}")`);
+    }
+  });
+
+  it("labels each pill with its own name", () => {
+    // Added by copying the neighbouring pill, this one kept the label "No
+    // Scope" and gained a stray "Over-reach" outside the span -- two names on
+    // one button, neither in the right place.
+    const labels = [...nav.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]!.trim());
+    expect(new Set(labels).size, "two pills share a label").toBe(labels.length);
+    expect(labels).toContain("Over-reach");
+  });
+
+  it("does not dress the over-reach run as a failure", () => {
+    // Nothing goes wrong in it: a boundary is found too wide and narrowed
+    // before anything is granted, which is the system working. It inherited the
+    // no-scope pill's danger styling and refusal sound by being copied from it.
+    const pill = nav.slice(
+      nav.lastIndexOf("<button", nav.indexOf('onSelectScenario("overreach")')),
+      nav.indexOf("</button>", nav.indexOf('onSelectScenario("overreach")')),
+    );
+
+    expect(pill).not.toContain("topnav__pill--danger");
+    expect(pill).not.toContain("playRefusal");
+  });
+});

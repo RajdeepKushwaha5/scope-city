@@ -6,8 +6,10 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  initialState,
   iterationLimitFor,
   parseReasoningEffort,
+  type TranslatorState,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import {
@@ -22,6 +24,7 @@ import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
 import { controlPlaneSignpost } from "./signpost.js";
+import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
 import { missionSystems, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
@@ -735,8 +738,28 @@ async function main(): Promise<void> {
       // than left to guess.
       const poolDeadline = Date.now() + POOL_WAIT_BUDGET_MS;
 
+      /**
+       * A session worth picking back up: the model it is bound to, the work
+       * it already holds, and how far the reading of it had got.
+       *
+       * An agent spec names its model at creation and cannot be re-pointed, so
+       * a resumed session runs on the model it started with whatever the pool
+       * would have chosen next. Carrying the name means the loop waits for
+       * *that* key and penalises *that* key -- without it the pool credits and
+       * blames a model the session never used.
+       *
+       * The translator state travels with it because the session continues but
+       * a fresh reader cannot pair a completion with a start it never saw. See
+       * `MissionRunOptions.translator`.
+       */
+      let resume:
+        | { sessionId: string; model: string; translator: TranslatorState }
+        | undefined;
+
       for (;;) {
-        const model = pool.next(Date.now());
+        // A held session pins the choice. Anything else is picking a fresh key
+        // for a fresh session.
+        const model = resume?.model ?? pool.next(Date.now());
 
         if (model === undefined) {
           const readyAt = pool.nextAvailableAt(Date.now());
@@ -754,8 +777,48 @@ async function main(): Promise<void> {
         }
 
         let attemptSessionId: string | undefined;
+        let resumedThisAttempt = false;
+        let translator = resume?.translator;
+        // Set from the event stream rather than inferred from the feed cursor,
+        // which also advances for the control plane's own status messages.
+        //
+        // Seeded true when resuming, because the work belongs to the session
+        // and not to the turn that produced it. Starting each attempt at false
+        // meant a held session that was rate limited again before emitting
+        // anything new looked like it had done nothing, and was cancelled --
+        // throwing away everything the earlier attempts had established, which
+        // is the exact failure this whole path exists to prevent.
+        let didWorkThisAttempt = resume !== undefined;
         try {
-          attemptSessionId = await driver.createSession(
+          // Carry an interrupted session forward instead of replacing it.
+          //
+          // A rate limit ends the turn, not the session. TrueForge keeps the
+          // conversation, so an agent that has already read the ticket, checked
+          // the charge and run its sandbox script still knows all of it --
+          // creating a new session throws every bit of that away and starts the
+          // job from the top on a fresh key.
+          //
+          // That is why delegated missions could not finish. Delegation fires
+          // enough calls at once to trip a per-minute limit partway through,
+          // and each rotation then discarded the progress that had been made
+          // before the trip. Availability rotated; work did not. Seven attempts
+          // in one measured run, none of them reaching the gate.
+          //
+          // So a rate limit on a session that has already done something waits
+          // for the key rather than abandoning the work. Anything else -- a
+          // rejected credential, an exhausted quota, a malformed spec -- is not
+          // going to improve by waiting, and still rotates.
+          if (resume !== undefined) {
+            attemptSessionId = resume.sessionId;
+            resumedThisAttempt = true;
+            resume = undefined;
+            live.sessionId = attemptSessionId;
+            live.feed.append({
+              type: "mission.status",
+              status: "running",
+              detail: `${model} resumed; the session kept its work`,
+            });
+          } else attemptSessionId = await driver.createSession(
             missionAgentSpec({
               model,
               proxyName,
@@ -797,6 +860,19 @@ async function main(): Promise<void> {
             scope: live.scope,
             book,
             prompt: live.order,
+            // A resumed session already has the brief and the work. Sending the
+            // order again would set it going from the beginning on a
+            // conversation that remembers doing it.
+            resuming: resumedThisAttempt,
+            // Carried so completions can still be matched to the starts that
+            // happened before the interruption.
+            ...(translator ? { translator } : {}),
+            // Kept as the stream is read rather than taken from the result: a
+            // rate limit throws out of the turn, so the result never arrives
+            // on the one path that needs this.
+            onState: (state) => {
+              translator = state;
+            },
             maxTurns: 8,
             decide: (gate: GateRequest) => live.gates.wait(gate),
             onRaw: (event) => {
@@ -826,6 +902,9 @@ async function main(): Promise<void> {
                   passed: event.passed,
                 };
               }
+              // Work, as opposed to the control plane narrating itself. This is
+              // what decides whether an interrupted session is worth keeping.
+              if (isWorkEvent(event.type)) didWorkThisAttempt = true;
               live.feed.append({ type: "world", event });
             },
           });
@@ -839,13 +918,40 @@ async function main(): Promise<void> {
           return;
         } catch (error) {
           lastError = error;
-          if (attemptSessionId) {
+          const kind = classifyFailure(error);
+
+          // Kept, not cancelled, when the key is the only thing that failed.
+          //
+          // `progressed` is the test that matters: a session that has raised a
+          // gate or made a proxy call holds work worth more than a fresh start.
+          // One that fell over before doing anything has nothing to carry, so
+          // there is no reason to prefer it over the next model.
+          const keepSession = shouldKeepSession({
+            kind,
+            didWork: didWorkThisAttempt,
+            sessionId: attemptSessionId,
+          });
+
+          if (attemptSessionId && !keepSession) {
             await driver.cancel(attemptSessionId).catch(() => undefined);
             if (live.sessionId === attemptSessionId) live.sessionId = undefined;
           }
           if (isTerminalMissionStatus(live.status)) return;
-          const kind = classifyFailure(error);
           if (!isWorthRotating(kind)) throw error;
+
+          if (keepSession && attemptSessionId !== undefined) {
+            resume = {
+              sessionId: attemptSessionId,
+              model,
+              translator: translator ?? initialState(),
+            };
+            live.feed.append({
+              type: "mission.status",
+              status: "starting",
+              detail: `${model} rate limited; holding the session and waiting`,
+            });
+          }
+
           pool.penalise(model, kind, Date.now());
           live.feed.append({
             type: "mission.status",
@@ -854,6 +960,15 @@ async function main(): Promise<void> {
           });
         }
       }
+      // A session held for a resume that never came still exists on the
+      // harness. Falling out of the loop with one open leaks it for as long as
+      // the instance runs.
+      if (resume !== undefined) {
+        await driver.cancel(resume.sessionId).catch(() => undefined);
+        if (live.sessionId === resume.sessionId) live.sessionId = undefined;
+        resume = undefined;
+      }
+
       throw lastError ?? new Error("no configured model was available");
     } catch (error) {
       if (!isTerminalMissionStatus(live.status)) {

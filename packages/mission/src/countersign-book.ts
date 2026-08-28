@@ -35,6 +35,23 @@ export type Verdict =
 export class CountersignBook {
   readonly #pending = new Map<string, PendingCountersign>();
   readonly #verdicts = new Map<string, Verdict>();
+  /**
+   * Calls whose verdict has been spent, kept as bare ids with no verdict
+   * attached.
+   *
+   * A decided verdict is deliberately deleted the moment the call it guarded
+   * runs, so that nothing can reuse an approval. That left the replay guard
+   * blind to exactly the gates that matter most: a resumed session replaying
+   * an approval whose call has already gone through would find no verdict,
+   * decide the gate was new, and put a spent countersign back in front of the
+   * operator -- asking them to authorise a payment already made.
+   *
+   * A tombstone is not an authorisation and cannot become one. `check` and
+   * `checkFingerprint` read `#verdicts` alone, so a replayed call still has
+   * nothing to proceed on. This set answers only "has the operator already
+   * dealt with this", which is a different question.
+   */
+  readonly #decided = new Set<string>();
 
   /**
    * Records what the operator is being shown, fingerprinted against the scope
@@ -69,6 +86,18 @@ export class CountersignBook {
 
   pending(toolCallId: string): PendingCountersign | undefined {
     return this.#pending.get(toolCallId);
+  }
+
+  /**
+   * Whether this call has already been decided.
+   *
+   * Asked when a session is resumed after an interruption. The harness replays
+   * what it was doing, so a gate the operator already answered can arrive a
+   * second time -- and putting it back in front of them would ask for a
+   * countersign they have given, on a call that may by then have run.
+   */
+  settled(toolCallId: string): boolean {
+    return this.#verdicts.has(toolCallId) || this.#decided.has(toolCallId);
   }
 
   /** Everything currently awaiting a human, for the map to render as raised gates. */
@@ -191,8 +220,16 @@ export class CountersignBook {
     return result;
   }
 
-  /** Drops a settled entry once the call it guarded has run or failed. */
+  /**
+   * Drops a settled entry once the call it guarded has run or failed.
+   *
+   * Leaves a tombstone when there was a verdict to spend, so a replay of that
+   * call is recognised as already dealt with. An entry closed without one --
+   * a gate that expired unanswered -- gets none: nothing ran, and if the agent
+   * asks again the operator should get the chance they missed.
+   */
   close(toolCallId: string): void {
+    if (this.#verdicts.has(toolCallId)) this.#decided.add(toolCallId);
     this.#pending.delete(toolCallId);
     this.#verdicts.delete(toolCallId);
   }

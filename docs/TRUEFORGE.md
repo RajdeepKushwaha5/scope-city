@@ -202,11 +202,11 @@ separation, not capability isolation: TrueForge children inherit the session's
 tools. The proxy therefore continues to enforce the same sealed mission scope
 for every thread, while the ledger atomically serialises any attempted mutation.
 
-### What delegation costs, measured
+### What delegation cost, and what fixed it
 
-Delegation works. On a live run it produced six child threads titled from the
-brief -- "Source investigator", "Target verifier" -- and the map drew them.
-What it could not do is finish.
+Delegation works. On a live run it produced child threads titled from the brief
+-- "Source investigator", "Target verifier" -- and the map drew them. For a
+while, what it could not do was finish.
 
 A delegated mission fires enough model calls in quick succession to exceed the
 free tier's per-minute limit partway through. Rotation then moves to the next
@@ -227,18 +227,37 @@ reaching the refund. All four keys returned 200 within seconds of stopping, so
 this is burst limiting rather than exhausted quota -- the pool was never out of
 capacity, it was out of *continuity*.
 
-Two consequences worth stating rather than discovering on camera:
+The fix turned on one fact that had been assumed the wrong way round: **a rate
+limit ends the turn, not the session.** TrueForge keeps the conversation, so an
+agent that has already read the ticket, checked the charge and run its sandbox
+script still knows all of it. The rotation loop was calling `createSession`
+inside itself, so every limit threw that away and started the job from the top
+on a fresh key. Availability rotated; work did not.
 
-- The shipped recording is single-threaded on purpose. It is a mission that
-  completed, which a delegated one could not.
-- A delegated run is still worth showing live, but as far as the gate and no
-  further.
+So a rate limit on a session that has already done something now waits for that
+key rather than abandoning it. Anything else -- a rejected credential, an
+exhausted quota, a malformed spec -- still rotates, because none of those
+improve by waiting. The same job, before and after:
 
-The fix is not a small one. Carrying progress across a rotation means either
-resuming a session whose turn has already failed, or keeping one session and
-swapping the provider's key underneath it -- a global config change, racy
-against any other mission. Neither is a thing to attempt days before a deadline
-on a path that currently works.
+```
+                     before   after
+sessions created         7        1
+work discarded           6        0
+agent.arrived           31        5
+proxy calls             16        3
+reached the gate        no      yes
+```
+
+Three things had to travel with the held session, and each failed silently
+until it did. Whether the session had done any work, or a second immediate
+limit cancelled it anyway. Which gates the operator had already answered, or a
+replayed approval asked them to authorise a refund that had already been made.
+And the translator state, or a subagent that finished after the resume stayed
+on the map forever and the sandbox result lost the office it belonged to --
+which drops the `yard.verified` the operator reads before countersigning.
+
+The shipped recording is the delegated run: 71 entries, three threads, one gate
+raised and countersigned, two sandbox checks, chain intact.
 
 ## Reconnection, verified
 

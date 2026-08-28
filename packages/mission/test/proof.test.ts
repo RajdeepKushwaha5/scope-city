@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { identifyingArguments, proofAuthorises, type SandboxProof } from "../src/proof.js";
+import { missionBrief } from "../src/index.js";
 
 /**
  * The bug these exist for, stated plainly.
@@ -131,7 +132,6 @@ describe("the brief and the check agree", () => {
     // one naming the amount and not the charge and was refused at the gate for
     // having verified something unrelated -- a deadlock reached by doing
     // exactly as told.
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({
       scope: {
         missionId: "m".repeat(20),

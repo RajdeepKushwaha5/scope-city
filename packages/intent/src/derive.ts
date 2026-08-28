@@ -96,7 +96,22 @@ export function appearsInJob(job: string, id: string): boolean {
  */
 function mentions(text: string, token: string): boolean {
   const escaped = token.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
-  return new RegExp(`(?<![a-z0-9_-])${escaped}(?![a-z0-9_-])`).test(text);
+  // Two boundary rules, because identifiers do not all end the same way.
+  //
+  // `[a-z0-9_@-]` is the obvious part. The dot needs its own: it belongs to
+  // an address in the middle and to a sentence at the end, so treating it as
+  // a plain boundary let `buyer@example` match inside `buyer@example.test`.
+  // A shortened address is worse than a shortened order id -- mail_to is the
+  // recipient of an irreversible send, and `buyer@example` is a domain
+  // somebody else owns.
+  //
+  // So a dot only ends the token when what follows it is not more of one:
+  // `#184,` and a trailing `184.` still match, `buyer@example.test` does not
+  // yield `buyer@example`.
+  const bounded = new RegExp(
+    `(?<![a-z0-9_@-])(?<![a-z0-9]\\.)${escaped}(?![a-z0-9_@-])(?!\\.[a-z0-9])`,
+  );
+  return bounded.test(text);
 }
 
 function numberRecord(value: unknown): Record<string, number> {

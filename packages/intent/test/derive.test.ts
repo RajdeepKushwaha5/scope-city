@@ -179,6 +179,27 @@ describe("an id has to be in the sentence, not merely inside it", () => {
     expect(appearsInJob("close ticket tkt_184 and refund ch_184", "ord_184")).toBe(false);
   });
 
+  it("does not shorten an address to a domain somebody else owns", () => {
+    // Worse than a shortened order id. `mail_to` is the recipient of an
+    // irreversible send, and a dot ends a sentence as readily as it separates
+    // a domain -- so treating it as a plain boundary let `buyer@example`
+    // through on a job naming `buyer@example.test`.
+    const job = "email buyer@example.test about order 184";
+
+    expect(appearsInJob(job, "mail_buyer@example.test")).toBe(true);
+    expect(appearsInJob(job, "mail_buyer@example")).toBe(false);
+    expect(appearsInJob(job, "mail_buyer")).toBe(false);
+    expect(appearsInJob(job, "mail_example.test")).toBe(false);
+  });
+
+  it("still reads an id that ends the sentence", () => {
+    // The reason the dot cannot simply be an id character: it belongs to the
+    // address in the middle and to the sentence at the end.
+    expect(appearsInJob("Refund order #184.", "ord_184")).toBe(true);
+    expect(appearsInJob("notify ops@corp.io", "mail_ops@corp.io")).toBe(true);
+    expect(appearsInJob("notify ops@corp.io", "mail_ops@corp")).toBe(false);
+  });
+
   it("survives an id containing regex metacharacters", () => {
     // The token is interpolated into a RegExp. An id of `ch_.*` must not match
     // everything, and must not throw.

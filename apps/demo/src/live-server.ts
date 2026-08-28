@@ -9,6 +9,7 @@ import {
   initialState,
   iterationLimitFor,
   parseReasoningEffort,
+  rotationCandidates,
   type TranslatorState,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
@@ -113,13 +114,23 @@ async function main(): Promise<void> {
   // server that came up and reported harness trouble through /api/health, and
   // an unhandled rejection here would replace that with a process that exits
   // before it can tell anyone why.
-  let source: "pinned" | "discovered" | "fallback default" = "pinned";
+  let source: "pinned" | "discovered" | "fallback default" | "none discovered" = "pinned";
   let found: readonly string[] = PINNED_MODELS;
+  // Discovery answering "nothing to rotate onto" is a different fact from
+  // discovery not answering at all, and only one of them justifies a guess.
+  let discovered = false;
 
   if (PINNED_MODELS.length === 0) {
     source = "discovered";
     try {
-      found = await driver.listModels();
+      // Filtered, not just listed. Rotation treats every model as
+      // interchangeable, which is true of four Gemini keys and false of a 7B on
+      // a laptop -- a mission that rotated onto the local model when the hosted
+      // keys were cooling did not fail, it just became something nobody would
+      // watch. Naming it in SCOPE_MODELS is a decision; discovering it is an
+      // accident.
+      found = rotationCandidates(await driver.listModels());
+      discovered = true;
     } catch (error) {
       found = [];
       console.warn(
@@ -129,10 +140,19 @@ async function main(): Promise<void> {
     }
   }
 
-  // Never silently claim discovery when the hard-coded default was used: a
-  // startup line reading "(discovered)" next to a single model is what made the
-  // original single-entry pool take so long to spot.
-  const models = found.length > 0 ? found : ["gemini-a/flash-a"];
+  /*
+   * Never silently claim discovery when the hard-coded default was used: a
+   * startup line reading "(discovered)" next to a single model is what made the
+   * original single-entry pool take so long to spot.
+   *
+   * And never fall back after discovery *succeeded*. A machine with only a
+   * local model registered discovers no rotation candidates -- a true answer,
+   * not a failure -- and substituting gemini-a/flash-a there would point every
+   * mission at a model the harness has never heard of. The server still starts,
+   * because a control plane that cannot boot cannot tell anyone what is wrong,
+   * but it says the pool is empty rather than inventing one.
+   */
+  const models = found.length > 0 ? found : discovered ? [] : ["gemini-a/flash-a"];
 
   /*
    * What each model will accept, discovered once alongside the names.
@@ -161,9 +181,14 @@ async function main(): Promise<void> {
     if (supported === undefined) return wanted;
     return supported.includes(wanted) ? wanted : undefined;
   };
-  if (found.length === 0) source = "fallback default";
+  if (found.length === 0) source = discovered ? "none discovered" : "fallback default";
 
-  console.log(`Models: ${models.join(", ")} (${source})`);
+  console.log(
+    models.length > 0
+      ? `Models: ${models.join(", ")} (${source})`
+      : `Models: none. Discovery found nothing to rotate onto -- an opt-in ` +
+        `provider is registered but not chosen. Set SCOPE_MODELS to name it.`,
+  );
 
   // Whether a sandbox is actually available, settled once at boot.
   //

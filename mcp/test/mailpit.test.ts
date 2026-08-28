@@ -53,17 +53,24 @@ describe("the port it is given", () => {
     }
   });
 
-  it("does not name the mail server in a timeout the agent will read", async () => {
+  it("does not name the mail server in an error the agent will read", async () => {
     // This error reaches the agent through a tool result. An agent that cannot
     // see the mail server should not learn its address by failing to reach it.
-    const send = mailpitSystem({ host: "192.0.2.1", port: 1025 }).offices.find(
+    //
+    // A closed port on localhost rather than an unroutable address: the refusal
+    // is immediate, where a blackhole makes this wait out the full connect
+    // timeout and turns a unit test into a twenty-second one.
+    const send = mailpitSystem({ host: "127.0.0.1", port: 9 }).offices.find(
       (o) => o.office === "mail.send",
     )!;
 
-    await expect(send.call({ to: "buyer@example.test", body: "hi" })).rejects.toThrow();
-    await send.call({ to: "buyer@example.test", body: "hi" }).catch((error: Error) => {
-      expect(error.message).not.toContain("192.0.2.1");
-      expect(error.message).not.toContain("1025");
-    });
-  }, 30_000);
+    const error = await send
+      .call({ to: "buyer@example.test", body: "hi" })
+      .then(() => null)
+      .catch((caught: Error) => caught);
+
+    expect(error, "the send should have failed").not.toBeNull();
+    expect(error!.message).not.toContain("127.0.0.1");
+    expect(error!.message).not.toContain("port 9");
+  });
 });

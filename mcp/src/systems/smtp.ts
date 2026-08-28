@@ -258,7 +258,15 @@ export async function sendMail(message: SmtpMessage, options: SmtpOptions): Prom
       // in their own configuration and in the systems line at startup.
       reject(new Error(`SMTP: no response from the mail server in ${timeoutMs}ms`));
     });
-    s.once("error", reject);
+    // Sanitised, not passed through. Node writes the address into its own
+    // message -- "connect ECONNREFUSED 127.0.0.1:1025" -- and this error
+    // reaches the agent through a tool result, so forwarding it hands over the
+    // mail server's location by failing to reach it. The timeout above was
+    // already careful about this; the connection error is the commoner case and
+    // was not.
+    s.once("error", (error: NodeJS.ErrnoException) => {
+      reject(new Error(`SMTP: could not reach the mail server (${error.code ?? "failed"})`));
+    });
   });
 
   try {

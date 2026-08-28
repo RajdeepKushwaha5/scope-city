@@ -72,8 +72,21 @@ describe("the Qodo evidence section", () => {
     // recorded in the thread specifically. This section claimed a dismissal was
     // "recorded in the review thread" while every thread in the repository had
     // zero human replies -- true of the stylesheet, false of the thread.
-    const replies = section.match(/#discussion_r\d+/g) ?? [];
-    expect(new Set(replies).size).toBeGreaterThanOrEqual(3);
+    // The three replies, by URL, rather than a count of anything that looks
+    // like one. Counting `#discussion_r<digits>` accepted plain text, a
+    // malformed URL, or a link to the bot's own comment -- so the clickable
+    // human replies could be swapped out while the test stayed green, which is
+    // the failure this test exists to prevent, one level up.
+    const REPLIES = [
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180",
+    ];
+
+    for (const url of REPLIES) {
+      // As a markdown link, so it is clickable rather than merely present.
+      expect(section, `should link ${url}`).toContain(`(${url})`);
+    }
   });
 
   it("owns the three commits that predate the workflow", () => {

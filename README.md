@@ -504,6 +504,55 @@ effort=max     -> 422 Reasoning effort "max" is not supported by model "gemini-a
 effort=banana  -> 422 Reasoning effort "banana" is not supported by model "gemini-a/flash-a"
 ```
 
+### A security bug in the code written to prevent security bugs
+
+**Finding** ([#44](https://github.com/RajdeepKushwaha5/scope-city/pull/44)) —
+*"Recipient permits smtp injection."* The Post House builds an SMTP envelope by
+writing the recipient into a command line. A recipient containing CRLF ends that
+line and starts another, so one extra `RCPT TO` is a silent second recipient.
+
+The mission scope already refuses a recipient it did not grant, and a granted one
+would not contain a newline. So the scope was holding this. It should not have been
+the only thing holding it — and it is exactly the class of mistake this project
+exists to argue about, found in the project's own code.
+
+**Fix** (same PR) — addresses are rejected for newlines, nulls and angle brackets,
+and the refusal was verified against a real Mailpit: the attempt is refused and no
+attacker address reaches the inbox. Qodo's follow-up rounds on the same PR then
+found that a refused connection leaked the mail server's address to the agent, that
+reads could hang forever, and that accepted mail was being reported as failed.
+
+### Five faults in a fix, four of them mine to have caught
+
+**Finding** ([#48](https://github.com/RajdeepKushwaha5/scope-city/pull/48)) — a
+change that holds a rate-limited session instead of discarding its work drew
+*"Resume uses wrong model"*, *"Status counts as progress"*, *"Retained session
+leaks"*, *"Second limit discards session"* and *"Resume drops event state"* across
+three rounds.
+
+The one worth reading is a sixth, on the countersign book: a consumed approval was
+deleted so it could never be reused, which left the replay guard blind to precisely
+the gates that had been used. A resumed session replaying that approval would have
+asked the operator to authorise **a refund that had already been made**.
+
+**Fix** (same PR) — the book keeps bare ids of spent verdicts. A tombstone is not an
+authorisation and cannot become one, so a replayed call still has nothing to proceed
+on; it answers only *"has the operator already dealt with this"*.
+
+### The published site claimed a backend it does not have
+
+**Finding** ([#62](https://github.com/RajdeepKushwaha5/scope-city/pull/62)) —
+*"Unhealthy control plane stays absent"* and *"Body timeouts misclassified"*, on a
+fix for a bug the deployment config had been hiding: `vercel.json` rewrites unknown
+paths to `index.html`, so the deployed city answers `GET /api/health` with 200 and a
+page. The probe checked only `response.ok`, and offered live missions on the one URL
+a judge visits.
+
+Qodo then caught the correction overshooting. The health route answers **503** when
+the harness is unwell — a control plane with something to report — and returning
+early on any non-2xx would have hidden the controls exactly then. The test asserting
+otherwise passed because it faked a 200 the server never sends.
+
 ### Findings dismissed, and why
 
 Not every finding was taken. On [#33](https://github.com/RajdeepKushwaha5/scope-city/pull/33)
@@ -518,10 +567,27 @@ the revert.
 
 ### The record
 
-Every merged pull request carries a Qodo review -- 32 of 32 at the time of writing.
-Follow-up reviews were requested with
-`/agentic_review` after each round of fixes. The full history, including the findings
-that were rejected and the ones that turned out to be stale, is public in the
+**Every merged pull request carries a Qodo review.** Not most, and not the
+important ones — every one, and the
+[pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
+is how you check that rather than taking a number here on trust. A total printed
+here would be wrong again at the next merge, and this section has already carried
+one long after it stopped being true.
+
+Reviews run automatically on each push, so a PR that is fixed and pushed again is
+re-reviewed against the new commit. Several of the findings quoted above are second
+and third rounds on the same PR rather than first passes.
+
+Three commits predate the workflow: the scope evaluator, the quota ledger and the
+proxy enforcement pipeline were pushed directly on the first morning, before the
+review process was set up. Every change to those files since has gone through a
+reviewed PR — the injection-detector fix in
+[#61](https://github.com/RajdeepKushwaha5/scope-city/pull/61) and the id-boundary fix
+in [#60](https://github.com/RajdeepKushwaha5/scope-city/pull/60) are both in that
+code. Saying so here rather than leaving it to be discovered.
+
+The full history, including the findings that were rejected and the ones that turned
+out to be stale, is public in the
 [pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr).
 
 ## How this was built

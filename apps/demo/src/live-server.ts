@@ -130,6 +130,34 @@ async function main(): Promise<void> {
   // startup line reading "(discovered)" next to a single model is what made the
   // original single-entry pool take so long to spot.
   const models = found.length > 0 ? found : ["gemini-a/flash-a"];
+
+  /*
+   * What each model will accept, discovered once alongside the names.
+   *
+   * Not every model takes a reasoning effort, and the ones that do not reject
+   * the request rather than ignoring it -- a local Qwen behind Ollama answers
+   * one with `400 does not support thinking`. Sending an effort the operator
+   * chose to a model that cannot take it turns a working mission into a failed
+   * launch, and the operator did nothing wrong.
+   *
+   * An empty map means discovery failed, and the effort is passed through as
+   * before: the harness validates it anyway and will refuse it with a clearer
+   * message than a guess made here.
+   */
+  let effortsByModel: ReadonlyMap<string, readonly string[]> = new Map();
+  try {
+    effortsByModel = await driver.listModelCapabilities();
+  } catch {
+    // Discovery is best-effort. The pool still works without it.
+  }
+
+  /** The operator's effort, dropped for a model that would refuse it. */
+  const effortFor = (model: string, wanted: string): string | undefined => {
+    if (wanted === "") return undefined;
+    const supported = effortsByModel.get(model);
+    if (supported === undefined) return wanted;
+    return supported.includes(wanted) ? wanted : undefined;
+  };
   if (found.length === 0) source = "fallback default";
 
   console.log(`Models: ${models.join(", ")} (${source})`);
@@ -770,7 +798,10 @@ async function main(): Promise<void> {
               sandbox,
               // The operator's choice, carried from the dispatch panel. Absent
               // unless they made one.
-              ...(live.reasoningEffort ? { reasoningEffort: live.reasoningEffort } : {}),
+              ...(() => {
+                const effort = effortFor(model, live.reasoningEffort);
+                return effort ? { reasoningEffort: effort } : {};
+              })(),
               // The comparison run is briefed as an ordinary integration is,
               // without our framing about untrusted content or limited reach.
               instructions: missionBrief({

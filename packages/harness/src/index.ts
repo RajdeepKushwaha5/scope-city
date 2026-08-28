@@ -37,7 +37,11 @@ export {
   type PoolEntry,
 } from "./model-pool.js";
 
-export { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
+export {
+  qualifiedModelNames,
+  reasoningEffortsByModel,
+  type ModelListEntry,
+} from "./model-names.js";
 
 export { readVerdict, sandboxEnvelope, type Verification } from "./verdict.js";
 export {

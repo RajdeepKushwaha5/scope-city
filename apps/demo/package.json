@@ -9,7 +9,8 @@
     "serve": "tsx src/live-server.ts",
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
-    "models": "tsx src/setup-models.ts"
+    "models": "tsx src/setup-models.ts",
+    "probe:code-mode": "tsx src/probe-code-mode.ts"
   },
   "dependencies": {
     "@scope-city/harness": "workspace:*",

@@ -31,20 +31,34 @@ const sample = (() => {
   return readme.slice(open + 3, close);
 })();
 
-describe("the README shows what the verifier actually says", () => {
-  it("agrees on every line it prints", () => {
-    const lines = sample
-      .split("\n")
-      .map((line) => line.trim())
-      .filter((line) => line.length > 0);
+/** Trimmed and internally collapsed, empties dropped, so a reflow is not drift. */
+const linesOf = (text: string) =>
+  text
+    .split("\n")
+    .map((line) => line.trim().replace(/\s+/g, " "))
+    .filter((line) => line.length > 0);
 
-    expect(lines.length).toBeGreaterThan(5);
-    for (const line of lines) {
-      // Compared line by line so a failure names the one that drifted rather
-      // than dumping two blocks and leaving the reader to diff them.
-      expect(verifier.replace(/\s+/g, " "), `README claims: ${line}`).toContain(
-        line.replace(/\s+/g, " "),
-      );
+describe("the README shows what the verifier actually says", () => {
+  it("agrees on every line it prints, in order", () => {
+    // Whole lines, not substrings, and in sequence.
+    //
+    // Matching each claim against the whole output as a substring let a wrong
+    // claim pass on a prefix: "entries 7" is contained in "entries 71", so the
+    // number most likely to drift was the one least likely to be caught. It
+    // also promised "line by line" while checking nothing about order, so a
+    // sample listing the lease before the offices would have read as correct.
+    const claimed = linesOf(sample);
+    const actual = linesOf(verifier);
+
+    expect(claimed.length).toBeGreaterThan(5);
+
+    let from = 0;
+    for (const line of claimed) {
+      const at = actual.indexOf(line, from);
+      // Named individually so a failure points at the line that drifted rather
+      // than printing two blocks and leaving the reader to diff them.
+      expect(at, `README claims: ${line}`).toBeGreaterThan(-1);
+      from = at + 1;
     }
   });
 

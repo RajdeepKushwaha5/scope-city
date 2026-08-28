@@ -89,6 +89,30 @@ makes it *safe* is the one that was there already.
 
 That contrast is the whole thesis, rendered.
 
+## How TrueForge is used
+
+The harness is not a wrapper around a model call here. Five of its capabilities
+are load-bearing, and removing any one of them leaves no product:
+
+| Capability | Where it is used | Evidence |
+|---|---|---|
+| **Real tools over MCP** | The scope proxy is an MCP server registered with `registerMcpServer`. Every office the agent can call is served through it, and the scope decides what appears in `tools/list`. | Stripe test mode, GitHub Issues, and Mailpit are all reached this way. `mcp/src/systems/` |
+| **Sandboxed code** | The agent must check the arithmetic before a human is asked to approve anything irreversible — a sandbox that exists to earn the approval rather than to satisfy a checklist. | `yard.opened` and two `yard.verified` events in the shipped recording |
+| **Human approval gates** | `requireApprovalForTools` raises The Gate. The countersign is bound to the exact call's arguments, so an approval cannot be reused for a different one. | `gate.raised` → `gate.cleared` in the recording; `packages/mission/src/countersign-book.ts` |
+| **Subagents** | `dynamicSubAgents` is enabled and the brief describes two independent read-only assignments. A live run produced six child threads titled "Source investigator" and "Target verifier", drawn on the map as separate figures. | `packages/scope/src/delegation.ts`, and the measurements in [docs/TRUEFORGE.md](docs/TRUEFORGE.md) |
+| **Session persistence** | A turn paused at The Gate survives the browser going away. The event log replays from any cursor, so a reconnecting client rebuilds the whole mission including the pending approval and its exact arguments. | `packages/mission/src/event-log.ts`; verified end to end, see [docs/TRUEFORGE.md](docs/TRUEFORGE.md#reconnection-verified) |
+
+Eleven harness event types are translated into what the city draws
+(`packages/harness/src/translate.ts`). Every figure, every lit building and
+every held gate is an event from TrueForge or a decision from the proxy — none
+of it is on a timer.
+
+What the harness does **not** do is enforce the scope. That is deliberate and it
+is the point of the project: the approval gate asks a human, and the proxy asks
+nobody. A scope stops what should never happen; a gate pauses what should happen
+only once somebody has looked. Both are needed, and they are different
+mechanisms.
+
 ## Repository layout
 
 ```
@@ -481,6 +505,16 @@ Follow-up reviews were requested with
 `/agentic_review` after each round of fixes. The full history, including the findings
 that were rejected and the ones that turned out to be stale, is public in the
 [pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr).
+
+## How this was built
+
+Built during the hackathon week, with AI coding assistants used throughout and
+disclosed here as the rules require. The architecture, the security model, and
+the decisions about what to claim and what to leave out are the author's; the
+reasoning behind the load-bearing ones is written into the code as comments
+rather than left implicit.
+
+Full attribution, including the artwork, is in [ATTRIBUTION.md](ATTRIBUTION.md).
 
 ## Licence
 

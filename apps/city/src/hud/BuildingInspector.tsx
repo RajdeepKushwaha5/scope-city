@@ -30,6 +30,9 @@ const ACTIVITY_LABEL: Record<BuildingState["activity"], string> = {
   waiting: "waiting for you",
   done: "done",
   refused: "refused",
+  // Deliberately not "checked" or "scanned": the operator needs to know nothing
+  // was called here, and "probed, not called" says it in three words.
+  probed: "probed, not called",
 };
 
 /** `4900` -> `$49.00`. Presentation only; never used for a comparison. */

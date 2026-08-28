@@ -76,6 +76,8 @@ export interface OfficeActivity {
   readonly busy: boolean;
   /** Why the boundary last refused a call here, if it did. */
   readonly refusal: string | null;
+  /** The Yard examined this office. Not a call: nothing was sent. */
+  readonly probed?: boolean;
 }
 
 /** Records something happening at one office, leaving the others untouched. */

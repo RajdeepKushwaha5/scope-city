@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+
+const NL = String.fromCharCode(10);
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SCENARIO_BILLING, type Scenario } from "./ScenarioBanner.js";
@@ -76,7 +78,7 @@ describe("scenario billing", () => {
       const start = source.indexOf(marker);
       expect(start, `${marker} not found`).toBeGreaterThan(-1);
 
-      const end = source.indexOf("];", start);
+      const end = source.indexOf(NL + "];", start);
       expect(end, `${marker} has no terminator`).toBeGreaterThan(start);
 
       const script = source.slice(start, end);
@@ -138,8 +140,7 @@ describe("scenario billing", () => {
       fileURLToPath(new URL("../useMission.ts", import.meta.url)),
       "utf8",
     );
-    const start = source.indexOf("const OVER_REACH");
-    const script = source.slice(start, source.indexOf("];", start));
+    const script = overReachScript(source);
 
     expect(script).not.toContain("a.gate({");
     expect(script).toContain("a.grantScope()");
@@ -148,12 +149,33 @@ describe("scenario billing", () => {
   });
 });
 
+/**
+ * The whole OVER_REACH script, with the slice checked rather than assumed.
+ *
+ * Slicing to the first `];` after the marker truncates on any nested array, and
+ * every assertion below is a `not.toContain` -- so a short slice passes them
+ * all while testing almost nothing. The boundaries are asserted here once, so
+ * that cannot happen quietly.
+ */
+function overReachScript(source: string): string {
+  const start = source.indexOf("const OVER_REACH");
+  expect(start, "OVER_REACH not found").toBeGreaterThan(-1);
+
+  const end = source.indexOf(NL + "];", start);
+  expect(end, "OVER_REACH has no terminator").toBeGreaterThan(start);
+
+  const script = source.slice(start, end);
+
+  // The last step really is in the slice: without this the assertions below
+  // could all be passing over a fragment.
+  expect(script, "slice stopped before the end of the script").toContain("a.grantScope()");
+  expect(script).toContain("a.proposeScope(WIDE_SCOPE)");
+  return script;
+}
+
 describe("the over-reach run narrows something real", () => {
   const source = readFileSync(fileURLToPath(new URL("../useMission.ts", import.meta.url)), "utf8");
-  const script = source.slice(
-    source.indexOf("const OVER_REACH"),
-    source.indexOf("];", source.indexOf("const OVER_REACH")),
-  );
+  const script = overReachScript(source);
 
   it("proposes a wider scope and then a narrower one", () => {
     // Logging "narrowed" while the scope never changes is the gap between
@@ -185,5 +207,34 @@ describe("the over-reach run narrows something real", () => {
     for (const office of ["charge.get", "customer.list"]) {
       expect(script, `${office} probed but not reported`).toContain(`office: "${office}"`);
     }
+  });
+});
+
+describe("a probed office is not a called office", () => {
+  const building = readFileSync(
+    fileURLToPath(new URL("../building-state.ts", import.meta.url)),
+    "utf8",
+  );
+
+  it("has a state of its own, distinct from working and done", () => {
+    // Leaving it idle shows nothing happening while the Yard reports probing
+    // it; marking it working or counting a call says the office was invoked,
+    // which is the one claim the probes rest on not being true.
+    expect(building).toContain('| "probed"');
+  });
+
+  it("ranks below anything that actually happened", () => {
+    // A probed office that is later called must read as called.
+    const derivation = building.slice(building.indexOf("const activity: BuildingActivity"));
+    expect(derivation.indexOf("calls > 0")).toBeLessThan(derivation.indexOf("record?.probed"));
+    expect(derivation.indexOf("record?.probed")).toBeLessThan(derivation.indexOf('"idle"'));
+  });
+
+  it("says plainly that nothing was called", () => {
+    const inspector = readFileSync(
+      fileURLToPath(new URL("./BuildingInspector.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(inspector).toContain("probed, not called");
   });
 });

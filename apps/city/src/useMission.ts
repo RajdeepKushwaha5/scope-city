@@ -250,7 +250,7 @@ export function useMission() {
     probe: (office) => {
       setOfficeActivity((current) => ({
         ...current,
-        [office]: { calls: current[office]?.calls ?? 0, busy: false, refusal: null },
+        [office]: { calls: current[office]?.calls ?? 0, busy: false, refusal: null, probed: true },
       }));
     },
     settle: (office) => {
@@ -363,8 +363,26 @@ export function useMission() {
   const grant = useCallback(() => {
     setScopeState("granted");
     setPhase("running");
-    setExpiresAt(Date.now() + NARROW_SCOPE.expiresInMs);
-    api.log("Scope granted. 3 offices allowed, 2 gated, everything else absent.", "allowed");
+
+    // Counted from the scope being granted rather than written as a constant.
+    //
+    // The over-reach run proposes a wider scope before narrowing it, so the
+    // operator can grant either one. A fixed line saying "3 offices allowed, 2
+    // gated" then described the narrow scope while the wide one was on the map
+    // -- the log telling them something other than what they just did, in the
+    // one place a record of it is being written.
+    setScope((current) => {
+      const granted = current ?? NARROW_SCOPE;
+      const allowed = granted.offices.filter((o) => o.disposition === "allowed").length;
+      const gated = granted.offices.filter((o) => o.disposition === "gated").length;
+
+      setExpiresAt(Date.now() + granted.expiresInMs);
+      api.log(
+        `Scope granted. ${allowed} offices allowed, ${gated} gated, everything else absent.`,
+        "allowed",
+      );
+      return granted;
+    });
   }, []);
 
   const denyScope = useCallback(() => {

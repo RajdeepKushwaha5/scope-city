@@ -78,6 +78,19 @@ export function TopNav(props: {
 
         <button
           type="button"
+          className={`topnav__pill topnav__pill--danger ${props.activeScenario === "overreach" ? "topnav__pill--active" : ""}`}
+          onClick={() => {
+            soundEngine.playRefusal();
+            props.onSelectScenario("overreach");
+          }}
+          title="The Yard finds a gap before anything is granted"
+        >
+          <span className="topnav__pill-icon">&#10007;</span>
+          <span>No Scope</span>
+            Over-reach
+          </button>
+          <button
+          type="button"
           className={`topnav__pill topnav__pill--danger ${props.activeScenario === "noscope" ? "topnav__pill--active" : ""}`}
           onClick={() => {
             soundEngine.playRefusal();

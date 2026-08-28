@@ -1,7 +1,12 @@
 import { describe, expect, it } from "vitest";
 import type { WorldEvent } from "@scope-city/harness";
 import { buildRegistry } from "@scope-city/scope";
-import { MissionEventLog, MissionOrchestrator } from "../src/index.js";
+import {
+  MissionEventLog,
+  MissionOrchestrator,
+  missionBrief,
+  readVerdict,
+} from "../src/index.js";
 
 const NOW = 1_700_000_000_000;
 
@@ -145,7 +150,6 @@ describe("the mission brief", () => {
     // refusal that looked like the boundary defending against something and
     // was really the briefing being wrong. Enforcement that fires because the
     // agent was misdirected proves nothing about enforcement.
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false });
 
     expect(brief).toContain("ord_184");
@@ -155,7 +159,6 @@ describe("the mission brief", () => {
   });
 
   it("describes only the offices the scope actually granted", async () => {
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false });
 
     expect(brief).toContain("charge.refund");
@@ -166,7 +169,6 @@ describe("the mission brief", () => {
   });
 
   it("carries the ceilings and the gate, so the agent is not surprised by them", async () => {
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false });
 
     expect(brief).toContain("4900");
@@ -174,14 +176,12 @@ describe("the mission brief", () => {
   });
 
   it("uses the operator's own words for the job", async () => {
-    const { missionBrief } = await import("../src/index.js");
     expect(missionBrief({ scope: briefScope, sandbox: false })).toContain(
       "Refund order #184 and notify its owner",
     );
   });
 
   it("tells the agent a refusal is the answer, not an obstacle", async () => {
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false });
     // Whitespace collapsed before matching: asserting the exact line wrapping
     // made this fail on a rewrite that changed nothing about the meaning.
@@ -193,20 +193,17 @@ describe("the mission brief", () => {
   it("only asks for verification when a sandbox actually exists", async () => {
     // Telling an agent to run a script it has no way to run wastes turns and
     // teaches it that instructions are approximate.
-    const { missionBrief } = await import("../src/index.js");
     expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/sandbox/i);
     expect(missionBrief({ scope: briefScope, sandbox: true })).toMatch(/Verify before you ask/);
   });
 
   it("does not invent child threads without two proven read contracts", async () => {
-    const { missionBrief } = await import("../src/index.js");
     expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(
       /Create two real child threads/,
     );
   });
 
   it("requires two real child threads when independent compatible reads are available", async () => {
-    const { missionBrief } = await import("../src/index.js");
     const scope = {
       ...briefScope,
       offices: ["ticket.get", "charge.get", "charge.refund"],
@@ -239,7 +236,6 @@ describe("the mission brief", () => {
     // thread identity, so "children must not act" is an instruction rather than
     // a property. Asserting the substance instead of a phrase: the brief has to
     // say that nothing stops a child, and name the thing that actually does.
-    const { missionBrief } = await import("../src/index.js");
     const scope = {
       ...briefScope,
       offices: ["ticket.get", "charge.get", "charge.refund"],
@@ -274,24 +270,20 @@ describe("the mission brief", () => {
 
 describe("readVerdict — an unreadable check is a failed check", () => {
   it("accepts a clear pass", async () => {
-    const { readVerdict } = await import("../src/index.js");
     expect(readVerdict("amounts match: OK")).toBe(true);
   });
 
   it("rejects a clear failure", async () => {
-    const { readVerdict } = await import("../src/index.js");
     expect(readVerdict("MISMATCH: ticket says 4900, charge says 39900")).toBe(false);
   });
 
   it("rejects a traceback even if the word 'ok' appears in it", async () => {
-    const { readVerdict } = await import("../src/index.js");
     expect(readVerdict("Traceback...\nAssertionError: not ok")).toBe(false);
   });
 
   it("rejects output it cannot read a verdict from", async () => {
     // Defaulting to "probably fine" in the one place a human is relying on the
     // check would be the worst possible default.
-    const { readVerdict } = await import("../src/index.js");
     expect(readVerdict("script finished")).toBe(false);
     expect(readVerdict("")).toBe(false);
   });
@@ -303,7 +295,6 @@ describe("the brief tells the agent its turn budget", () => {
     // not know it has twelve turns plans for twenty-four and gets cut off in
     // the middle of the work, which looks like the agent failing rather than
     // the budget ending.
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
 
     expect(brief).toContain("12 steps");
@@ -311,7 +302,6 @@ describe("the brief tells the agent its turn budget", () => {
 
   it("says nothing when no budget was given", async () => {
     // A brief that invents a number would be worse than one that omits it.
-    const { missionBrief } = await import("../src/index.js");
     expect(missionBrief({ scope: briefScope, sandbox: false })).not.toMatch(/\d+ steps/);
   });
 
@@ -320,7 +310,6 @@ describe("the brief tells the agent its turn budget", () => {
     // countersign -- a different budget in a different unit. Using one word for
     // both told the agent it could count on twelve of something that another
     // cap limited to eight.
-    const { missionBrief } = await import("../src/index.js");
     const brief = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 });
 
     expect(brief).not.toMatch(/\d+ turns/);
@@ -329,7 +318,6 @@ describe("the brief tells the agent its turn budget", () => {
   it("tells it what to do when the turns run short", async () => {
     // Stopping mid-sentence and stopping with a report are different outcomes
     // for whoever reads the record afterwards.
-    const { missionBrief } = await import("../src/index.js");
     const flat = missionBrief({ scope: briefScope, sandbox: false, iterationLimit: 12 })
       .replace(/\s+/g, " ");
 

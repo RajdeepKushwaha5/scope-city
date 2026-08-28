@@ -157,7 +157,18 @@ So do not point the verifier at them. Introduce the real one first:
 Press **Replay a real run**.
 
 > This is a captured TrueForge session, played back from its own record. Real
-> model, real proxy, a real Stripe refund in test mode.
+> model, real proxy, and the refund it stops on is a real Stripe charge in test
+> mode — that's a genuine charge id on the gate.
+
+Be careful with the last clause. The refund **was** executed against Stripe test
+mode when this was captured, and the charge id on screen is Stripe's. But the
+record does not carry Stripe's response, so do not say the verifier proves the
+money moved. What it proves is the chain of authority around the call:
+countersign required, countersigned, allowed, completed.
+
+If you would rather not hold that distinction live, say only "a real charge id,
+countersigned by a human" and keep the Stripe detail for the questions. An
+overclaim here costs more than the sentence is worth.
 
 Let it reach the gate, and point at **THE FIELD** while it does:
 
@@ -184,8 +195,11 @@ Switch to the terminal:
 node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
 ```
 
+This is the whole output, not an excerpt — read it against your screen:
+
 ```
   entries   71
+
   chain intact, head fedb0da15fdaf944…
 
   what it attests to
@@ -193,7 +207,18 @@ node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
     threads          3 (subagents ran)
     gates raised     1
     countersigned    1
+    refused at gate  0
+    left unanswered  0
     sandbox checks   2
+
+  the authority it was granted
+    offices          charge.find_by_order, charge.get, charge.refund
+    countersign      charge.refund
+    lease            30 minutes
+
+  The chain covers the entries and the sealed scope. It does not cover the
+  record's top-level job, timestamps, algorithm or lossy flag, which sit
+  outside it -- so those are reported above from the scope where possible.
 ```
 
 > Every live mission writes a hash-chained record, and that is the file the city
@@ -256,7 +281,7 @@ you do not have.
 
 | If they ask | The answer |
 |---|---|
-| "Is the refund real?" | Stripe test mode. A real charge, a real irreversible refund. The key never reaches the agent. |
+| "Is the refund real?" | Yes — Stripe test mode, a real charge, a real irreversible refund, and the key never reaches the agent. Note what the *record* attests to, though: countersign required, countersigned, allowed, completed. Stripe's own response is not in the chain, so the artifact proves the authority around the call rather than the money moving. |
 | "Does the model pick the scope?" | It drafts; the sentence decides. An id that isn't in what you wrote is dropped, including a shortened one. |
 | "What if the harness rate-limits?" | A rate limit ends the turn, not the session. It waits for that key rather than throwing the work away. |
 | "Could you run a different model?" | Any OpenAI-compatible endpoint, including a local one. The boundary doesn't change — that's the point of it being outside the model. |

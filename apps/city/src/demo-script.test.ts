@@ -115,6 +115,31 @@ describe("the script does not point the verifier at the scripted runs", () => {
     expect(script).not.toContain("Every mission writes a hash-chained record");
   });
 
+  it("quotes the verifier's whole output, not a flattering slice", () => {
+    // The transcript stopped after `sandbox checks`, and the command always
+    // continues with two more gate counts, the granted authority, and the
+    // integrity caveat. A presenter reading the script during the step meant to
+    // establish trust would have seen different output than the script showed.
+    for (const line of [
+      "refused at gate  0",
+      "left unanswered  0",
+      "the authority it was granted",
+      "lease            30 minutes",
+      "It does not cover the",
+    ]) {
+      expect(script, `verifier prints: ${line}`).toContain(line);
+    }
+  });
+
+  it("does not claim the record proves Stripe moved the money", () => {
+    // The record carries gate.raised, call.countersign_required, call.allowed
+    // and agent.finished for charge.refund. It carries no Stripe response, so
+    // the artifact attests to the authority around the call rather than to the
+    // external side effect. The refund was real; the chain does not prove it.
+    expect(script).toMatch(/record does not carry Stripe's response/i);
+    expect(script).not.toContain("a real Stripe refund in test mode.");
+  });
+
   it("protects the sentence that keeps the proof honest", () => {
     const cuts = script.slice(script.indexOf("What to cut"));
     expect(cuts).toMatch(/introducing the recorded run as a real one/i);

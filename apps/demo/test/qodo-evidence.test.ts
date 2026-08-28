@@ -66,6 +66,16 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/automatically on each push/i);
   });
 
+  it("links to replies inside review threads, not only to the PRs", () => {
+    // The hackathon says a thread where a finding was answered reads better
+    // than a clean run nobody replied to, and it asks for dismissals to be
+    // recorded in the thread specifically. This section claimed a dismissal was
+    // "recorded in the review thread" while every thread in the repository had
+    // zero human replies -- true of the stylesheet, false of the thread.
+    const replies = section.match(/#discussion_r\d+/g) ?? [];
+    expect(new Set(replies).size).toBeGreaterThanOrEqual(3);
+  });
+
   it("owns the three commits that predate the workflow", () => {
     // They are the scope evaluator, the ledger and the proxy -- the most
     // important code in the project. A judge running `git log` finds them in a

@@ -100,9 +100,26 @@ function describe(mission: Mission, office: string): string {
 }
 
 /** Builds a JSON Schema from the office spec so the model knows what to send. */
+/**
+ * The arguments an office takes, said in the schema the model reads.
+ *
+ * `additionalProperties: false` because the evaluator refuses a call carrying
+ * anything the office does not declare. Without it the boundary would enforce a
+ * rule the tool description never stated, and an agent would meet a refusal it
+ * had no way to anticipate -- which is the kind of surprise that turns into a
+ * retry loop rather than a correction.
+ *
+ * Telling the model is not the enforcement. The enforcement is in `evaluate`,
+ * and it holds whether or not anything read this.
+ */
 function inputSchemaFor(
   args: Record<string, { kind: string; required?: boolean }>,
-): { type: "object"; properties: Record<string, unknown>; required: string[] } {
+): {
+  type: "object";
+  properties: Record<string, unknown>;
+  required: string[];
+  additionalProperties: false;
+} {
   const properties: Record<string, unknown> = {};
   const required: string[] = [];
 
@@ -114,7 +131,7 @@ function inputSchemaFor(
     if (binding.required !== false) required.push(name);
   }
 
-  return { type: "object", properties, required };
+  return { type: "object", properties, required, additionalProperties: false };
 }
 
 /**

@@ -114,7 +114,29 @@ export async function startProxyHttp(options: ProxyHttpOptions): Promise<ProxyHt
     await transport.handleRequest(req, res);
   }
 
-  await new Promise<void>((resolve) => server.listen(options.port, host, resolve));
+  // Listening can fail, and the failure arrives as an event rather than a
+  // rejection. Without a handler for it, a port already in use took the process
+  // down with an unhandled 'error' and a raw stack trace ending in
+  // `Server.setupListenHandle` -- which says nothing about what the caller did,
+  // and reads as the project being broken rather than as the demo already
+  // running on that port. It is the single most likely first-run failure, since
+  // starting the demo twice is a normal thing to do by accident.
+  await new Promise<void>((resolve, reject) => {
+    server.once("error", (error: NodeJS.ErrnoException) => {
+      if (error.code === "EADDRINUSE") {
+        reject(
+          new Error(
+            `port ${options.port} is already in use, so the mission boundary cannot start. ` +
+              `Something else is listening -- most likely another copy of this demo. ` +
+              `Stop it, or set SCOPE_PROXY_PORT to a free port.`,
+          ),
+        );
+        return;
+      }
+      reject(error);
+    });
+    server.listen(options.port, host, resolve);
+  });
 
   return {
     server,

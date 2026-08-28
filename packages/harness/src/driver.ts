@@ -1,4 +1,5 @@
 import { TrueForge } from "@truefoundry/trueforge-sdk";
+import { iterationLimitFor } from "./reasoning-effort.js";
 import type { AgentSpec, McpServerManifest, TurnEvent, TurnInput } from "./types.js";
 import { MCP_SERVER_NAME_PATTERN } from "./types.js";
 import { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
@@ -303,7 +304,13 @@ export function missionAgentSpec(params: {
       dynamicSubAgents: { enabled: true },
       generativeUi: { enabled: false },
       askUserQuestions: { enabled: false },
-      iterationLimit: 24,
+      // Scaled with the effort, not fixed.
+      //
+      // Effort used to reach only the provider, so an agent asked for "low"
+      // still had twenty-four turns to work through the job -- the label
+      // described the thinking and not the work. "high" keeps the ceiling every
+      // run has had, so only the lower settings change anything.
+      iterationLimit: iterationLimitFor(params.reasoningEffort),
     },
   };
 }

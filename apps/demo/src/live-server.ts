@@ -6,6 +6,7 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  iterationLimitFor,
   parseReasoningEffort,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
@@ -759,6 +760,10 @@ async function main(): Promise<void> {
               instructions: missionBrief({
                 scope: live.scope,
                 sandbox,
+                // The same number the spec is built with, from the same
+                // function, so the brief cannot promise a budget the run does
+                // not get.
+                iterationLimit: iterationLimitFor(live.reasoningEffort),
                 registry: officeRegistry(),
                 plain: live.scope.scopeId === "NO-SCOPE",
               }),

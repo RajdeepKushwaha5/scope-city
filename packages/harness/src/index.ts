@@ -42,6 +42,7 @@ export { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
 export { readVerdict, sandboxEnvelope, type Verification } from "./verdict.js";
 export {
   REASONING_EFFORTS,
+  iterationLimitFor,
   isReasoningEffort,
   parseReasoningEffort,
   type EffortParse,

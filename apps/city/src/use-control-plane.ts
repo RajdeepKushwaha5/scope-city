@@ -36,19 +36,26 @@ export async function probeControlPlane(
 
   try {
     const response = await fetchImpl("/api/health", { signal: abort.signal });
-    if (!response.ok) return "absent";
-    // The status is not the answer, and this is the case that proves it.
+    // The status is not the answer, in either direction.
     //
-    // `vercel.json` rewrites everything except /replays/ and /assets/ to
-    // index.html, so the deployed city answers `GET /api/health` with 200 and
-    // a page. Checking `response.ok` alone reported a control plane on a
-    // static host -- the city would offer to launch live missions on the one
-    // URL judges actually visit, and every one of them would fail against an
-    // endpoint that returns HTML.
+    // Not a pass: the deployed city rewrites unknown paths to index.html and
+    // answers 200 with a page (see below). Not a fail either: the health route
+    // replies 503 when the harness behind it is unreachable, and that is a
+    // control plane -- an unwell one, which the operator needs the city to
+    // talk to precisely so it can say what is wrong. Reading 503 as "absent"
+    // would hide the live controls at the moment they explain the problem.
     //
-    // So the body has to look like the health route's own answer. index.html
-    // is not JSON at all, which is most of the defence; the shape check covers
-    // a host that serves a JSON error page instead.
+    // So the body is what decides, whatever the status. It has to look like
+    // the health route's own answer: index.html is not JSON at all, which is
+    // most of the defence, and the shape check covers a host that serves a
+    // JSON error page instead.
+    //
+    // The static case, for the record: `vercel.json` rewrites everything
+    // except /replays/ and /assets/ to index.html, so the deployed city
+    // answers `GET /api/health` with 200 and a page. Checking `response.ok`
+    // alone reported a control plane there -- the city offered to launch live
+    // missions on the one URL judges actually visit, and every one of them
+    // would have posted to an endpoint returning HTML.
     return isHealth(await response.json().catch(() => null)) ? "available" : "absent";
   } catch {
     return "absent";

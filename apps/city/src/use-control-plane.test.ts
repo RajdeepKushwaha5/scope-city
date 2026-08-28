@@ -34,12 +34,14 @@ describe("probeControlPlane", () => {
     expect(await probeControlPlane(serving(200, HEALTH))).toBe("available");
   });
 
-  it("reports available even when the harness itself is unwell", async () => {
-    // `ok: false` here means the harness is unreachable, not that the control
-    // plane is missing. The city should still talk to it -- that is how the
-    // operator finds out what is wrong.
+  it("reports available when the harness is unwell, which the route answers 503", async () => {
+    // The status this test used to fake was 200, and the route does not send
+    // one: `json(res, harness.ok ? 200 : 503, ...)`. So the assertion passed
+    // against a response the server never produces, while the code returned
+    // "absent" for the real thing -- hiding the live controls at exactly the
+    // moment they would have explained why the harness was unreachable.
     expect(
-      await probeControlPlane(serving(200, { ok: false, harness: { ok: false }, activeMissions: 0 })),
+      await probeControlPlane(serving(503, { ok: false, harness: { ok: false }, activeMissions: 0 })),
     ).toBe("available");
   });
 

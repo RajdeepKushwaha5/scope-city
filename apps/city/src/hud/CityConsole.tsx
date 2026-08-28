@@ -145,7 +145,16 @@ export function CityConsole(props: {
           <div className="empty">The radio is quiet.</div>
         ) : (
           <div className="log">
-            {props.lines.map((line, index) => (
+            {/*
+              * Newest first, reversed here rather than in the stylesheet.
+              *
+              * Entries are appended, so the array runs oldest to newest. Doing
+              * the flip in the DOM means the newest line is the first child and
+              * an untouched scroller is already showing it; doing it with
+              * `column-reverse` instead leaves the container anchored at the
+              * far end of the flex flow, which is the oldest.
+              */}
+            {[...props.lines].reverse().map((line, index) => (
               <div key={`${line.at}-${index}`} className={`log__line log__line--${line.kind}`}>
                 <span className="log__at">{line.at}</span>
                 <span className="log__what">{line.what}</span>

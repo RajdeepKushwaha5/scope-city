@@ -64,8 +64,15 @@ function topLevelSelectors(): string[] {
       continue;
     }
 
+    // Split the head on commas as well as collecting the lines above it. A
+    // group written across lines was already handled; one written on a single
+    // line -- `.a, .b {` -- was recorded as the string ".a, .b", which matches
+    // no selector and so hid every duplicate inside one.
     const head = text.slice(0, brace).trim();
-    if (!head.startsWith("@")) out.push(...pending, ...(head ? [head] : []));
+    const heads = head.startsWith("@")
+      ? []
+      : head.split(",").map((part) => part.trim()).filter(Boolean);
+    out.push(...pending, ...heads);
     pending = [];
   }
 

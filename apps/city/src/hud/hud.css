@@ -58,18 +58,6 @@
   box-sizing: border-box;
 }
 
-body {
-  margin: 0;
-  background: #0a121c;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 16px;
-  overflow: hidden;
-  /* Pixel art must never be smoothed on scale. */
-  image-rendering: pixelated;
-  -webkit-font-smoothing: none;
-}
-
 .world {
   position: fixed;
   inset: 0;
@@ -154,23 +142,50 @@ body {
  * `min-height: 0` is the load-bearing half: a flex child will not shrink below
  * its content without it, so `overflow-y` alone would have changed nothing.
  */
+/*
+ * A column of panels, each as tall as what it has to say, and the column
+ * scrolls when they do not all fit.
+ *
+ * It was a grid, and grids compress. Measured in the browser: four panels
+ * needing 192, 115, 139 and 109 pixels were each given exactly 67, and every
+ * body was cut to 27 -- so a caption ended mid-word, a reading was hidden
+ * behind its own panel edge, and each one grew a native scrollbar to offer
+ * access to the sentence it had just truncated. The container was 315 tall and
+ * simply divided it.
+ *
+ * `flex: none` on the children is the whole fix: a panel states its height and
+ * nothing negotiates it down. What overflows is the column, which is the one
+ * thing here that should scroll.
+ */
 .hud__scan-stack {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  width: min(430px, 100%);
-  align-content: start;
+  width: min(310px, 100%);
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Firefox has no scrollbar pseudo-elements; it honours these two instead. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 168, 48, 0.35) transparent;
 }
 
+.hud__scan-stack > * {
+  flex: none;
+}
+
+/*
+ * Wider than the scan column because it holds a sentence you type, but not by
+ * as much as it was. At 720 it reached most of the way across a 1600 screen and
+ * put the island behind the one panel a visitor reads first.
+ */
 .hud__order {
-  width: min(720px, 100%);
+  width: min(560px, 100%);
   margin-top: auto;
 }
 
 .hud__console {
-  width: min(470px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 32px));
   min-height: 0;
   flex: none;
 }
@@ -189,17 +204,25 @@ body {
 .window {
   position: relative;
   overflow: hidden;
-  background: rgba(6, 18, 27, 0.975);
+  /*
+   * Translucent, and blurred hard enough to stay readable over a bright map.
+   *
+   * At 0.975 these were effectively opaque: four of them down one side hid a
+   * third of the city, which is the thing they are annotating. The blur is what
+   * makes this affordable -- without it, text over the isometric grid has to
+   * fight the roofs behind it.
+   */
+  background: rgba(6, 18, 27, 0.74);
   border: 2px solid var(--panel-edge-lit);
   box-shadow:
     inset 0 0 0 1px rgba(240, 168, 48, 0.08),
     7px 7px 0 rgba(7, 13, 20, 0.28);
-  backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 12px;
   letter-spacing: 0.025em;
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -276,11 +299,22 @@ body {
   background: repeating-linear-gradient(90deg, var(--hud-rule) 0, var(--hud-rule) 3px, transparent 3px, transparent 6px);
 }
 
+/*
+ * The body does not scroll. The column it sits in does.
+ *
+ * With `overflow-y: auto` here, every panel became its own scroller: four
+ * native scrollbars with arrows down the left of the screen, each one clipping
+ * a sentence mid-word inside a box about a hundred pixels tall. A panel is a
+ * few lines of instrument reading -- there is nothing in one worth scrolling
+ * to, and cutting a caption in half to offer the option is worse than letting
+ * the panel be as tall as its own content.
+ *
+ * `.hud__scan-stack` is the scroller, and there is one of it.
+ */
 .window__body {
   position: relative;
   z-index: 1;
   padding: 12px 13px;
-  overflow-y: auto;
   min-height: 0;
   font-family: var(--font-body);
   font-size: 14px;
@@ -571,24 +605,28 @@ body {
 /* --- the log ------------------------------------------------------------ */
 
 /*
- * Newest line at the top, and this is the one fold that changes behaviour
- * rather than just tidying.
+ * Newest line at the top, without any script to keep it there.
  *
- * Lines are appended to the array and rendered in order, so the direction here
- * decides which end is new. The later block had flipped it to `column` while
- * also capping the panel at 160px -- so during a live mission every new line
- * arrived below the fold and the operator had to scroll to read what had just
- * happened. `column-reverse` with `overflow-y: auto` is the usual way to make a
- * running log stick to its newest entry, and it is what the first declaration
- * asked for before the second quietly reversed it.
+ * The order is done in the render -- `CityConsole` hands this the entries
+ * reversed -- so the newest is the first child, and a scroller sitting at its
+ * default `scrollTop: 0` is already looking at it.
+ *
+ * `column-reverse` was tried first and does not do this, which is worth
+ * recording because it looks like it should. It puts the last child at the
+ * visual top, so appending does land the newest up there -- but the browser
+ * anchors an overflowing reversed container at the *start of its flex flow*,
+ * which is the visual bottom, and that end holds the oldest entries. The panel
+ * would open on the beginning of the mission and stay there.
  */
 .log {
   display: flex;
-  flex-direction: column-reverse;
+  flex-direction: column;
   gap: 4px;
   max-height: 160px;
   overflow-y: auto;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 168, 48, 0.35) transparent;
 }
 
 .log__line {
@@ -1192,6 +1230,12 @@ body {
   padding-top: 8px;
   border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
   font-size: 11px;
+
+  /* Folded from a later group that redeclared all four. */
+  margin-bottom: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--hud-rule);
+  font-size: 10px;
 }
 
 .review__clean {
@@ -1296,12 +1340,14 @@ body {
 .proof__script,
 .proof__output {
   margin: 0;
-  font-size: 10px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 130px;
   overflow-y: auto;
+
+  /* Folded from a later group that redeclared the size and the cap. */
+  font-size: 9px;
+  max-height: 100px;
 }
 
 .proof__script {
@@ -1365,10 +1411,12 @@ body {
 
 .inspector__absent,
 .inspector__note {
-  font-size: 11px;
   line-height: 1.5;
   color: var(--hud-dim, #7f8c9b);
   margin: 4px 0 0;
+
+  /* Folded from a later group that redeclared the size. */
+  font-size: 10px;
 }
 
 .inspector__refusal {
@@ -1442,6 +1490,12 @@ body {
 /* ---- HUD chrome ---------------------------------------------------------- */
 
 
+/*
+ * The page itself. `body` was declared twice with different answers -- two
+ * backgrounds, two font families, and font smoothing set to `none` in one and
+ * `antialiased` in the other. This one won by being later, so it is the one
+ * kept; what the earlier block had to itself is still up there.
+ */
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -1451,7 +1505,11 @@ html, body, #root {
   background: #030c14;
   color: var(--hud-fg);
   font-family: var(--hud-font);
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  /* Pixel art must never be smoothed on scale. The two <img> rules further
+     down say it again for themselves; this is the backstop. */
+  image-rendering: pixelated;
 }
 
 /* ---- CANVAS & ATMOSPHERE ------------------------------------------------ */
@@ -1488,20 +1546,55 @@ canvas.world:active {
 
 /* ---- HUD MAIN GRID ------------------------------------------------------- */
 
+/*
+ * The scrollbars, and they are meant to be barely there.
+ *
+ * Every panel used to grow its own, with the platform's arrows on it -- four
+ * chunky native bars down the side of an isometric city. These are 6px, they
+ * sit on the track rather than in a gutter, and the thumb is nearly invisible
+ * until the pointer is over the thing that scrolls.
+ */
 .hud__scan-stack::-webkit-scrollbar,
 .cmd-list::-webkit-scrollbar,
 .log::-webkit-scrollbar,
 .yard__list::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+}
+
+.hud__scan-stack::-webkit-scrollbar-track,
+.cmd-list::-webkit-scrollbar-track,
+.log::-webkit-scrollbar-track,
+.yard__list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .hud__scan-stack::-webkit-scrollbar-thumb,
 .cmd-list::-webkit-scrollbar-thumb,
 .log::-webkit-scrollbar-thumb,
 .yard__list::-webkit-scrollbar-thumb {
-  background: var(--hud-rule-strong);
-  border-radius: 2px;
+  background: rgba(240, 168, 48, 0.18);
+  border-radius: 3px;
+  /* The animation: a thumb that warms up under the pointer instead of
+     switching on. Colour only -- a bar that changes width while you are
+     reaching for it moves the target out from under the cursor. */
+  transition: background 180ms var(--ease-out, ease);
 }
+
+.hud__scan-stack:hover::-webkit-scrollbar-thumb,
+.cmd-list:hover::-webkit-scrollbar-thumb,
+.log:hover::-webkit-scrollbar-thumb,
+.yard__list:hover::-webkit-scrollbar-thumb {
+  background: rgba(240, 168, 48, 0.5);
+}
+
+.hud__scan-stack::-webkit-scrollbar-thumb:hover,
+.cmd-list::-webkit-scrollbar-thumb:hover,
+.log::-webkit-scrollbar-thumb:hover,
+.yard__list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+
 
 /* ---- WINDOW COMPONENT ---------------------------------------------------- */
 
@@ -1964,32 +2057,8 @@ canvas.world:active {
 /* ---- SCOPE REVIEW -------------------------------------------------------- */
 
 
-.review__findings, .review__clean {
-  margin-bottom: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--hud-rule);
-  font-size: 10px;
-}
-
 /* ---- PROOF --------------------------------------------------------------- */
 
-
-.proof__script, .proof__output {
-  margin: 0;
-  font-size: 9px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 100px;
-  overflow-y: auto;
-}
-
-.inspector__absent, .inspector__note {
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--hud-dim);
-  margin: 4px 0 0;
-}
 
 /* ==========================================================================
    TOPNAV HEADER & SCENARIO BAR

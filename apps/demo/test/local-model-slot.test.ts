@@ -22,8 +22,25 @@ describe("the local slot", () => {
   it("is off unless a host is configured", () => {
     // A fresh clone with nothing listening on 11434 must not fail model
     // discovery on a slot nobody asked for.
-    expect(setup).toContain("const OLLAMA_HOST = process.env.OLLAMA_HOST");
-    expect(setup).toMatch(/OLLAMA_HOST\s*\?\s*\[/);
+    expect(setup).toContain('const host = process.env.OLLAMA_HOST ?? ""');
+    expect(setup).toContain("if (!host) return [];");
+  });
+
+  it("reads the environment after .env is loaded, not at import", () => {
+    // `.env` is loaded by main, so a module-level read sees nothing -- which
+    // made the documented way of configuring this the one way that did not
+    // work. It looked fine to anyone who had already exported the variable.
+    expect(setup).toContain("function localSlots()");
+    expect(setup).toContain("...localSlots()");
+    expect(setup).not.toMatch(/^const OLLAMA_/m);
+  });
+
+  it("takes its credential from a credential variable, not the endpoint", () => {
+    // Naming OLLAMA_HOST as the key passed the URL itself as the API key and
+    // made the fallback unreachable: harmless against Ollama, which ignores
+    // it, and wrong for any endpoint that actually checks one.
+    expect(setup).toContain('envKey: "OLLAMA_API_KEY"');
+    expect(setup).not.toContain('envKey: "OLLAMA_HOST"');
   });
 
   it("does not require a credential a local endpoint has no use for", () => {
@@ -56,6 +73,16 @@ describe("the effort is not sent to a model that would refuse it", () => {
     // Discovery is best-effort. Guessing "unsupported" for a model we simply
     // failed to read would silently drop an effort that works.
     expect(server).toContain("if (supported === undefined) return wanted");
+  });
+
+  it("keeps the operator's turn budget when the effort is dropped", () => {
+    // Two settings that share an input: the effort is the provider's, the
+    // budget is ours. Letting the spec infer the budget from the filtered
+    // effort gave every local-model run the high ceiling however the operator
+    // had set it, while the brief went on promising the smaller number.
+    expect(server).toMatch(
+      /iterationLimit: iterationLimitFor\(live\.reasoningEffort\),[\s\S]{0,600}?instructions: missionBrief/,
+    );
   });
 
   it("survives discovery failing entirely", () => {

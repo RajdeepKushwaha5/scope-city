@@ -284,6 +284,18 @@ export function missionAgentSpec(params: {
    * silently becomes an effort it ignores.
    */
   reasoningEffort?: string;
+  /**
+   * The turn budget, when the caller has to state it rather than let it follow
+   * from the effort.
+   *
+   * These are two settings that happen to share an input. The effort is the
+   * provider's; the budget is ours, and a model that accepts no effort still
+   * gets one. Deriving the budget from an effort that was dropped because the
+   * chosen model refuses it silently promoted every low and medium run to the
+   * high ceiling -- and the brief, which reads the operator's original choice,
+   * went on promising the smaller number.
+   */
+  iterationLimit?: number;
 }): AgentSpec {
   // Every key here is camelCase, and that is not a style choice.
   //
@@ -324,7 +336,7 @@ export function missionAgentSpec(params: {
       // still had twenty-four turns to work through the job -- the label
       // described the thinking and not the work. "high" keeps the ceiling every
       // run has had, so only the lower settings change anything.
-      iterationLimit: iterationLimitFor(params.reasoningEffort),
+      iterationLimit: params.iterationLimit ?? iterationLimitFor(params.reasoningEffort),
     },
   };
 }

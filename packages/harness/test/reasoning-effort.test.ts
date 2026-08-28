@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { missionAgentSpec } from "../src/index.js";
+import { iterationLimitFor, missionAgentSpec } from "../src/index.js";
 
 const base = {
   model: "gemini-a/flash-a",
@@ -108,5 +108,35 @@ describe("an unrecognised effort still gets a real budget", () => {
     expect(missionAgentSpec({ ...base, reasoningEffort: "xhigh" }).model.params).toEqual({
       reasoningEffort: "xhigh",
     });
+  });
+});
+
+/**
+ * The effort and the budget share an input but are not the same setting. The
+ * effort is the provider's and can be refused; the budget is ours and applies
+ * to every model, including one that accepts no effort at all.
+ */
+describe("the turn budget can be stated rather than inferred", () => {
+  it("keeps the operator's budget when the effort had to be dropped", () => {
+    // A local model refuses a reasoning effort, so the control plane does not
+    // send one -- and inferring the budget from what was left gave a run the
+    // operator set to "low" the high ceiling, while its brief went on
+    // promising twelve iterations.
+    const spec = missionAgentSpec({ ...base, iterationLimit: iterationLimitFor("low") });
+
+    expect(spec.config?.iterationLimit).toBe(12);
+    expect(spec.model?.params).toBeUndefined();
+  });
+
+  it("still follows the effort when nothing states otherwise", () => {
+    expect(missionAgentSpec({ ...base, reasoningEffort: "medium" }).config?.iterationLimit).toBe(18);
+  });
+
+  it("lets the stated budget win over the one the effort implies", () => {
+    // Not a conflict that should arise, but if it does the caller said what it
+    // wanted and guessing the other way would be silent.
+    const spec = missionAgentSpec({ ...base, reasoningEffort: "high", iterationLimit: 12 });
+
+    expect(spec.config?.iterationLimit).toBe(12);
   });
 });

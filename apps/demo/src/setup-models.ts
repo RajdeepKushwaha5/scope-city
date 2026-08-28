@@ -136,24 +136,35 @@ const SLOTS: readonly Slot[] = [
  * No reasoning efforts declared: Ollama refuses one outright rather than
  * ignoring it, so claiming support would turn the operator's choice into a
  * failed launch.
+ *
+ * Built from the environment as a function, not read at module load. `.env` is
+ * loaded by `main`, so a module-level read happens first and sees nothing --
+ * which meant the documented way of configuring this was the one way that did
+ * not work. It appeared to work only for someone who had already exported the
+ * variable in their shell.
  */
-const OLLAMA_HOST = process.env.OLLAMA_HOST ?? "";
-const OLLAMA_MODEL = process.env.OLLAMA_MODEL ?? "qwen2.5:7b";
+function localSlots(): readonly Slot[] {
+  const host = process.env.OLLAMA_HOST ?? "";
+  if (!host) return [];
 
-const LOCAL_SLOTS: readonly Slot[] = OLLAMA_HOST
-  ? [
-      {
-        provider: "local",
-        model: "qwen",
-        envKey: "OLLAMA_HOST",
-        keyOptional: true,
-        contextLength: 32_768,
-        baseUrl: `${OLLAMA_HOST.replace(/\/+$/, "")}/v1`,
-        modelId: OLLAMA_MODEL,
-        reasoningEfforts: [],
-      },
-    ]
-  : [];
+  return [
+    {
+      provider: "local",
+      model: "qwen",
+      // The credential, not the endpoint. Naming OLLAMA_HOST here passed the
+      // URL itself as the API key and made the fallback below unreachable --
+      // harmless against Ollama, which ignores it, and wrong for any other
+      // OpenAI-compatible endpoint, which would be handed a URL where its
+      // token should be and reject every call.
+      envKey: "OLLAMA_API_KEY",
+      keyOptional: true,
+      contextLength: 32_768,
+      baseUrl: `${host.replace(/\/+$/, "")}/v1`,
+      modelId: process.env.OLLAMA_MODEL ?? "qwen2.5:7b",
+      reasoningEfforts: [],
+    },
+  ];
+}
 
 async function main(): Promise<void> {
   loadEnv();
@@ -165,10 +176,11 @@ async function main(): Promise<void> {
   const configured: string[] = [];
   const skipped: string[] = [];
 
-  for (const slot of [...SLOTS, ...LOCAL_SLOTS]) {
+  for (const slot of [...SLOTS, ...localSlots()]) {
     const apiKey = process.env[slot.envKey];
-    // A local endpoint has no credential to present. Requiring one would skip
-    // the slot for lacking something it does not need.
+    // A local endpoint usually has no credential to present. Requiring one
+    // would skip the slot for lacking something it does not need -- but the
+    // key is still read, so an endpoint that does want one gets it.
     if (!apiKey && !slot.keyOptional) {
       skipped.push(slot.envKey);
       continue;

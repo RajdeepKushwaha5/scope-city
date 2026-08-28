@@ -797,19 +797,29 @@ async function main(): Promise<void> {
               gatedTools: [...live.scope.countersignRequired],
               sandbox,
               // The operator's choice, carried from the dispatch panel. Absent
-              // unless they made one.
+              // unless they made one, or unless the chosen model refuses one.
               ...(() => {
                 const effort = effortFor(model, live.reasoningEffort);
                 return effort ? { reasoningEffort: effort } : {};
               })(),
+              // Stated rather than derived, because the effort above may have
+              // been dropped for this model and the budget must not go with it.
+              //
+              // They are two settings that share an input: the effort is the
+              // provider's, the budget is ours. Letting the spec infer the
+              // budget from the filtered effort gave every local-model run the
+              // high ceiling however the operator had set it, while the brief
+              // below went on promising the smaller number -- the run
+              // contradicting its own instructions.
+              iterationLimit: iterationLimitFor(live.reasoningEffort),
               // The comparison run is briefed as an ordinary integration is,
               // without our framing about untrusted content or limited reach.
               instructions: missionBrief({
                 scope: live.scope,
                 sandbox,
                 // The same number the spec is built with, from the same
-                // function, so the brief cannot promise a budget the run does
-                // not get.
+                // function and the same input, so the brief cannot promise a
+                // budget the run does not get.
                 iterationLimit: iterationLimitFor(live.reasoningEffort),
                 registry: officeRegistry(),
                 plain: live.scope.scopeId === "NO-SCOPE",

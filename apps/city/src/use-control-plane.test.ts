@@ -7,19 +7,57 @@ import { probeControlPlane } from "./use-control-plane.js";
  * on a static host is a 404 dressed up as a failed launch -- so the most
  * prominent thing on the page was the one thing that could not work, and a
  * visitor's first action taught them the product was broken.
+ *
+ * The first fix asked whether anything answered. That was not enough, and the
+ * deployment config says why: `vercel.json` rewrites everything except
+ * /replays/ and /assets/ to index.html, so the published city answers
+ * `GET /api/health` with **200 and a page**. A status-only check reported a
+ * control plane on exactly the URL judges visit.
  */
-const respond = (init: { ok: boolean }) =>
-  (async () => init as Response) as unknown as typeof fetch;
+
+/** A host that answers with a status, a content type, and a body. */
+const serving = (status: number, body: unknown, json = true) =>
+  (async () =>
+    ({
+      ok: status >= 200 && status < 300,
+      status,
+      json: async () => {
+        if (!json) throw new SyntaxError("Unexpected token < in JSON");
+        return body;
+      },
+    }) as unknown as Response) as unknown as typeof fetch;
+
+const HEALTH = { ok: true, harness: { ok: true }, activeMissions: 0 };
 
 describe("probeControlPlane", () => {
-  it("reports available when the health check answers", async () => {
-    expect(await probeControlPlane(respond({ ok: true }))).toBe("available");
+  it("reports available for the health route's own answer", async () => {
+    expect(await probeControlPlane(serving(200, HEALTH))).toBe("available");
+  });
+
+  it("reports available even when the harness itself is unwell", async () => {
+    // `ok: false` here means the harness is unreachable, not that the control
+    // plane is missing. The city should still talk to it -- that is how the
+    // operator finds out what is wrong.
+    expect(
+      await probeControlPlane(serving(200, { ok: false, harness: { ok: false }, activeMissions: 0 })),
+    ).toBe("available");
+  });
+
+  it("reports absent when a static host rewrites the path to index.html", async () => {
+    // The bug this exists for. 200, and emphatically not a control plane:
+    // proven against a server mimicking the vercel.json rewrite, which returned
+    // `text/html` and the built page.
+    expect(await probeControlPlane(serving(200, null, false))).toBe("absent");
+  });
+
+  it("reports absent when a host serves a JSON error page with a 200", async () => {
+    // Some hosts answer unknown paths with JSON rather than HTML, so parsing
+    // successfully is not the test either -- the shape has to match.
+    expect(await probeControlPlane(serving(200, { error: "not found" }))).toBe("absent");
   });
 
   it("reports absent when a static host answers with its 404 page", async () => {
-    // The case that matters on Pages. Something replies, and it is emphatically
-    // not a control plane: a truthy response is not a working backend.
-    expect(await probeControlPlane(respond({ ok: false }))).toBe("absent");
+    expect(await probeControlPlane(serving(404, { error: "not found" }))).toBe("absent");
   });
 
   it("reports absent when nothing is listening", async () => {

@@ -36,12 +36,32 @@ export async function probeControlPlane(
 
   try {
     const response = await fetchImpl("/api/health", { signal: abort.signal });
-    return response.ok ? "available" : "absent";
+    if (!response.ok) return "absent";
+    // The status is not the answer, and this is the case that proves it.
+    //
+    // `vercel.json` rewrites everything except /replays/ and /assets/ to
+    // index.html, so the deployed city answers `GET /api/health` with 200 and
+    // a page. Checking `response.ok` alone reported a control plane on a
+    // static host -- the city would offer to launch live missions on the one
+    // URL judges actually visit, and every one of them would fail against an
+    // endpoint that returns HTML.
+    //
+    // So the body has to look like the health route's own answer. index.html
+    // is not JSON at all, which is most of the defence; the shape check covers
+    // a host that serves a JSON error page instead.
+    return isHealth(await response.json().catch(() => null)) ? "available" : "absent";
   } catch {
     return "absent";
   } finally {
     clearTimeout(timer);
   }
+}
+
+/** The shape `GET /api/health` answers with, and nothing else. */
+function isHealth(body: unknown): boolean {
+  if (typeof body !== "object" || body === null) return false;
+  const health = body as { ok?: unknown; activeMissions?: unknown };
+  return typeof health.ok === "boolean" && typeof health.activeMissions === "number";
 }
 
 export function useControlPlane(): ControlPlane {

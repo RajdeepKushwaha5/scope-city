@@ -416,8 +416,20 @@ export function App(): React.JSX.Element {
       // A different run is a different claim about what is about to happen, so
       // dismissing one banner must not suppress the next.
       setBannerDismissed(false);
-      if (scenario === "recorded") void recorded.play(RECORDING_URL);
-      else if (scenario === "clean") replay.runCleanJob();
+      if (scenario === "recorded") {
+        void recorded.play(RECORDING_URL);
+        return;
+      }
+
+      // Stop the recording before starting a scripted run.
+      //
+      // The city reads from the recorded player whenever it holds a record, so
+      // starting a scripted scenario without clearing it left the previous
+      // replay on screen while the new one ran underneath -- the operator
+      // picked a run and watched a different one.
+      recorded.stop();
+
+      if (scenario === "clean") replay.runCleanJob();
       else if (scenario === "poisoned") replay.runPoisonedTicket();
       else if (scenario === "overreach") replay.runOverReach();
       else replay.runNoScope();

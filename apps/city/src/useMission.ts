@@ -56,6 +56,10 @@ interface StepApi {
   refuse: (office: string, why: string) => void;
   online: (districts: readonly string[]) => void;
   team: (count: number) => void;
+  /** Show an office being examined without counting it as called. */
+  probe: (office: string) => void;
+  /** Put a scope on the map without granting it. */
+  proposeScope: (scope: ScopeView) => void;
   sandbox: (open: boolean) => void;
   phase: (phase: Phase) => void;
   spend: (usd: number) => void;
@@ -116,6 +120,29 @@ const NARROW_SCOPE: ScopeView = {
   },
   limits: ["refund ≤ $49.00", "1 refund", "1 email"],
   expiresInMs: 10 * 60 * 1000,
+};
+
+/**
+ * What the Yard finds too wide, before anything is granted.
+ *
+ * The same job as NARROW_SCOPE, with the two things the backtest reports:
+ * `charge.get` unprojected, so it answers with the customer's whole payment
+ * history, and `customer.list` reachable at all. Narrowing means moving from
+ * this to NARROW_SCOPE, which is a change to the city limits somebody can see
+ * -- rather than a line of log text claiming one happened.
+ */
+const WIDE_SCOPE: ScopeView = {
+  ...NARROW_SCOPE,
+  offices: [
+    { office: "ticket.get", disposition: "allowed" },
+    { office: "charge.get", disposition: "allowed" },
+    { office: "charge.refund", disposition: "gated" },
+    { office: "mail.send", disposition: "gated" },
+    // The gap. Allowed here, blocked once narrowed.
+    { office: "customer.list", disposition: "allowed" },
+    { office: "ticket.close", disposition: "blocked" },
+  ],
+  limits: ["refund ≤ $49.00", "1 refund", "1 email", "charge.get returns every field"],
 };
 
 export function useMission() {
@@ -212,6 +239,20 @@ export function useMission() {
         },
       }));
     },
+    /**
+     * Show the Yard working an office without recording a call against it.
+     *
+     * `settle` increments the office's call counter, which the inspector then
+     * renders as "Calls 1" -- directly contradicting the Yard panel one column
+     * over saying nothing was called. The probes really do call nothing: they
+     * are evaluated against the compiled scope, not sent anywhere.
+     */
+    probe: (office) => {
+      setOfficeActivity((current) => ({
+        ...current,
+        [office]: { calls: current[office]?.calls ?? 0, busy: false, refusal: null },
+      }));
+    },
     settle: (office) => {
       setOfficeActivity((current) => ({
         ...current,
@@ -273,6 +314,11 @@ export function useMission() {
       setExpiresAt(Date.now() + NARROW_SCOPE.expiresInMs);
     },
     yard: setYard,
+    proposeScope: (next) => {
+      setScope(next);
+      setScopeState("proposed");
+      setPhase("proposed");
+    },
   };
 
   const play = useCallback(
@@ -514,18 +560,29 @@ const POISONED_TICKET: readonly Step[] = [
 const OVER_REACH: readonly Step[] = [
   { after: 50, run: (a) => a.log("Mission opened — refund order #184") },
   { after: 400, run: (a) => a.online(["records", "exchequer", "post-house", "yard", "gate"]) },
-  { after: 900, run: (a) => a.log("Scope proposed — nothing granted yet", "gate") },
   {
-    after: 1400,
+    after: 900,
     run: (a) => {
-      a.arrive("charge.get");
+      // Proposed, not granted: the city limits go up dashed, and this is the
+      // wider set the Yard is about to complain about.
+      a.proposeScope(WIDE_SCOPE);
+      a.log("Scope proposed — nothing granted yet", "gate");
+    },
+  },
+  {
+    after: 1500,
+    run: (a) => {
+      // `probe`, not `settle`. The probes are evaluated against the compiled
+      // scope rather than sent anywhere, so counting them as calls would have
+      // the inspector say "Calls 1" beside a panel saying nothing was called.
+      a.probe("charge.get");
+      a.probe("customer.list");
       a.log("The Yard: 36 adversarial probes — nothing called, nothing spent", "plain");
     },
   },
   {
-    after: 2400,
+    after: 2600,
     run: (a) => {
-      a.settle("charge.get");
       a.yard({
         probesRun: 36,
         clean: false,
@@ -540,30 +597,35 @@ const OVER_REACH: readonly Step[] = [
           },
           {
             kind: "composition_reach",
-            severity: "note",
-            office: "charge.refund",
-            summary: "charge.find_by_order then charge.refund reaches a charge not named in the job",
-            detail: ["ord_184"],
-            remedy: "Bind charge_ids to the resolved charge rather than the order",
+            severity: "warning",
+            office: "customer.list",
+            summary: "customer.list is reachable and the job never needs it",
+            detail: ["14,000 customer records"],
+            remedy: "Drop customer.list from the scope",
           },
         ],
       });
-      a.log("GAP FOUND  charge.get returns customer.history — not needed for a refund", "refused");
+      a.log("GAP FOUND  charge.get returns customer.history; customer.list reachable", "refused");
     },
   },
   {
-    after: 3600,
-    run: (a) => a.log("Narrowing: projection on charge.get → id, amount, refunded", "gate"),
+    after: 3800,
+    run: (a) => {
+      // The narrowing itself. The proposed scope on the map is replaced by the
+      // tighter one, so the limits visibly contract before anything is granted.
+      a.proposeScope(NARROW_SCOPE);
+      a.log("Narrowed: charge.get projected, customer.list dropped", "gate");
+    },
   },
   {
-    after: 4400,
+    after: 4600,
     run: (a) => {
       a.yard({ probesRun: 36, clean: true, findings: [] });
       a.log("Re-probed. 36 probes, nothing over-reaching. Clean.", "allowed");
     },
   },
   {
-    after: 5200,
+    after: 5400,
     run: (a) => {
       a.grantScope();
       a.phase("running");

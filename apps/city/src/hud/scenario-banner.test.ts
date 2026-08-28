@@ -147,3 +147,43 @@ describe("scenario billing", () => {
     expect(SCENARIO_BILLING.overreach.watchFor).not.toMatch(/gate/i);
   });
 });
+
+describe("the over-reach run narrows something real", () => {
+  const source = readFileSync(fileURLToPath(new URL("../useMission.ts", import.meta.url)), "utf8");
+  const script = source.slice(
+    source.indexOf("const OVER_REACH"),
+    source.indexOf("];", source.indexOf("const OVER_REACH")),
+  );
+
+  it("proposes a wider scope and then a narrower one", () => {
+    // Logging "narrowed" while the scope never changes is the gap between
+    // stated and actual that this project exists to argue against, committed in
+    // the scenario meant to demonstrate it.
+    expect(script).toContain("a.proposeScope(WIDE_SCOPE)");
+    expect(script).toContain("a.proposeScope(NARROW_SCOPE)");
+    expect(script.indexOf("WIDE_SCOPE")).toBeLessThan(script.indexOf("NARROW_SCOPE"));
+  });
+
+  it("makes the wide scope genuinely wider", () => {
+    // A "wide" scope identical to the narrow one would render an identical map
+    // and narrow nothing.
+    const wide = source.slice(source.indexOf("const WIDE_SCOPE"), source.indexOf("};", source.indexOf("const WIDE_SCOPE")));
+    expect(wide).toContain('office: "customer.list", disposition: "allowed"');
+
+    const narrow = source.slice(source.indexOf("const NARROW_SCOPE"), source.indexOf("};", source.indexOf("const NARROW_SCOPE")));
+    expect(narrow).toContain('office: "customer.list", disposition: "blocked"');
+  });
+
+  it("probes without recording a call against the office", () => {
+    // `settle` increments the call counter, which the inspector renders as
+    // "Calls 1" beside a Yard panel saying nothing was called.
+    expect(script).toContain("a.probe(");
+    expect(script).not.toContain("a.settle(");
+  });
+
+  it("reports the finding for each office it probes", () => {
+    for (const office of ["charge.get", "customer.list"]) {
+      expect(script, `${office} probed but not reported`).toContain(`office: "${office}"`);
+    }
+  });
+});

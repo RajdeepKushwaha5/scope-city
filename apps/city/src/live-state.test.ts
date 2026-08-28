@@ -262,3 +262,68 @@ describe("a gate that nobody answered", () => {
     expect(state.phase).toBe("awaiting_countersign");
   });
 });
+
+/**
+ * The office view answers "what happened here". This answers "who did it",
+ * which is the only way to show that a subagent stayed inside the scope its
+ * parent was granted -- and therefore the only way the field panel can make a
+ * claim rather than a reassurance.
+ */
+describe("what each thread reached", () => {
+  const arrive = (threadId: string, office: string) =>
+    ({ type: "world", event: { type: "agent.arrived", threadId, office, at: 1 } }) as never;
+
+  it("records nothing before anyone works", () => {
+    expect(initialLiveCityState.threadWork).toEqual({});
+  });
+
+  it("keeps each thread's offices apart", () => {
+    let state = reduceLiveCity(initialLiveCityState, arrive("main", "charge.refund"));
+    state = reduceLiveCity(state, arrive("th-1", "ticket.get"));
+    state = reduceLiveCity(state, arrive("th-2", "charge.get"));
+
+    expect(state.threadWork).toEqual({
+      main: ["charge.refund"],
+      "th-1": ["ticket.get"],
+      "th-2": ["charge.get"],
+    });
+  });
+
+  it("does not repeat an office a thread returns to", () => {
+    // The panel lists where a worker went, not how often. A repeated tag reads
+    // as two different calls and invites someone to count them as evidence.
+    let state = reduceLiveCity(initialLiveCityState, arrive("th-1", "ticket.get"));
+    state = reduceLiveCity(state, arrive("th-1", "ticket.get"));
+
+    expect(state.threadWork["th-1"]).toEqual(["ticket.get"]);
+  });
+
+  it("survives the thread leaving the field", () => {
+    // A worker finishes and its figure goes; what it did stays true, and the
+    // operator reads this at the gate, which is after the workers are done.
+    let state = reduceLiveCity(initialLiveCityState, arrive("th-1", "ticket.get"));
+    state = reduceLiveCity(state, {
+      type: "world",
+      event: { type: "field.left", threadId: "th-1", at: 2 },
+    } as never);
+
+    expect(state.figures.some((f) => f.id === "th-1")).toBe(false);
+    expect(state.threadWork["th-1"]).toEqual(["ticket.get"]);
+  });
+});
+
+describe("what each thread was called", () => {
+  it("remembers the title after the worker leaves", () => {
+    let state = reduceLiveCity(initialLiveCityState, {
+      type: "world",
+      event: { type: "field.joined", threadId: "th-1", title: "Source investigator", at: 1 },
+    } as never);
+    state = reduceLiveCity(state, {
+      type: "world",
+      event: { type: "field.left", threadId: "th-1", at: 2 },
+    } as never);
+
+    expect(state.figures.some((f) => f.id === "th-1")).toBe(false);
+    expect(state.threadTitles["th-1"]).toBe("Source investigator");
+  });
+});

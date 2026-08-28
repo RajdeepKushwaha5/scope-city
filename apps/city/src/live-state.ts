@@ -38,6 +38,24 @@ export interface LiveCityState {
    * by re-parsing prose would break the first time a message was reworded.
    */
   readonly officeActivity: Readonly<Record<string, OfficeActivity>>;
+  /**
+   * Which offices each thread reached, keyed by thread id.
+   *
+   * Kept even after a thread leaves the field. A subagent finishes and its
+   * figure goes, but what it did stays true -- and the moment an operator most
+   * wants to read it is the gate, which is usually after the workers are done.
+   */
+  readonly threadWork: Readonly<Record<string, readonly string[]>>;
+  /**
+   * What the harness titled each thread, kept after the thread has gone.
+   *
+   * The figure is removed when a subagent finishes, and the title went with it
+   * -- so a panel read at the gate, which is after the workers are done, showed
+   * two anonymous "Field team" rows. The titles are the evidence that the
+   * delegation was purposeful rather than incidental, so they outlive the
+   * figure they were drawn beside.
+   */
+  readonly threadTitles: Readonly<Record<string, string | null>>;
   /** The most recent sandbox check, shown beside the gate it justifies. */
   readonly verification: {
     readonly script: string;
@@ -110,6 +128,8 @@ export const initialLiveCityState: LiveCityState = {
   proposedTtlMs: null,
   verification: null,
   officeActivity: {},
+  threadWork: {},
+  threadTitles: {},
 };
 
 function districtForOffice(office: string | null): string | null {
@@ -293,8 +313,17 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
           ? ["records", "exchequer", "post-house", "gate"]
           : [...new Set([...state.online, event.district])],
       };
-    case "agent.arrived":
-      return atOffice(moveAgent(state, event.office), event.office, { busy: true });
+    case "agent.arrived": {
+      // Recorded per thread as well as per office. The office view answers
+      // "what happened here"; this answers "who did it", which is the only way
+      // to show that a subagent stayed inside the scope its parent was granted.
+      const reached = state.threadWork[event.threadId] ?? [];
+      const next = reached.includes(event.office) ? state : {
+        ...state,
+        threadWork: { ...state.threadWork, [event.threadId]: [...reached, event.office] },
+      };
+      return atOffice(moveAgent(next, event.office), event.office, { busy: true });
+    }
     case "agent.finished":
       return atOffice(state, event.office, { busy: false });
     case "field.joined": {
@@ -302,6 +331,8 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       const plot = plotFor("exchequer")!;
       return {
         ...state,
+        // Recorded separately from the figure so it survives field.left.
+        threadTitles: { ...state.threadTitles, [event.threadId]: event.title },
         figures: [
           ...state.figures.filter((figure) => figure.id !== event.threadId),
           {

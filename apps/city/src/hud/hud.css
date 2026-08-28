@@ -373,10 +373,132 @@ body {
   color: var(--accent);
 }
 
+/*
+ * A tool the harness provides rather than an office the scope granted --
+ * `create_sub_agent`, `exec`. Deliberately colourless: it is neither approved
+ * nor refused, because the scope was never asked about it.
+ */
+.tag--harness {
+  border-style: dashed;
+  border-color: var(--panel-edge-lit);
+  color: var(--ink-dim);
+  opacity: 0.75;
+}
+
 .tag--blocked {
   border-color: var(--danger);
   color: var(--danger);
   text-decoration: line-through;
+}
+
+/* --- the field: who is working, and what binds them ---------------------- */
+
+/*
+ * The rows are listed apart and then visibly join. That is the argument the
+ * panel is making -- separate workers, one boundary -- so the brace is
+ * structural rather than decorative, and the rule above it is the join.
+ */
+.crew {
+  list-style: none;
+  margin: 0 0 8px;
+  padding: 0;
+}
+
+.crew__row {
+  display: grid;
+  grid-template-columns: 14px minmax(88px, auto) 1fr;
+  gap: 6px;
+  align-items: baseline;
+  padding: 3px 0;
+  border-bottom: 1px dotted var(--panel-edge);
+}
+
+.crew__row:last-child {
+  border-bottom: 0;
+}
+
+.crew__mark {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+/* The root is the thread the operator granted to. Everything else descends. */
+.crew__row--root .crew__mark {
+  color: var(--accent);
+}
+
+.crew__row--root .crew__name {
+  color: var(--ink);
+}
+
+.crew__name {
+  color: var(--ink-dim);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.crew__badge {
+  margin-left: 6px;
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: var(--accent-dim);
+  text-transform: uppercase;
+}
+
+.crew__row:not(.crew__row--root) .crew__name::before {
+  /* Indents the workers under the root without nesting a list, which would
+     imply a depth TrueForge subagents do not have -- they are one level deep
+     and cannot spawn their own. */
+  content: "└ ";
+  color: var(--panel-edge-lit);
+}
+
+.crew__offices {
+  text-align: right;
+}
+
+.crew__idle {
+  color: var(--ink-dim);
+  opacity: 0.6;
+  font-size: 10px;
+}
+
+.crew__bind {
+  display: grid;
+  grid-template-columns: 14px 1fr;
+  gap: 6px;
+  border-top: 1px solid var(--accent-dim);
+  padding-top: 7px;
+  color: var(--ink-dim);
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+.crew__bind strong {
+  color: var(--accent);
+  font-weight: 400;
+}
+
+/* The brace is the join: every row above ends at this one line. */
+.crew__brace {
+  border-left: 1px solid var(--accent-dim);
+  border-bottom: 1px solid var(--accent-dim);
+  height: 8px;
+  margin-left: 5px;
+  margin-top: -7px;
+}
+
+.crew__bind--broken {
+  border-top-color: var(--danger);
+}
+
+.crew__bind--broken strong {
+  color: var(--danger);
+}
+
+.crew__bind--broken .crew__brace {
+  border-color: var(--danger);
 }
 
 /* --- the log ------------------------------------------------------------ */

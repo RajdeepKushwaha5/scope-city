@@ -9,6 +9,7 @@ import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
 import { ScopeReview } from "./hud/ScopeReview.js";
 import { BuildingInspector } from "./hud/BuildingInspector.js";
+import { FieldPanel } from "./hud/FieldPanel.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { GateBeacon } from "./hud/GateBeacon.js";
@@ -161,27 +162,23 @@ export function App(): React.JSX.Element {
 
   // Derived once per state change and shared by the canvas and the inspector,
   // so the marker on a roof and the panel beside it cannot disagree.
-  const runtimeStates = useMemo(
-    // From whichever mission is on screen. Deriving from the live state while a
-    // recording played meant judge mode drew the idle live mission -- every
-    // office "not in scope" -- beside a replay showing the opposite.
-    () => buildingStates(
+  // Whichever mission is on screen. Deriving from the live state while a
+  // recording played meant judge mode drew the idle live mission -- every
+  // office "not in scope" -- beside a replay showing the opposite. Named once
+  // now that two things read it, so they cannot pick different missions.
+  const currentRaw = useMemo(
+    () =>
       live.active
         ? live.rawState
         : recorded.playing || recorded.record
           ? recorded.state
           : replay.rawState,
-      mission.offices,
-    ),
-    [
-      live.active,
-      live.rawState,
-      recorded.playing,
-      recorded.record,
-      recorded.state,
-      replay.rawState,
-      mission.offices,
-    ],
+    [live.active, live.rawState, recorded.playing, recorded.record, recorded.state, replay.rawState],
+  );
+
+  const runtimeStates = useMemo(
+    () => buildingStates(currentRaw, mission.offices),
+    [currentRaw, mission.offices],
   );
 
   const scene: SceneState = useMemo(
@@ -599,6 +596,12 @@ export function App(): React.JSX.Element {
             <BuildingInspector
               state={selectedOffice === null ? null : (runtimeStates.get(selectedOffice) ?? null)}
               onClose={() => setSelectedOffice(null)}
+            />
+            <FieldPanel
+              figures={mission.figures}
+              threadWork={currentRaw.threadWork}
+              threadTitles={currentRaw.threadTitles}
+              scope={mission.scope}
             />
             <YardPanel report={mission.yard} />
           </div>

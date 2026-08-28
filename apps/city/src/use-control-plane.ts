@@ -76,7 +76,19 @@ export async function probeControlPlane(
     // alone reported a control plane there -- the city offered to launch live
     // missions on the one URL judges actually visit, and every one of them
     // would have posted to an endpoint returning HTML.
-    const body: unknown = await response.json().catch(() => null);
+    // Read separately from the shape check, because the two failures are
+    // different facts. A body that parses and does not match is a host that
+    // answered something else; a body that never arrives is a host that stopped
+    // talking -- and the abort fires here too, when the headers came back and
+    // the body then stalled. Folding both into "not a control plane" reported a
+    // stalled connection as a static site.
+    let body: unknown;
+    try {
+      body = await response.json();
+    } catch (cause) {
+      const stalled = cause instanceof Error && cause.name === "AbortError";
+      return { available: false, reason: stalled ? "unreachable" : "not-a-control-plane" };
+    }
     if (!isHealth(body)) return { available: false, reason: "not-a-control-plane" };
 
     // Present either way. `ok: false` is the control plane reporting that the

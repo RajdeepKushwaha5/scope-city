@@ -83,6 +83,30 @@ describe("probeControlPlane", () => {
     expect(await probeControlPlane(refuse)).toEqual({ available: false, reason: "unreachable" });
   });
 
+  it("calls a stalled body unreachable, not a static host", async () => {
+    // The headers arrive and the body never does. Both failures used to land on
+    // the same branch, so a connection that died halfway was reported as a
+    // deployment with no backend -- two different problems, one wrong answer.
+    const stall = ((_url: string, init?: { signal?: AbortSignal }) =>
+      Promise.resolve({
+        ok: true,
+        status: 200,
+        json: () =>
+          new Promise((_resolve, reject) => {
+            init?.signal?.addEventListener("abort", () => {
+              const error = new Error("aborted");
+              error.name = "AbortError";
+              reject(error);
+            });
+          }),
+      } as unknown as Response)) as unknown as typeof fetch;
+
+    expect(await probeControlPlane(stall, 20)).toEqual({
+      available: false,
+      reason: "unreachable",
+    });
+  });
+
   it("gives up rather than hanging", async () => {
     // A host that accepts the connection and never answers would otherwise
     // leave the UI in `checking` forever, which reads as a broken page rather

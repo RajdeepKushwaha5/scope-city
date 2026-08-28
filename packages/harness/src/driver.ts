@@ -357,6 +357,54 @@ export function missionAgentSpec(params: {
       // described the thinking and not the work. "high" keeps the ceiling every
       // run has had, so only the lower settings change anything.
       iterationLimit: params.iterationLimit ?? iterationLimitFor(params.reasoningEffort),
+      /*
+       * Both of these are on by default, and were running unstated.
+       *
+       * Confirmed by asking the server what it stores for this exact spec:
+       * with no `contextManagement` sent, it comes back holding
+       * `compaction.enabled: true` and `largeToolResponse.enabled: true`.
+       * Written out here because a project whose argument is "state what the
+       * agent may do" should not be relying on two defaults that change what
+       * the model sees and where tool output is kept.
+       *
+       * Compaction stays on. It replaces older conversation history with a
+       * summary once the input passes the trigger, and the thing worth being
+       * clear about is that it cannot touch the record: the mission log is
+       * built from the harness event stream and the proxy's decisions, not
+       * from the model's conversation. A summarised history changes what the
+       * agent remembers, never what is attested to have happened. Turning it
+       * off would instead cap how long a delegated mission can run before the
+       * context fills, which is a real cost for no gain in evidence.
+       *
+       * Only `enabled` is sent. The documentation describes a
+       * `compaction.trigger` of `{ type: "input_tokens", value }`, and this
+       * server drops it: an agent created with a non-default trigger of 40000
+       * comes back holding `{ "compaction": { "enabled": true } }` and nothing
+       * else, in either spelling. Sending it anyway would be the same mistake
+       * as the snake_case one warned about above -- a setting that reads as
+       * configured and is not. The trigger the run actually gets is whatever
+       * the harness defaults to.
+       */
+      contextManagement: {
+        compaction: { enabled: true },
+        /*
+         * Also on, and it interacts with the boundary in a way worth stating.
+         *
+         * A tool response over the threshold is written to a file in the
+         * sandbox and replaced in context with a short preview and the path.
+         * What lands on that disk is whatever the proxy returned -- already
+         * projected down to the granted fields and already scanned for
+         * injected instructions -- so offloading relocates a response the
+         * scope has already filtered rather than smuggling one past it.
+         *
+         * It does not widen reach, and it is worth being precise about why:
+         * `maxResponseBytes` is still enforced by the proxy before any of this
+         * happens, so the file can only ever hold what the agent was allowed
+         * to receive. Offloading changes how much of it enters the model's
+         * context in one step, not how much the agent may have.
+         */
+        largeToolResponse: { enabled: true },
+      },
     },
   };
 }

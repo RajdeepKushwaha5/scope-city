@@ -143,6 +143,65 @@ within a session. Ships with git, curl, jq, ripgrep, tree, helm, zip and Python
 Sandbox-as-tool: the agent runs *outside* the sandbox and calls it over an API,
 so credentials never enter it. Provider is Daytona.
 
+## Two things that were on the whole time
+
+`config.context_management` is not something Scope City ever set, and both
+features under it default to on. Confirmed by asking the server what it stores
+for this exact spec -- send no `contextManagement` and it comes back holding:
+
+```json
+"contextManagement": {
+  "compaction":        { "enabled": true },
+  "largeToolResponse": { "enabled": true }
+}
+```
+
+So both have been live on every mission this project has ever run. They are
+declared explicitly now, because a project arguing "state what the agent may
+do" should not be relying on two undeclared defaults that change what the model
+sees and where tool output is kept.
+
+**Compaction** replaces older conversation history with a summary once the
+input passes a threshold. It stays on, and the thing worth being clear about is
+that it cannot touch the record: the mission log is built from the harness
+event stream and the proxy's decisions, never from the model's conversation. A
+summarised history changes what the agent remembers, not what is attested to
+have happened. Turning it off would only cap how long a delegated mission can
+run before its context fills.
+
+**Large tool response offloading** writes any response over the threshold
+(documented as 6,000 tokens) to a file in the sandbox, replacing it in context
+with a preview and the path. It requires a sandbox, and Scope City enables one
+on every mission.
+
+That interacts with the boundary, and the interaction is the right way round:
+what lands on that disk is whatever the proxy returned -- already projected
+down to the granted fields, already scanned for injected instructions. So
+offloading relocates a response the scope has already filtered rather than
+carrying one past it. `maxResponseBytes` is still enforced before any of this,
+so the file can only hold what the agent was allowed to receive. What changes
+is how much of it enters the model's context in one step, not how much the
+agent may have.
+
+### A second place the documentation and the harness disagree
+
+The docs describe `compaction.trigger` as `{ type: "input_tokens", value }`.
+This server drops it. An agent created with a deliberately non-default trigger
+of 40000 comes back holding `{ "compaction": { "enabled": true } }` and nothing
+else, in either spelling:
+
+```
+non-default trigger 40000: {"compaction":{"enabled":true},...}
+snake_case trigger:        {"compaction":{"enabled":true},...}
+disabled:                  {"compaction":{"enabled":false},...}
+```
+
+The third line matters: `enabled: false` survives, so this is a field being
+discarded rather than a response that only ever echoes defaults. So the trigger
+is not sent. A setting that reads as configured and is not is worse than an
+inherited default, and it is the same trap as writing snake_case keys the SDK
+accepts and drops.
+
 ## Code Mode, and whether it is a way round the scope
 
 An agent with a sandbox can write Python that calls MCP tools directly, bridged

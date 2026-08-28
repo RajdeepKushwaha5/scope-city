@@ -43,6 +43,16 @@ export interface AgentSpec {
     readonly dynamicSubAgents?: { readonly enabled?: boolean };
     readonly generativeUi?: { readonly enabled?: boolean };
     readonly askUserQuestions?: { readonly enabled?: boolean };
+    readonly contextManagement?: {
+      /**
+       * Only `enabled` is honoured by the server this was built against. The
+       * documented `trigger` is accepted and dropped, so it is not offered
+       * here -- a type that permits a setting the server discards invites
+       * someone to configure it and believe they have.
+       */
+      readonly compaction?: { readonly enabled?: boolean };
+      readonly largeToolResponse?: { readonly enabled?: boolean };
+    };
   };
 }
 

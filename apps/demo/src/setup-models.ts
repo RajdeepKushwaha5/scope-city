@@ -14,7 +14,10 @@
  * told a sequence of clicks.
  */
 
-import { readFileSync } from "node:fs";
+// Loads .env on import, before anything below reads the environment. The
+// same loader the control plane uses -- this file had kept its own copy,
+// which had never been given the precedence fix the shared one got.
+import "./load-env.js";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { REASONING_EFFORTS } from "@scope-city/harness";
 
@@ -27,24 +30,6 @@ import { REASONING_EFFORTS } from "@scope-city/harness";
  * availability moves, and hard-coding a model here would mean editing source
  * to react to that.
  */
-/** Load .env without a dependency: this runs once, by hand, before anything else. */
-function loadEnv(): void {
-  try {
-    const text = readFileSync(new URL("../../../.env", import.meta.url), "utf8");
-    for (const raw of text.split("\n")) {
-      const line = raw.trim();
-      if (!line || line.startsWith("#")) continue;
-      const eq = line.indexOf("=");
-      if (eq < 1) continue;
-      const key = line.slice(0, eq).trim();
-      const value = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {
-    // No .env is fine; the variables may already be exported.
-  }
-}
-
 interface Slot {
   /** Provider name in TrueForge. Also the label the pool reports. */
   readonly provider: string;
@@ -167,8 +152,6 @@ function localSlots(): readonly Slot[] {
 }
 
 async function main(): Promise<void> {
-  loadEnv();
-
   const baseUrl = process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790";
   const sharedModelId = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 

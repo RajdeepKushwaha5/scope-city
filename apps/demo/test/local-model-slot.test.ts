@@ -26,6 +26,17 @@ describe("the local slot", () => {
     expect(setup).toContain("if (!host) return [];");
   });
 
+  it("uses the shared env loader rather than a copy of it", () => {
+    // This file had its own eight-line .env parser, and that copy still keyed
+    // precedence on truthiness: an explicitly exported `OLLAMA_HOST=` was
+    // treated as absent and replaced by the .env value, so the operator could
+    // turn the local model on but not off. The shared loader had already been
+    // fixed to key on presence; the duplicate never got the fix.
+    expect(setup).toContain('import "./load-env.js"');
+    expect(setup).not.toContain("function loadEnv");
+    expect(setup).not.toContain("readFileSync");
+  });
+
   it("reads the environment after .env is loaded, not at import", () => {
     // `.env` is loaded by main, so a module-level read sees nothing -- which
     // made the documented way of configuring this the one way that did not

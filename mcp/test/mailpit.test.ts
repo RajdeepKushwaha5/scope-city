@@ -6,6 +6,21 @@ import { mailpitSystem } from "../src/systems/mailpit.js";
  * against a real Mailpit by hand; what matters here is that the office behaves
  * the same way the fixture does and does not over-report.
  */
+
+/** A port the OS has just confirmed is free, so nothing can be listening on it. */
+async function closedPort(): Promise<number> {
+  const { createServer } = await import("node:net");
+  return await new Promise<number>((resolve, reject) => {
+    const server = createServer();
+    server.once("error", reject);
+    server.listen(0, "127.0.0.1", () => {
+      const address = server.address();
+      const port = typeof address === "object" && address ? address.port : 0;
+      server.close(() => resolve(port));
+    });
+  });
+}
+
 describe("the Mailpit-backed Post House", () => {
   const system = mailpitSystem({ host: "127.0.0.1", port: 65_535 });
 
@@ -57,10 +72,16 @@ describe("the port it is given", () => {
     // This error reaches the agent through a tool result. An agent that cannot
     // see the mail server should not learn its address by failing to reach it.
     //
-    // A closed port on localhost rather than an unroutable address: the refusal
-    // is immediate, where a blackhole makes this wait out the full connect
-    // timeout and turns a unit test into a twenty-second one.
-    const send = mailpitSystem({ host: "127.0.0.1", port: 9 }).offices.find(
+    // A port nothing is listening on, found rather than assumed. Port 9 refuses
+    // immediately on most machines and is the discard service on some, where
+    // this would connect and then hang. Binding to port 0 and closing gets one
+    // the OS has just confirmed free.
+    //
+    // Localhost rather than an unroutable address on purpose: the refusal is
+    // immediate, where a blackhole makes this wait out the full connect timeout
+    // and turns a unit test into a twenty-second one.
+    const port = await closedPort();
+    const send = mailpitSystem({ host: "127.0.0.1", port }).offices.find(
       (o) => o.office === "mail.send",
     )!;
 
@@ -71,6 +92,6 @@ describe("the port it is given", () => {
 
     expect(error, "the send should have failed").not.toBeNull();
     expect(error!.message).not.toContain("127.0.0.1");
-    expect(error!.message).not.toContain("port 9");
+    expect(error!.message).not.toContain(String(port));
   });
 });

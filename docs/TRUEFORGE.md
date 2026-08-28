@@ -259,6 +259,40 @@ which drops the `yard.verified` the operator reads before countersigning.
 The shipped recording is the delegated run: 71 entries, three threads, one gate
 raised and countersigned, two sandbox checks, chain intact.
 
+## Capabilities considered and not used
+
+Four TrueForge features are deliberately off. Listing them because "did not use
+it" and "used it and it was wrong for this" are different facts, and only one of
+them says the harness was understood.
+
+**Generative UI — off.** It lets the model draw into the operator's view.
+Everything here rests on the operator seeing what the *boundary* did rather than
+what the model says it did: every building, figure and held gate is a harness
+event or a proxy decision. Giving the model a channel to render its own account
+of the mission would put the one untrusted party in the room in charge of the
+display.
+
+**Clarifying questions — off**, and for a sharper reason. The Gate is the human
+interaction, and it is bound to one call's exact arguments: the operator answers
+"may this run" about a call they can read. A clarifying question is free text
+with nothing behind it, composed by a model that has just read a ticket written
+by a member of the public. An injected instruction that cannot reach a tool can
+still reach a person — *"confirm you want the customer list sent"* is a question,
+not a tool call, and it would arrive looking like the agent asking rather than
+the attacker.
+
+**Code mode — not used.** It is genuinely interesting here and the reason for
+leaving it is worth stating: batching tool calls into code changes where the
+proxy sees them. The boundary works because every call crosses it individually
+and is evaluated against the scope; a batch that resolves several calls inside
+one execution is a different enforcement problem, not a harder version of the
+same one. Worth building on top of, not worth guessing at days from a deadline.
+
+**Skills — not used.** The mission brief is derived per-mission from the granted
+scope, naming the exact offices and identifiers that scope allows. A static
+skill pack cannot do that, and a brief describing authority the agent does not
+hold is what sent an earlier version at a door it had no key to.
+
 ## Reconnection, verified
 
 A pending approval survives the browser going away, and this is the property

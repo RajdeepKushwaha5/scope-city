@@ -107,6 +107,14 @@ Eleven harness event types are translated into what the city draws
 every held gate is an event from TrueForge or a decision from the proxy — none
 of it is on a timer.
 
+Four other capabilities are deliberately off — generative UI, clarifying
+questions, code mode and skills — and
+[docs/TRUEFORGE.md](docs/TRUEFORGE.md#capabilities-considered-and-not-used) says
+why for each. The short version: generative UI would let the model draw its own
+account of the mission into the operator's view, and clarifying questions are an
+unbound channel from a model that has just read an attacker's text to the person
+approving its work.
+
 What the harness does **not** do is enforce the scope. That is deliberate and it
 is the point of the project: the approval gate asks a human, and the proxy asks
 nobody. A scope stops what should never happen; a gate pauses what should happen

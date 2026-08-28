@@ -65,3 +65,33 @@ describe("closing the proxy", () => {
     await second.close();
   });
 });
+
+describe("starting the proxy", () => {
+  it("says what is wrong when the port is taken", async () => {
+    // The most likely first-run failure: starting the demo twice. Node reports
+    // it as an unhandled 'error' event, so before this the process died with a
+    // stack trace ending in `Server.setupListenHandle` -- which names nothing
+    // the caller did and reads as the project being broken.
+    const first = await startProxyHttp({
+      registry: new MissionRegistry(),
+      port: 0,
+      host: "127.0.0.1",
+      token: "t",
+    });
+    const address = first.server.address();
+    const port = typeof address === "object" && address ? address.port : 0;
+
+    const second = startProxyHttp({
+      registry: new MissionRegistry(),
+      port,
+      host: "127.0.0.1",
+      token: "t",
+    });
+
+    await expect(second).rejects.toThrow(/already in use/);
+    // And it says what to do about it, which is the part that saves the time.
+    await expect(second).rejects.toThrow(/SCOPE_PROXY_PORT/);
+
+    await first.close();
+  });
+});

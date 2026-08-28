@@ -85,6 +85,88 @@ const BRIEF = [
   "Then report the printed output verbatim. Do not stop at the first error.",
 ].join("\n");
 
+interface Attempt {
+  readonly status: string;
+  readonly why: string;
+  /** Whatever the sandbox script printed, unwrapped from the tool envelope. */
+  readonly output: string;
+}
+
+/**
+ * One model's go at the probe.
+ *
+ * Given its own function so the model loop stays readable, and because the two
+ * awkward parts -- the deadline and the abandoned stream -- belong together
+ * where they can be explained once.
+ */
+async function attempt(
+  driver: HarnessDriver,
+  sessionId: string,
+  budgetMs: number,
+): Promise<Attempt> {
+  let status = "";
+  let why = "";
+  let output = "";
+
+  // Raced against a timer rather than checked inside the loop.
+  //
+  // `for await` blocks between events, so a deadline tested per event never
+  // fires for the failure that most needs it: a model that accepts the job and
+  // then emits nothing. Cancelling the session is what ends the stream.
+  const consume = async (): Promise<void> => {
+    for await (const event of driver.runTurn(sessionId, [
+      { type: "user.message", content: "Run the script now." },
+    ])) {
+      const e = event as {
+        type: string;
+        content?: unknown;
+        state?: { status?: string; message?: string };
+      };
+      if (e.type === "tool.response") {
+        const text = typeof e.content === "string" ? e.content : JSON.stringify(e.content);
+        // The sandbox wraps stdout in its own envelope, so the printed lines
+        // are pulled back out and unescaped.
+        const result = /"result":"((?:[^"\\]|\\.)*)"/.exec(String(text))?.[1];
+        if (result) output += result.replaceAll("\\n", "\n").replaceAll('\\"', '"') + "\n";
+      }
+      if (e.type === "turn.done") {
+        status = e.state?.status ?? "";
+        why = e.state?.message ?? "";
+      }
+    }
+  };
+
+  let timer: NodeJS.Timeout | undefined;
+  const gaveUp = new Promise<void>((resolve) => {
+    timer = setTimeout(() => {
+      why = `no answer in ${Math.round(budgetMs / 1000)}s`;
+      void driver.cancel(sessionId).catch(() => undefined);
+      resolve();
+    }, budgetMs);
+  });
+
+  // The losing side of the race is still running.
+  //
+  // Cancelling the session should end the stream, but if it does not, the
+  // pending `consume()` holds the event loop open and the probe prints its
+  // verdict and then never exits -- which reads as it having hung at exactly
+  // the moment it finished. Its rejection is swallowed too: nothing awaits it
+  // any more, and an unhandled rejection from an abandoned stream would take
+  // the process down after the result had already been reported.
+  const running = consume();
+  running.catch(() => undefined);
+
+  try {
+    await Promise.race([running, gaveUp]);
+  } catch (error) {
+    why = error instanceof Error ? error.message : String(error);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+
+  return { status, why, output };
+}
+
 async function main(): Promise<void> {
   const registry = new MissionRegistry();
   const token = newProxyToken();
@@ -125,72 +207,28 @@ async function main(): Promise<void> {
   let lastError = "";
 
   for (const model of candidates) {
+    // Cleared per model, so a verdict is never judged against what a previous
+    // key's half-finished attempt happened to leave behind.
     boundary.length = 0;
-    output = "";
     const sessionId = await driver.createSession(
       missionAgentSpec({
         model,
         proxyName: name,
         gatedTools: [...fixture.scope.countersignRequired],
         sandbox: true,
-        instructions: BRIEF.replace(/__SERVER__/g, name),
+        instructions: BRIEF.replaceAll("__SERVER__", name),
       }),
     );
 
-    let status = "";
-    let why = "";
+    const run = await attempt(driver, sessionId, PER_MODEL_MS);
+    output = run.output;
 
-    // Raced against a timer rather than checked inside the loop.
-    //
-    // `for await` blocks between events, so a deadline tested per event never
-    // fires for the failure that needs it most: a model that accepts the job
-    // and then emits nothing. Cancelling the session is what ends the stream.
-    const consume = async (): Promise<void> => {
-      for await (const event of driver.runTurn(sessionId, [
-        { type: "user.message", content: "Run the script now." },
-      ])) {
-        const e = event as {
-          type: string;
-          content?: unknown;
-          state?: { status?: string; message?: string };
-        };
-        if (e.type === "tool.response") {
-          const text = typeof e.content === "string" ? e.content : JSON.stringify(e.content);
-          // The sandbox wraps stdout in its own envelope, so the printed lines
-          // are pulled back out and unescaped.
-          const result = /"result":"((?:[^"\\]|\\.)*)"/.exec(String(text))?.[1];
-          if (result) output += result.replace(/\\n/g, "\n").replace(/\\"/g, '"') + "\n";
-        }
-        if (e.type === "turn.done") {
-          status = e.state?.status ?? "";
-          why = e.state?.message ?? "";
-        }
-      }
-    };
-
-    let timer: NodeJS.Timeout | undefined;
-    const gaveUp = new Promise<void>((resolve) => {
-      timer = setTimeout(() => {
-        why = `no answer in ${Math.round(PER_MODEL_MS / 1000)}s`;
-        void driver.cancel(sessionId).catch(() => undefined);
-        resolve();
-      }, PER_MODEL_MS);
-    });
-
-    try {
-      await Promise.race([consume(), gaveUp]);
-    } catch (error) {
-      why = error instanceof Error ? error.message : String(error);
-    } finally {
-      if (timer) clearTimeout(timer);
-    }
-
-    if (status === "done") {
+    if (run.status === "done") {
       used = model;
       break;
     }
-    lastError = `${model}: ${status} ${why}`.trim();
-    console.log(`  ${model} could not run it (${why || status}); trying the next key`);
+    lastError = `${model}: ${run.status} ${run.why}`.trim();
+    console.log(`  ${model} could not run it (${run.why || run.status}); trying the next key`);
   }
 
   await proxy.close();

@@ -36,6 +36,17 @@ export interface MissionRunOptions {
   readonly onRaw?: (event: TurnEvent) => void;
   /** Guards against a model that gates forever. */
   readonly maxTurns?: number;
+  /**
+   * Carry on an interrupted session rather than starting the job again.
+   *
+   * A rate limit ends the turn, not the session: TrueForge keeps the
+   * conversation, so the agent still knows every record it has read and every
+   * check it has run. Re-sending the brief would make it start from nothing on
+   * a session that already holds the work.
+   *
+   * Set when the control plane is retrying after waiting out a cooling key.
+   */
+  readonly resuming?: boolean;
 }
 
 export interface MissionResult {
@@ -103,9 +114,14 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
     }
   };
 
-  await consume(
-    driver.runTurn(sessionId, [{ type: "user.message", content: options.prompt }]),
-  );
+  // A nudge, not the brief, when picking a session back up. The agent has the
+  // job and everything it has already established; what it needs is to be told
+  // to carry on rather than to be handed the task a second time.
+  const opening = options.resuming
+    ? "You were interrupted. Continue from where you stopped. Do not repeat work you have already done."
+    : options.prompt;
+
+  await consume(driver.runTurn(sessionId, [{ type: "user.message", content: opening }]));
   turns += 1;
 
   while (pending.length > 0 && turns < maxTurns) {

@@ -735,6 +735,9 @@ async function main(): Promise<void> {
       // than left to guess.
       const poolDeadline = Date.now() + POOL_WAIT_BUDGET_MS;
 
+      /** A session worth picking back up, rather than replacing. */
+      let resumeSessionId: string | undefined;
+
       for (;;) {
         const model = pool.next(Date.now());
 
@@ -754,8 +757,38 @@ async function main(): Promise<void> {
         }
 
         let attemptSessionId: string | undefined;
+        let resumedThisAttempt = false;
+        const feedBeforeAttempt = live.feed.latest;
         try {
-          attemptSessionId = await driver.createSession(
+          // Carry an interrupted session forward instead of replacing it.
+          //
+          // A rate limit ends the turn, not the session. TrueForge keeps the
+          // conversation, so an agent that has already read the ticket, checked
+          // the charge and run its sandbox script still knows all of it --
+          // creating a new session throws every bit of that away and starts the
+          // job from the top on a fresh key.
+          //
+          // That is why delegated missions could not finish. Delegation fires
+          // enough calls at once to trip a per-minute limit partway through,
+          // and each rotation then discarded the progress that had been made
+          // before the trip. Availability rotated; work did not. Seven attempts
+          // in one measured run, none of them reaching the gate.
+          //
+          // So a rate limit on a session that has already done something waits
+          // for the key rather than abandoning the work. Anything else -- a
+          // rejected credential, an exhausted quota, a malformed spec -- is not
+          // going to improve by waiting, and still rotates.
+          if (resumeSessionId !== undefined) {
+            attemptSessionId = resumeSessionId;
+            resumedThisAttempt = true;
+            resumeSessionId = undefined;
+            live.sessionId = attemptSessionId;
+            live.feed.append({
+              type: "mission.status",
+              status: "running",
+              detail: `${model} resumed; the session kept its work`,
+            });
+          } else attemptSessionId = await driver.createSession(
             missionAgentSpec({
               model,
               proxyName,
@@ -797,6 +830,10 @@ async function main(): Promise<void> {
             scope: live.scope,
             book,
             prompt: live.order,
+            // A resumed session already has the brief and the work. Sending the
+            // order again would set it going from the beginning on a
+            // conversation that remembers doing it.
+            resuming: resumedThisAttempt,
             maxTurns: 8,
             decide: (gate: GateRequest) => live.gates.wait(gate),
             onRaw: (event) => {
@@ -839,13 +876,33 @@ async function main(): Promise<void> {
           return;
         } catch (error) {
           lastError = error;
-          if (attemptSessionId) {
+          const kind = classifyFailure(error);
+
+          // Kept, not cancelled, when the key is the only thing that failed.
+          //
+          // `progressed` is the test that matters: a session that has raised a
+          // gate or made a proxy call holds work worth more than a fresh start.
+          // One that fell over before doing anything has nothing to carry, so
+          // there is no reason to prefer it over the next model.
+          const progressed = live.feed.latest > feedBeforeAttempt;
+          const keepSession = kind === "rate_limited" && progressed && attemptSessionId !== undefined;
+
+          if (attemptSessionId && !keepSession) {
             await driver.cancel(attemptSessionId).catch(() => undefined);
             if (live.sessionId === attemptSessionId) live.sessionId = undefined;
           }
           if (isTerminalMissionStatus(live.status)) return;
-          const kind = classifyFailure(error);
           if (!isWorthRotating(kind)) throw error;
+
+          if (keepSession) {
+            resumeSessionId = attemptSessionId;
+            live.feed.append({
+              type: "mission.status",
+              status: "starting",
+              detail: `${model} rate limited; holding the session and waiting`,
+            });
+          }
+
           pool.penalise(model, kind, Date.now());
           live.feed.append({
             type: "mission.status",

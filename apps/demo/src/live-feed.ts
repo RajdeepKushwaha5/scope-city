@@ -23,6 +23,17 @@ export class MissionFeed {
     return entry;
   }
 
+  /**
+   * The sequence of the last event appended.
+   *
+   * Read by the control plane to tell an attempt that did something from one
+   * that fell over immediately: a session holding real work is worth waiting
+   * for a cooling key, an empty one is not.
+   */
+  get latest(): number {
+    return this.#log.latest;
+  }
+
   since(cursor: number): Replay<CityFeedEvent> {
     return this.#log.since(cursor);
   }

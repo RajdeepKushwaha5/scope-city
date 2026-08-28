@@ -102,7 +102,21 @@ const INJECTION_PATTERNS: readonly RegExp[] = [
   /you\s+are\s+now\s+/i,
   /system\s*:\s*/i,
   /\bnew\s+instructions?\b/i,
-  /</i,
+  // Tag-style framing, not a bare `<`.
+  //
+  // This was `/</i`, which flags any string containing a less-than sign. In
+  // practice that meant `Support <support@example.test>` -- the ordinary way
+  // to write an address, and the form this project's own mailer emits -- an
+  // HTML ticket body, and `amount < 5000` were all reported as injection
+  // attempts. A marker that fires on a mail header is one an operator learns
+  // to ignore, and then it is worth less than nothing: the city would go on
+  // claiming an attack was detected while the claim meant only that a `<`
+  // had gone past.
+  //
+  // What was worth catching is content shaped like turn framing, which is how
+  // an injection tries to look like the harness rather than like data.
+  /<\s*\/?\s*(system|assistant|user|instructions?|prompt)\s*>/i,
+  /<\|[^|]*\|>/,
   /\bact\s+as\b/i,
 ];
 

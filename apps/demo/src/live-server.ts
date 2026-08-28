@@ -6,8 +6,10 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  initialState,
   iterationLimitFor,
   parseReasoningEffort,
+  type TranslatorState,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
 import {
@@ -737,15 +739,22 @@ async function main(): Promise<void> {
       const poolDeadline = Date.now() + POOL_WAIT_BUDGET_MS;
 
       /**
-       * A session worth picking back up, and the model it is bound to.
+       * A session worth picking back up: the model it is bound to, the work
+       * it already holds, and how far the reading of it had got.
        *
        * An agent spec names its model at creation and cannot be re-pointed, so
        * a resumed session runs on the model it started with whatever the pool
        * would have chosen next. Carrying the name means the loop waits for
        * *that* key and penalises *that* key -- without it the pool credits and
        * blames a model the session never used.
+       *
+       * The translator state travels with it because the session continues but
+       * a fresh reader cannot pair a completion with a start it never saw. See
+       * `MissionRunOptions.translator`.
        */
-      let resume: { sessionId: string; model: string } | undefined;
+      let resume:
+        | { sessionId: string; model: string; translator: TranslatorState }
+        | undefined;
 
       for (;;) {
         // A held session pins the choice. Anything else is picking a fresh key
@@ -769,9 +778,17 @@ async function main(): Promise<void> {
 
         let attemptSessionId: string | undefined;
         let resumedThisAttempt = false;
+        let translator = resume?.translator;
         // Set from the event stream rather than inferred from the feed cursor,
         // which also advances for the control plane's own status messages.
-        let didWorkThisAttempt = false;
+        //
+        // Seeded true when resuming, because the work belongs to the session
+        // and not to the turn that produced it. Starting each attempt at false
+        // meant a held session that was rate limited again before emitting
+        // anything new looked like it had done nothing, and was cancelled --
+        // throwing away everything the earlier attempts had established, which
+        // is the exact failure this whole path exists to prevent.
+        let didWorkThisAttempt = resume !== undefined;
         try {
           // Carry an interrupted session forward instead of replacing it.
           //
@@ -847,6 +864,15 @@ async function main(): Promise<void> {
             // order again would set it going from the beginning on a
             // conversation that remembers doing it.
             resuming: resumedThisAttempt,
+            // Carried so completions can still be matched to the starts that
+            // happened before the interruption.
+            ...(translator ? { translator } : {}),
+            // Kept as the stream is read rather than taken from the result: a
+            // rate limit throws out of the turn, so the result never arrives
+            // on the one path that needs this.
+            onState: (state) => {
+              translator = state;
+            },
             maxTurns: 8,
             decide: (gate: GateRequest) => live.gates.wait(gate),
             onRaw: (event) => {
@@ -914,7 +940,11 @@ async function main(): Promise<void> {
           if (!isWorthRotating(kind)) throw error;
 
           if (keepSession && attemptSessionId !== undefined) {
-            resume = { sessionId: attemptSessionId, model };
+            resume = {
+              sessionId: attemptSessionId,
+              model,
+              translator: translator ?? initialState(),
+            };
             live.feed.append({
               type: "mission.status",
               status: "starting",

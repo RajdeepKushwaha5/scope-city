@@ -267,3 +267,60 @@ describe("checkFingerprint — the binding the proxy actually uses", () => {
     });
   });
 });
+
+/**
+ * A countersign is spent when the call it guarded runs, and the verdict is
+ * deleted so it can never be reused. That deletion left the replay guard blind
+ * to precisely the gates that had been used -- which is when replaying one is
+ * worst.
+ */
+describe("a spent countersign is not offered again", () => {
+  it("recognises a gate whose approval has already been spent", () => {
+    const book = new CountersignBook();
+    raise(book);
+    book.settle("tc1", { status: "approved", at: NOW });
+
+    const fingerprint = book.pending("tc1")!.fingerprint;
+    expect(book.consumeFingerprint(fingerprint).approved).toBe(true);
+
+    // The refund has now happened. A resumed session replaying the approval
+    // request must not put it back in front of the operator: they would be
+    // asked to authorise a payment already made, with no way to tell the
+    // repeat from a second genuine request.
+    expect(book.settled("tc1")).toBe(true);
+  });
+
+  it("does not turn that memory into a reusable approval", () => {
+    // The tombstone must not become a way to spend one countersign twice,
+    // which would be a worse bug than the one it fixes.
+    const book = new CountersignBook();
+    raise(book);
+    book.settle("tc1", { status: "approved", at: NOW });
+    const fingerprint = book.pending("tc1")!.fingerprint;
+    book.consumeFingerprint(fingerprint);
+
+    expect(book.consumeFingerprint(fingerprint).approved).toBe(false);
+    expect(book.check("tc1", fingerprint).approved).toBe(false);
+  });
+
+  it("remembers a refusal too", () => {
+    // A denial is a decision. Replaying it should not give the agent a second
+    // chance at a question the operator has already said no to.
+    const book = new CountersignBook();
+    raise(book);
+    book.settle("tc1", { status: "denied", reason: "not in scope", at: NOW });
+    book.close("tc1");
+
+    expect(book.settled("tc1")).toBe(true);
+  });
+
+  it("lets an expired gate be asked again", () => {
+    // Nothing ran, so the operator missed their chance rather than used it.
+    // A tombstone here would silently drop a request never answered.
+    const book = new CountersignBook();
+    raise(book);
+    expect(book.sweep(NOW + 60_000, 30_000)).toEqual(["tc1"]);
+
+    expect(book.settled("tc1")).toBe(false);
+  });
+});

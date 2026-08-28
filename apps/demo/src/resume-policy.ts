@@ -19,6 +19,11 @@ export interface AttemptOutcome {
    * *before* the turn starts, so a cursor comparison is true even for an
    * attempt whose first call failed. Only work the agent or the boundary did
    * counts: an office reached, a call judged, a gate raised.
+   *
+   * Asked of the session, not of the turn. A held session that is limited
+   * again before it emits anything new still holds everything the earlier
+   * attempts established, so the caller carries this forward across a resume
+   * rather than recomputing it from one turn's events.
    */
   readonly didWork: boolean;
   readonly sessionId: string | undefined;

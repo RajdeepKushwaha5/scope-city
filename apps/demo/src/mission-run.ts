@@ -1,6 +1,12 @@
 import { randomBytes } from "node:crypto";
 import type { HarnessDriver } from "@scope-city/harness";
-import { initialState, translate, type TurnEvent, type WorldEvent } from "@scope-city/harness";
+import {
+  initialState,
+  translate,
+  type TranslatorState,
+  type TurnEvent,
+  type WorldEvent,
+} from "@scope-city/harness";
 import type { CountersignBook } from "@scope-city/mission";
 import type { Scope } from "@scope-city/scope";
 
@@ -47,6 +53,27 @@ export interface MissionRunOptions {
    * Set when the control plane is retrying after waiting out a cooling key.
    */
   readonly resuming?: boolean;
+  /**
+   * What the translator had learned before the interruption.
+   *
+   * The session continues; the reading of it has to continue too. Thread ids
+   * and tool-call ids are matched against state built as the stream arrives,
+   * so a fresh translator cannot pair a completion with a start it never saw.
+   * A subagent that finishes after the resume stays on the map as though it
+   * were still working, and a sandbox result loses the office it belongs to --
+   * which drops the `yard.verified` the operator is meant to read before
+   * countersigning. Losing that means approving a transfer with its
+   * verification invisible.
+   */
+  readonly translator?: TranslatorState;
+  /**
+   * Hands back the reading state as it advances.
+   *
+   * A rate limit throws out of the turn, so the returned result never arrives
+   * on the path where this matters most. The caller keeps the latest state as
+   * it goes and gives it to the next attempt.
+   */
+  readonly onState?: (state: TranslatorState) => void;
 }
 
 export interface MissionResult {
@@ -54,13 +81,15 @@ export interface MissionResult {
   readonly message?: string;
   readonly turns: number;
   readonly gates: number;
+  /** The reading state at the end, for a caller that may have to resume. */
+  readonly translator: TranslatorState;
 }
 
 export async function runMission(options: MissionRunOptions): Promise<MissionResult> {
   const { driver, sessionId, scope, book, decide, onEvent, onRaw } = options;
   const maxTurns = options.maxTurns ?? 8;
 
-  let translator = initialState();
+  let translator = options.translator ?? initialState();
   let pending: GateRequest[] = [];
   let status = "unknown";
   let message: string | undefined;
@@ -81,6 +110,7 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
 
       const result = translate(event, translator, Date.now());
       translator = result.state;
+      options.onState?.(translator);
 
       for (const worldEvent of result.events) {
         onEvent(worldEvent);
@@ -158,7 +188,7 @@ export async function runMission(options: MissionRunOptions): Promise<MissionRes
     turns += 1;
   }
 
-  return { status, ...(message ? { message } : {}), turns, gates };
+  return { status, ...(message ? { message } : {}), turns, gates, translator };
 }
 
 /**

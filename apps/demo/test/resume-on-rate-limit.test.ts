@@ -118,7 +118,26 @@ describe("a resumed session stays on its own model", () => {
     // resumed session runs on the model it started with. Letting the loop
     // choose meant the pool credited and blamed a model the session never used.
     expect(server).toContain("resume?.model ?? pool.next(Date.now())");
-    expect(server).toContain("resume = { sessionId: attemptSessionId, model }");
+    // Matched on the fields rather than the whole expression, which was
+    // pinning the formatting: adding the translator to what a held session
+    // carries reflowed the line and failed a test about model choice.
+    expect(server).toMatch(/resume = \{[\s\S]{0,200}?sessionId: attemptSessionId,[\s\S]{0,120}?model,/);
+  });
+
+  it("carries the reading of the session, not only the session", () => {
+    // A fresh translator cannot pair a completion with a start it never saw,
+    // so a sandbox result arriving after the resume loses the office it
+    // belongs to -- and with it the yard.verified the operator reads before
+    // countersigning.
+    expect(server).toContain("translator: translator ?? initialState()");
+    expect(server).toMatch(/\.\.\.\(translator \? \{ translator \} : \{\}\)/);
+  });
+
+  it("does not forget earlier work when a held session is limited again", () => {
+    // Progress belongs to the session. Starting each attempt at false meant a
+    // second immediate rate limit cancelled a session holding everything the
+    // mission had achieved.
+    expect(server).toContain("let didWorkThisAttempt = resume !== undefined;");
   });
 
   it("cancels a held session that is never picked up", () => {

@@ -4,7 +4,7 @@ import { soundEngine } from "./sound-engine.js";
 export interface CommandItem {
   id: string;
   title: string;
-  category: "Districts" | "Offices" | "Actions" | "Replays";
+  category: "The comparison" | "Districts" | "Offices" | "Actions" | "Replays";
   detail?: string;
   onSelect: () => void;
 }

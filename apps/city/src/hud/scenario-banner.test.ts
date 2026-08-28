@@ -272,3 +272,44 @@ describe("the quick-nav pills", () => {
     expect(pill).not.toContain("playRefusal");
   });
 });
+
+/**
+ * The two halves of the argument have to read as two halves.
+ *
+ * They were two entries in a list of five, in the order they happened to be
+ * written, with the unscoped run last and described neutrally. A visitor
+ * pressed whichever came first and watched a mission succeed -- the least
+ * surprising outcome here -- and the comparison that is the entire claim never
+ * happened. Order is content in a demo, so it is checked.
+ */
+describe("the same ticket, twice", () => {
+  const order = readFileSync(
+    fileURLToPath(new URL("../../src/hud/MissionOrder.tsx", import.meta.url)),
+    "utf8",
+  );
+  const app = readFileSync(fileURLToPath(new URL("../../src/App.tsx", import.meta.url)), "utf8");
+
+  it("numbers both runs so neither reads as a standalone scenario", () => {
+    expect(SCENARIO_BILLING.noscope.name).toMatch(/1 of 2/);
+    expect(SCENARIO_BILLING.poisoned.name).toMatch(/2 of 2/);
+  });
+
+  it("puts the unscoped run first, where it has something to be different from", () => {
+    const withoutAt = order.indexOf("1 · Without a scope");
+    const withAt = order.indexOf("2 · With a scope");
+
+    expect(withoutAt).toBeGreaterThan(-1);
+    expect(withAt).toBeGreaterThan(withoutAt);
+  });
+
+  it("says out loud that the unscoped run is the one to watch first", () => {
+    expect(SCENARIO_BILLING.noscope.watchFor).toMatch(/run this first/i);
+  });
+
+  it("groups them apart from the other replays in the palette", () => {
+    // A category of their own, so search and the grouped list both keep the
+    // pair together rather than filing them among four unrelated runs.
+    expect(app).toContain('category: "The comparison"');
+    expect(app.match(/category: "The comparison"/g)).toHaveLength(2);
+  });
+});

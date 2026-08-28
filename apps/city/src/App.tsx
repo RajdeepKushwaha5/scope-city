@@ -436,6 +436,33 @@ export function App(): React.JSX.Element {
 
   const commandItems: readonly CommandItem[] = useMemo(
     () => [
+      /*
+       * The two halves of the argument, first and adjacent.
+       *
+       * These were two entries in a list of five, in the order they happened to
+       * be written -- "No scope" last, described neutrally. They are not five
+       * things. They are one experiment run twice: the same poisoned ticket,
+       * once with a boundary and once without, and the difference between them
+       * is the entire claim this project makes.
+       *
+       * Presented as equals, a visitor clicked whichever was first and watched
+       * a mission succeed, which is the least surprising outcome here. Named as
+       * a pair, the palette itself asks the question the demo answers.
+       */
+      {
+        id: "noscope",
+        title: "1 · Without a scope",
+        category: "The comparison",
+        detail: "The same ticket, and the agent obeys it. This is a normal integration.",
+        onSelect: () => runScenario("noscope"),
+      },
+      {
+        id: "poisoned",
+        title: "2 · With a scope",
+        category: "The comparison",
+        detail: "The same ticket, refused at the city limits. Nothing was denied — it was absent.",
+        onSelect: () => runScenario("poisoned"),
+      },
       {
         id: "recorded",
         title: "Replay a real run",
@@ -451,25 +478,11 @@ export function App(): React.JSX.Element {
         onSelect: () => runScenario("clean"),
       },
       {
-        id: "poisoned",
-        title: "Poisoned ticket",
-        category: "Replays",
-        detail: "Stops at the city limits",
-        onSelect: () => runScenario("poisoned"),
-      },
-      {
         id: "overreach",
         title: "Over-reach found",
         category: "Replays",
         detail: "The Yard finds a gap before anything is granted",
         onSelect: () => runScenario("overreach"),
-      },
-      {
-        id: "noscope",
-        title: "No scope",
-        category: "Replays",
-        detail: "The authority an ordinary integration hands over",
-        onSelect: () => runScenario("noscope"),
       },
       {
         id: "reset",

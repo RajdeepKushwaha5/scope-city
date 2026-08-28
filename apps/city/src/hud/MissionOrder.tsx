@@ -191,8 +191,28 @@ export function MissionOrder(props: {
             </span>
           </div>
 
-          <span className="hud-label">Offline security replays</span>
+          {/*
+            * The same ticket, twice, in the order that makes the point.
+            *
+            * These sat in a row of equals -- "Poisoned ticket", "Clean job",
+            * "No scope" -- and a visitor pressed whichever was first, which
+            * showed a mission succeeding. That is the least surprising thing
+            * here. Run without the boundary first and the second run has
+            * something to be different *from*; run it second and it is a
+            * curiosity rather than the answer.
+            */}
+          <span className="hud-label">The same ticket, twice</span>
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+            <button
+              className="btn btn--danger"
+              disabled={props.active}
+              onClick={() => {
+                soundEngine.playClick();
+                props.onNoScopeReplay();
+              }}
+            >
+              1 · Without a scope
+            </button>
             <button
               className="btn"
               disabled={props.active}
@@ -201,7 +221,7 @@ export function MissionOrder(props: {
                 props.onPoisonedReplay();
               }}
             >
-              Poisoned ticket
+              2 · With a scope
             </button>
             <button
               className="btn"
@@ -212,16 +232,6 @@ export function MissionOrder(props: {
               }}
             >
               Clean job
-            </button>
-            <button
-              className="btn btn--danger"
-              disabled={props.active}
-              onClick={() => {
-                soundEngine.playClick();
-                props.onNoScopeReplay();
-              }}
-            >
-              No scope
             </button>
             <button
               className="btn"

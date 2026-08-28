@@ -52,9 +52,9 @@ const BILLING: Record<Scenario, Billing> = {
       "Nothing is refused, because nothing overreaches. The run still stops at the Gate, because the refund is irreversible.",
   },
   poisoned: {
-    name: "Poisoned ticket",
+    name: "2 of 2 · With a scope",
     watchFor:
-      "The ticket text tells the agent to do something else. Two calls are refused at the boundary, then the legitimate refund stops at the Gate.",
+      "The same ticket, and the same instruction inside it. Two calls are refused at the city limits — not denied to the agent, absent from it — and the legitimate refund stops at the Gate for a human.",
   },
   overreach: {
     name: "Over-reach found",
@@ -62,9 +62,14 @@ const BILLING: Record<Scenario, Billing> = {
       "The Yard probes the scope before anything is granted, finds charge.get answering with the customer's whole history, and it is narrowed and re-probed clean.",
   },
   noscope: {
-    name: "No scope",
+    // Named as half of a pair rather than as a scenario of its own, because
+    // that is what it is for. It is the control in an experiment: the same
+    // ticket, the same job, and the authority an ordinary integration hands
+    // over. Watched on its own it is just a run that goes wrong; watched
+    // before the scoped one it is the reason the scoped one matters.
+    name: "1 of 2 · Without a scope",
     watchFor:
-      "The same job with the authority an ordinary integration hands over. Nothing refuses anything, and the run ends failed.",
+      "The same ticket, and the authority an ordinary integration hands over. The agent reads the injected instruction and acts on it. Nothing refuses anything, because there is nothing to refuse with, and the run ends failed rather than stopping anywhere. Run this first, then run it again with a scope.",
   },
 };
 

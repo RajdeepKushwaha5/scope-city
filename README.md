@@ -318,6 +318,47 @@ to rewrite the whole file can produce a consistent chain over whatever they like
 What it gives you is a stable identity you can quote and compare against a copy
 someone else holds.
 
+## Where this goes, and what it is not yet
+
+The problem this exists for is not going away: teams want agents on Stripe,
+Salesforce, Snowflake, GitHub and their own databases, and every one of those
+integrations hands over a credential that can do far more than the job needs.
+Call it the god-token problem. The agent asked to refund one charge holds a key
+that can refund all of them, and nobody can say afterwards what it was *able* to
+touch, only what it happened to do.
+
+Scope City answers that for one job, end to end, against real systems. What it
+is not is a product, and the distance is worth naming rather than leaving for
+someone to find.
+
+**The proxy still holds a static key.** Everything downstream of it is scoped:
+the agent gets one charge, one amount, one recipient, one lease. But the proxy
+itself authenticates to Stripe with a long-lived key from the environment, so
+the god-token has moved rather than gone. The honest fix is minting an ephemeral
+credential when the scope is granted -- Vault, STS, workload identity -- that
+expires at the provider when the lease does, so the boundary is enforced by the
+system holding the money and not only by us.
+
+**Missions live in memory.** Restarting the control plane loses them. A browser
+refresh is fine and is the claim the demo makes; anything more needs the store
+this deliberately does not have.
+
+**The map has six districts, and they are fixed.** Buildings are generated --
+add an office to the registry and the city draws it, because the layout comes
+from `tools/list` rather than a diagram. Districts are six hand-placed plots, so
+a seventh system has nowhere to go until the layout is solved rather than
+authored.
+
+**There is no tenancy and no operator identity.** The control plane trusts
+whoever can reach it. The proxy authenticates the *harness* with a per-mission
+bearer token, which is the boundary that matters for enforcement, but "which
+human approved this" is a name in a record rather than an authenticated
+identity.
+
+None of that is hard to see coming, and none of it changes the argument the
+project makes. It does change what you could deploy on Monday, and a submission
+that says so is more use than one that lets you find out.
+
 ## Qodo Code Review Evidence
 
 Every change reaches `main` through a pull request that Qodo reviews first. Nothing

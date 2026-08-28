@@ -320,3 +320,100 @@ describe("evaluate — a ceiling alone does not bound an amount", () => {
     }
   });
 });
+
+/**
+ * An argument the office does not declare cannot be policed, and the whole
+ * `args` object is handed to the upstream handler after this function returns.
+ *
+ * Every handler shipped here picks its fields by name, so nothing reached
+ * Stripe that the handler had not asked for -- but that is the authors having
+ * been careful, not the boundary having held. An office written as
+ * `call(args) { return api.post(args) }` would forward a refund reason, a
+ * transfer reversal or an application-fee flag, and nothing above it would
+ * notice. This function promises no path falls through to permitted.
+ */
+describe("evaluate — arguments the office never declared", () => {
+  it("refuses a call carrying a field the spec does not name", () => {
+    const decision = evaluate({
+      scope: scope(),
+      call: {
+        office: "charge.refund",
+        // Real Stripe parameters, and the reason this matters: each one has an
+        // effect, and the scope was never asked about any of them.
+        args: { charge_id: "ch_184", amount: 4900, reverse_transfer: true },
+        attemptedAt: NOW,
+      },
+      registry,
+      consumed: {},
+      now: NOW,
+    });
+
+    expect(decision).toEqual({
+      allowed: false,
+      reason: "argument_not_declared",
+      detail: "charge.refund does not declare reverse_transfer",
+    });
+  });
+
+  it("names every undeclared field, in a stable order", () => {
+    // The agent has to be able to fix the call it just made. One name at a
+    // time turns that into a guessing game across several refusals.
+    const decision = evaluate({
+      scope: scope(),
+      call: {
+        office: "charge.refund",
+        args: { charge_id: "ch_184", amount: 4900, refund_application_fee: true, reason: "x" },
+        attemptedAt: NOW,
+      },
+      registry,
+      consumed: {},
+      now: NOW,
+    });
+
+    expect(decision).toMatchObject({
+      reason: "argument_not_declared",
+      detail: "charge.refund does not declare reason, refund_application_fee",
+    });
+  });
+
+  it("refuses before spending anything on the call", () => {
+    // Ordered ahead of the quota check, so a malformed call cannot burn a
+    // unit of a budget it was never going to be allowed to use.
+    const decision = evaluate({
+      scope: scope(),
+      call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900, x: 1 }, attemptedAt: NOW },
+      registry,
+      // Already exhausted: if quota were checked first this would say so.
+      consumed: { "charge.refund": 1 },
+      now: NOW,
+    });
+
+    expect(decision).toMatchObject({ reason: "argument_not_declared" });
+  });
+
+  it("still allows a call that names only what the office declares", () => {
+    // The check must not cost the ordinary path anything.
+    expect(
+      evaluate({
+        scope: scope(),
+        call: { office: "charge.refund", args: { charge_id: "ch_184", amount: 4900 }, attemptedAt: NOW },
+        registry,
+        consumed: {},
+        now: NOW,
+      }),
+    ).toEqual({ allowed: true, countersignRequired: true });
+  });
+
+  it("allows a declared optional argument to be absent", () => {
+    // Refusing the undeclared must not become requiring the declared.
+    expect(
+      evaluate({
+        scope: scope(),
+        call: { office: "charge.get", args: { charge_id: "ch_184" }, attemptedAt: NOW },
+        registry,
+        consumed: {},
+        now: NOW,
+      }),
+    ).toEqual({ allowed: true, countersignRequired: false });
+  });
+});

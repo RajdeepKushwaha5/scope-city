@@ -56,6 +56,37 @@ export function evaluate(params: {
     };
   }
 
+  /*
+   * An argument the spec does not declare cannot be policed, so it is refused.
+   *
+   * The loop below checks what the office declares -- resource ids against the
+   * granted set, amounts against the ceiling. It says nothing about anything
+   * else in `call.args`, and the whole object is handed to the upstream
+   * handler afterwards. Every handler shipped here picks its fields by name,
+   * so nothing reaches Stripe that the handler did not ask for; the protection
+   * was that the authors happened to be careful.
+   *
+   * That is the shape of defence this project exists to argue against. This
+   * function's own comment promises there is no path that falls through to
+   * permitted, and an undeclared argument was one -- an office written as
+   * `call(args) { return api.post(args) }` would forward a refund reason, a
+   * transfer reversal, or an application-fee flag, and the boundary would not
+   * notice it had happened.
+   *
+   * Refused rather than stripped. Removing it silently leaves the agent unable
+   * to tell why its argument had no effect, and an agent that cannot see the
+   * boundary reason guesses -- which is how a retry loop starts.
+   */
+  const declared = new Set(Object.keys(spec.args));
+  const undeclared = Object.keys(call.args).filter((name) => !declared.has(name));
+  if (undeclared.length > 0) {
+    return {
+      allowed: false,
+      reason: "argument_not_declared",
+      detail: `${call.office} does not declare ${undeclared.sort().join(", ")}`,
+    };
+  }
+
   for (const [argName, binding] of Object.entries(spec.args)) {
     const value = call.args[argName];
     const present = value !== undefined && value !== null;

@@ -103,6 +103,7 @@ export const DenialReasonSchema = z.enum([
   "amount_not_integer",
   "amount_not_positive",
   "missing_required_argument",
+  "argument_not_declared",
 ]);
 
 export type DenialReason = z.infer<typeof DenialReasonSchema>;

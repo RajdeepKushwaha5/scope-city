@@ -1071,6 +1071,9 @@ body {
 .inspector__badge--activity-waiting { border-color: #f0a020; color: #f0a020; }
 .inspector__badge--activity-done    { border-color: #3fb950; color: #3fb950; }
 .inspector__badge--activity-refused { border-color: #ff4d4f; color: #ff4d4f; }
+/* Violet, deliberately outside the traffic-light run above. Probing is not a
+   degree of "working" -- nothing was called -- so it should not read as one. */
+.inspector__badge--activity-probed  { border-color: #a78bfa; color: #a78bfa; }
 
 .inspector__row {
   display: flex;
@@ -1159,6 +1162,7 @@ body {
 .map-tooltip--waiting { border-left-color: #f0a020; }
 .map-tooltip--done { border-left-color: #3fb950; }
 .map-tooltip--refused { border-left-color: #ff4d4f; }
+.map-tooltip--probed { border-left-color: #a78bfa; }
 
 /* ---- HUD chrome ---------------------------------------------------------- */
 

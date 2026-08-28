@@ -36,7 +36,17 @@ export type BuildingActivity =
   | "waiting"
   | "done"
   /** The boundary refused a call. */
-  | "refused";
+  | "refused"
+  /**
+   * The Yard examined this office without calling it.
+   *
+   * Its own state because the alternatives both lie. Leaving it idle shows
+   * nothing happening while the Yard reports probing it, and marking it
+   * "working" or counting a call says the office was invoked -- which is the
+   * one claim the probes rest on not being true. They are evaluated against the
+   * compiled scope, not sent anywhere.
+   */
+  | "probed";
 
 export interface BuildingState {
   readonly office: string;
@@ -109,7 +119,11 @@ export function buildingStates(
             ? "working"
             : record && record.calls > 0
               ? "done"
-              : "idle";
+              // Below anything that actually happened, above idle: a probed
+              // office that later gets called should read as called.
+              : record?.probed
+                ? "probed"
+                : "idle";
 
     map.set(office, {
       office,

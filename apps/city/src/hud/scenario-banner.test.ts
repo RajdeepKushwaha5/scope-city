@@ -1,4 +1,6 @@
 import { readFileSync } from "node:fs";
+
+const NL = String.fromCharCode(10);
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { SCENARIO_BILLING, type Scenario } from "./ScenarioBanner.js";
@@ -9,7 +11,7 @@ import { SCENARIO_BILLING, type Scenario } from "./ScenarioBanner.js";
  * every run and is not quietly boilerplate.
  */
 
-const SCENARIOS: readonly Scenario[] = ["recorded", "clean", "poisoned", "noscope"];
+const SCENARIOS: readonly Scenario[] = ["recorded", "clean", "poisoned", "overreach", "noscope"];
 
 describe("scenario billing", () => {
   it("covers every scenario the app can run", () => {
@@ -69,11 +71,14 @@ describe("scenario billing", () => {
     for (const [scenario, marker] of [
       ["clean", "const CLEAN_JOB"],
       ["poisoned", "const POISONED"],
+      // OVER_REACH is deliberately absent: it is the one scripted run that ends
+      // at a grant rather than a gate, which the assertions below would read as
+      // a broken claim. Its own ending is checked separately.
     ] as const) {
       const start = source.indexOf(marker);
       expect(start, `${marker} not found`).toBeGreaterThan(-1);
 
-      const end = source.indexOf("];", start);
+      const end = source.indexOf(NL + "];", start);
       expect(end, `${marker} has no terminator`).toBeGreaterThan(start);
 
       const script = source.slice(start, end);
@@ -126,5 +131,144 @@ describe("scenario billing", () => {
     // viewer told to "watch how far it reaches" has no way to know that the
     // ending is the point.
     expect(SCENARIO_BILLING.noscope.watchFor).toMatch(/fail/i);
+  });
+
+  it("bills the over-reach run as ending in a narrowed grant, not a gate", () => {
+    // The only scripted run that ends before enforcement rather than at it.
+    // Billing it like the others would promise a held gate that never comes.
+    const source = readFileSync(
+      fileURLToPath(new URL("../useMission.ts", import.meta.url)),
+      "utf8",
+    );
+    const script = overReachScript(source);
+
+    expect(script).not.toContain("a.gate({");
+    expect(script).toContain("a.grantScope()");
+    expect(SCENARIO_BILLING.overreach.watchFor).toMatch(/narrow/i);
+    expect(SCENARIO_BILLING.overreach.watchFor).not.toMatch(/gate/i);
+  });
+});
+
+/**
+ * The whole OVER_REACH script, with the slice checked rather than assumed.
+ *
+ * Slicing to the first `];` after the marker truncates on any nested array, and
+ * every assertion below is a `not.toContain` -- so a short slice passes them
+ * all while testing almost nothing. The boundaries are asserted here once, so
+ * that cannot happen quietly.
+ */
+function overReachScript(source: string): string {
+  const start = source.indexOf("const OVER_REACH");
+  expect(start, "OVER_REACH not found").toBeGreaterThan(-1);
+
+  const end = source.indexOf(NL + "];", start);
+  expect(end, "OVER_REACH has no terminator").toBeGreaterThan(start);
+
+  const script = source.slice(start, end);
+
+  // The last step really is in the slice: without this the assertions below
+  // could all be passing over a fragment.
+  expect(script, "slice stopped before the end of the script").toContain("a.grantScope()");
+  expect(script).toContain("a.proposeScope(WIDE_SCOPE)");
+  return script;
+}
+
+describe("the over-reach run narrows something real", () => {
+  const source = readFileSync(fileURLToPath(new URL("../useMission.ts", import.meta.url)), "utf8");
+  const script = overReachScript(source);
+
+  it("proposes a wider scope and then a narrower one", () => {
+    // Logging "narrowed" while the scope never changes is the gap between
+    // stated and actual that this project exists to argue against, committed in
+    // the scenario meant to demonstrate it.
+    expect(script).toContain("a.proposeScope(WIDE_SCOPE)");
+    expect(script).toContain("a.proposeScope(NARROW_SCOPE)");
+    expect(script.indexOf("WIDE_SCOPE")).toBeLessThan(script.indexOf("NARROW_SCOPE"));
+  });
+
+  it("makes the wide scope genuinely wider", () => {
+    // A "wide" scope identical to the narrow one would render an identical map
+    // and narrow nothing.
+    const wide = source.slice(source.indexOf("const WIDE_SCOPE"), source.indexOf("};", source.indexOf("const WIDE_SCOPE")));
+    expect(wide).toContain('office: "customer.list", disposition: "allowed"');
+
+    const narrow = source.slice(source.indexOf("const NARROW_SCOPE"), source.indexOf("};", source.indexOf("const NARROW_SCOPE")));
+    expect(narrow).toContain('office: "customer.list", disposition: "blocked"');
+  });
+
+  it("probes without recording a call against the office", () => {
+    // `settle` increments the call counter, which the inspector renders as
+    // "Calls 1" beside a Yard panel saying nothing was called.
+    expect(script).toContain("a.probe(");
+    expect(script).not.toContain("a.settle(");
+  });
+
+  it("reports the finding for each office it probes", () => {
+    for (const office of ["charge.get", "customer.list"]) {
+      expect(script, `${office} probed but not reported`).toContain(`office: "${office}"`);
+    }
+  });
+});
+
+describe("a probed office is not a called office", () => {
+  const building = readFileSync(
+    fileURLToPath(new URL("../building-state.ts", import.meta.url)),
+    "utf8",
+  );
+
+  it("has a state of its own, distinct from working and done", () => {
+    // Leaving it idle shows nothing happening while the Yard reports probing
+    // it; marking it working or counting a call says the office was invoked,
+    // which is the one claim the probes rest on not being true.
+    expect(building).toContain('| "probed"');
+  });
+
+  it("ranks below anything that actually happened", () => {
+    // A probed office that is later called must read as called.
+    const derivation = building.slice(building.indexOf("const activity: BuildingActivity"));
+    expect(derivation.indexOf("calls > 0")).toBeLessThan(derivation.indexOf("record?.probed"));
+    expect(derivation.indexOf("record?.probed")).toBeLessThan(derivation.indexOf('"idle"'));
+  });
+
+  it("says plainly that nothing was called", () => {
+    const inspector = readFileSync(
+      fileURLToPath(new URL("./BuildingInspector.tsx", import.meta.url)),
+      "utf8",
+    );
+    expect(inspector).toContain("probed, not called");
+  });
+});
+
+describe("the quick-nav pills", () => {
+  const nav = readFileSync(fileURLToPath(new URL("./TopNav.tsx", import.meta.url)), "utf8");
+
+  it("offers every scenario the app can run", () => {
+    // The over-reach run existed in the command palette and the mission panel
+    // but not in the row of pills a judge actually clicks.
+    for (const scenario of SCENARIOS) {
+      expect(nav, `${scenario} has no pill`).toContain(`onSelectScenario("${scenario}")`);
+    }
+  });
+
+  it("labels each pill with its own name", () => {
+    // Added by copying the neighbouring pill, this one kept the label "No
+    // Scope" and gained a stray "Over-reach" outside the span -- two names on
+    // one button, neither in the right place.
+    const labels = [...nav.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]!.trim());
+    expect(new Set(labels).size, "two pills share a label").toBe(labels.length);
+    expect(labels).toContain("Over-reach");
+  });
+
+  it("does not dress the over-reach run as a failure", () => {
+    // Nothing goes wrong in it: a boundary is found too wide and narrowed
+    // before anything is granted, which is the system working. It inherited the
+    // no-scope pill's danger styling and refusal sound by being copied from it.
+    const pill = nav.slice(
+      nav.lastIndexOf("<button", nav.indexOf('onSelectScenario("overreach")')),
+      nav.indexOf("</button>", nav.indexOf('onSelectScenario("overreach")')),
+    );
+
+    expect(pill).not.toContain("topnav__pill--danger");
+    expect(pill).not.toContain("playRefusal");
   });
 });

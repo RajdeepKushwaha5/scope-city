@@ -1,10 +1,11 @@
 import { useState, useEffect } from "react";
 import { soundEngine } from "./sound-engine.js";
+import type { Scenario } from "./ScenarioBanner.js";
 
 export function TopNav(props: {
   connection: "offline" | "connecting" | "live" | "reconnecting";
-  activeScenario?: "recorded" | "clean" | "poisoned" | "noscope" | null;
-  onSelectScenario: (scenario: "recorded" | "clean" | "poisoned" | "noscope") => void;
+  activeScenario?: Scenario | null;
+  onSelectScenario: (scenario: Scenario) => void;
   onOpenCommand: () => void;
   onOpenIntro: () => void;
   onTakeSnapshot: () => void;
@@ -73,6 +74,22 @@ export function TopNav(props: {
         >
           <span className="topnav__pill-icon">&#9888;</span>
           <span>Poisoned Ticket</span>
+        </button>
+
+        <button
+          type="button"
+          className={`topnav__pill ${props.activeScenario === "overreach" ? "topnav__pill--active" : ""}`}
+          onClick={() => {
+            soundEngine.playClick();
+            props.onSelectScenario("overreach");
+          }}
+          title="The Yard finds a gap before anything is granted"
+        >
+          {/* Not the danger styling the no-scope pill uses. Nothing goes wrong
+              in this run: the Yard finds a boundary drawn too wide and it is
+              narrowed before anything is granted, which is the system working. */}
+          <span className="topnav__pill-icon">&#9707;</span>
+          <span>Over-reach</span>
         </button>
 
         <button

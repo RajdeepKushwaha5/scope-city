@@ -12,7 +12,7 @@ import { BuildingInspector } from "./hud/BuildingInspector.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
 import { GateBeacon } from "./hud/GateBeacon.js";
-import { ScenarioBanner } from "./hud/ScenarioBanner.js";
+import { ScenarioBanner, type Scenario } from "./hud/ScenarioBanner.js";
 import { placeTooltip } from "./hud/tooltip-placement.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
@@ -77,7 +77,7 @@ export function App(): React.JSX.Element {
   const [flashing, setFlashing] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeScenario, setActiveScenario] =
-    useState<"recorded" | "clean" | "poisoned" | "noscope" | null>(null);
+    useState<Scenario | null>(null);
 
   // Read through the safe wrapper because this runs during the first render,
   // and a browser with storage blocked throws on the property access rather
@@ -411,14 +411,27 @@ export function App(): React.JSX.Element {
    * depending on which control started it.
    */
   const runScenario = useCallback(
-    (scenario: "recorded" | "clean" | "poisoned" | "noscope") => {
+    (scenario: Scenario) => {
       setActiveScenario(scenario);
       // A different run is a different claim about what is about to happen, so
       // dismissing one banner must not suppress the next.
       setBannerDismissed(false);
-      if (scenario === "recorded") void recorded.play(RECORDING_URL);
-      else if (scenario === "clean") replay.runCleanJob();
+      if (scenario === "recorded") {
+        void recorded.play(RECORDING_URL);
+        return;
+      }
+
+      // Stop the recording before starting a scripted run.
+      //
+      // The city reads from the recorded player whenever it holds a record, so
+      // starting a scripted scenario without clearing it left the previous
+      // replay on screen while the new one ran underneath -- the operator
+      // picked a run and watched a different one.
+      recorded.stop();
+
+      if (scenario === "clean") replay.runCleanJob();
       else if (scenario === "poisoned") replay.runPoisonedTicket();
+      else if (scenario === "overreach") replay.runOverReach();
       else replay.runNoScope();
     },
     [recorded, replay],
@@ -446,6 +459,13 @@ export function App(): React.JSX.Element {
         category: "Replays",
         detail: "Stops at the city limits",
         onSelect: () => runScenario("poisoned"),
+      },
+      {
+        id: "overreach",
+        title: "Over-reach found",
+        category: "Replays",
+        detail: "The Yard finds a gap before anything is granted",
+        onSelect: () => runScenario("overreach"),
       },
       {
         id: "noscope",

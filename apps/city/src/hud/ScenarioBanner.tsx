@@ -1,4 +1,4 @@
-export type Scenario = "recorded" | "clean" | "poisoned" | "noscope";
+export type Scenario = "recorded" | "clean" | "poisoned" | "overreach" | "noscope";
 
 /**
  * What this run is meant to show, while it is showing it.
@@ -55,6 +55,11 @@ const BILLING: Record<Scenario, Billing> = {
     name: "Poisoned ticket",
     watchFor:
       "The ticket text tells the agent to do something else. Two calls are refused at the boundary, then the legitimate refund stops at the Gate.",
+  },
+  overreach: {
+    name: "Over-reach found",
+    watchFor:
+      "The Yard probes the scope before anything is granted, finds charge.get answering with the customer's whole history, and it is narrowed and re-probed clean.",
   },
   noscope: {
     name: "No scope",

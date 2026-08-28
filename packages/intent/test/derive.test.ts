@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { buildRegistry, type OfficeSpec } from "@scope-city/scope";
-import { constrainEnvelope, type DerivationBounds } from "../src/derive.js";
+import { appearsInJob, constrainEnvelope, type DerivationBounds } from "../src/derive.js";
 
 const SPECS: OfficeSpec[] = [
   {
@@ -134,5 +134,65 @@ describe("constrainEnvelope narrows and never widens", () => {
       const env = run({ offices } as never);
       for (const office of env.offices) expect(BOUNDS.registry.has(office)).toBe(true);
     }
+  });
+});
+
+/**
+ * The claim for stage 1 is that the envelope comes from the operator's own
+ * sentence. A plain substring test does not deliver that: it admits ids nobody
+ * wrote, reached by *shortening* a real one rather than inventing a new one --
+ * which is the harder case to notice on a grant screen, because every id on it
+ * looks plausible.
+ */
+describe("an id has to be in the sentence, not merely inside it", () => {
+  const JOB = "Refund order #184, max $49, for 30 minutes";
+
+  it("drops fragments of the id the operator did write", () => {
+    // Each of these was admitted before: 1, 4, 8 and 18 are all pieces of 184.
+    for (const id of ["ch_1", "ch_4", "ch_8", "ch_18"]) {
+      expect(appearsInJob(JOB, id), id).toBe(false);
+    }
+  });
+
+  it("drops an id matching a digit from somewhere else entirely", () => {
+    // `ch_0` used to pass on the zero in "30 minutes", which is the clearest
+    // statement of how little a substring match proves.
+    expect(appearsInJob(JOB, "ch_0")).toBe(false);
+  });
+
+  it("still admits the ids the operator actually named", () => {
+    for (const id of ["ord_184", "ch_184", "tkt_184"]) {
+      expect(appearsInJob(JOB, id), id).toBe(true);
+    }
+  });
+
+  it("does not treat a longer number as the one that was written", () => {
+    // 184 is a prefix of 1840. Neither should stand in for the other.
+    expect(appearsInJob(JOB, "ord_1840")).toBe(false);
+    expect(appearsInJob("refund the charge for order 1840", "ord_184")).toBe(false);
+  });
+
+  it("reads an id written out in full", () => {
+    expect(appearsInJob("close ticket tkt_184 and refund ch_184", "ch_184")).toBe(true);
+    // And does not infer an order from a sentence that names none, even though
+    // 184 is present -- it is present only inside other ids.
+    expect(appearsInJob("close ticket tkt_184 and refund ch_184", "ord_184")).toBe(false);
+  });
+
+  it("survives an id containing regex metacharacters", () => {
+    // The token is interpolated into a RegExp. An id of `ch_.*` must not match
+    // everything, and must not throw.
+    expect(appearsInJob(JOB, "ch_.*")).toBe(false);
+    expect(() => appearsInJob(JOB, "ch_[")).not.toThrow();
+  });
+
+  it("keeps the ids out of the envelope, not just out of the helper", () => {
+    const env = constrainEnvelope({
+      job: JOB,
+      raw: { offices: ["charge.refund"], named: { charge_ids: ["ch_184", "ch_1", "ch_0"] } },
+      bounds: BOUNDS,
+    });
+
+    expect(env.named["charge_ids"]).toEqual(["ch_184"]);
   });
 });

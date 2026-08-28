@@ -1,5 +1,5 @@
 import "./load-env.js";
-import { HarnessDriver, missionAgentSpec } from "@scope-city/harness";
+import { HarnessDriver, missionAgentSpec, rotationCandidates } from "@scope-city/harness";
 import { CountersignBook } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
@@ -196,7 +196,8 @@ async function main(): Promise<void> {
   // before the agent writes a line, and reporting that as "the boundary held"
   // would be the worst kind of false pass this script could produce.
   const configured = (process.env.SCOPE_MODELS ?? "").split(",").filter(Boolean);
-  const candidates = configured.length > 0 ? configured : await driver.listModels();
+  const candidates =
+    configured.length > 0 ? configured : rotationCandidates(await driver.listModels());
 
   let output = "";
   let boundary: readonly string[] = [];

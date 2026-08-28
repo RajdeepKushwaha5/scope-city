@@ -79,3 +79,35 @@ export function reasoningEffortsByModel(
 
   return byModel;
 }
+
+/**
+ * Providers a mission will never rotate onto unless it was asked to by name.
+ *
+ * Just the local one today. A model running on the operator's own machine is
+ * there to prove a point -- that the scope, the proxy and the gate do not care
+ * which model is behind them -- and it earns its place in the pool by being
+ * selectable, not by being a fallback.
+ */
+const OPT_IN_PROVIDERS = new Set(["local"]);
+
+/**
+ * The models discovery may pick on its own.
+ *
+ * Rotation exists to survive a cooling key, and it treats every registered
+ * model as interchangeable. That is true of four Gemini keys and false of a 7B
+ * on a laptop: when the hosted keys rate-limited, a mission rotated onto the
+ * local model and effectively stopped, because a model that takes minutes per
+ * turn is worse for a demo than waiting sixty seconds for a key to come back.
+ *
+ * The failure is quiet, which is the worst part -- nothing is broken, the run
+ * simply becomes something nobody would want to watch, and the only warning is
+ * a line of log naming a model the operator never chose.
+ *
+ * So an opt-in provider is reachable through `SCOPE_MODELS`, where naming it is
+ * a decision, and invisible to automatic discovery, where it would be an
+ * accident. Filtered here rather than left out of the registry, because it must
+ * stay registered to be selectable at all.
+ */
+export function rotationCandidates(names: readonly string[]): readonly string[] {
+  return names.filter((name) => !OPT_IN_PROVIDERS.has(name.split("/")[0] ?? ""));
+}

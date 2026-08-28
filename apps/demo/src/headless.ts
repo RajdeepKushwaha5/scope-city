@@ -19,6 +19,7 @@ import {
   classifyFailure,
   isWorthRotating,
   missionAgentSpec,
+  rotationCandidates,
 } from "@scope-city/harness";
 import { QuotaLedger } from "@scope-city/ledger";
 import { fingerprintCall } from "@scope-city/proxy";
@@ -105,7 +106,11 @@ async function main(): Promise<void> {
   // Pinning every optional slot in .env is unsafe: a blank key makes setup skip
   // that provider, and selecting its nonexistent model later is a terminal
   // session-creation error rather than a rate limit the pool can rotate past.
-  const models = PINNED_MODELS.length > 0 ? PINNED_MODELS : await driver.listModels();
+  // Discovery never picks an opt-in provider on its own. A local model is
+  // reachable by naming it in SCOPE_MODELS; it is not something to rotate onto
+  // because a hosted key is cooling.
+  const models =
+    PINNED_MODELS.length > 0 ? PINNED_MODELS : rotationCandidates(await driver.listModels());
   if (models.length === 0) {
     console.error(c.red("  TrueForge has no configured models."));
     console.error(c.dim("  Add a key to .env and run: pnpm demo:models"));

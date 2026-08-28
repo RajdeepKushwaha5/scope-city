@@ -39,6 +39,7 @@ export {
 
 export {
   qualifiedModelNames,
+  rotationCandidates,
   reasoningEffortsByModel,
   type ModelListEntry,
 } from "./model-names.js";

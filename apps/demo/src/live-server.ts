@@ -9,6 +9,7 @@ import {
   initialState,
   iterationLimitFor,
   parseReasoningEffort,
+  rotationCandidates,
   type TranslatorState,
 } from "@scope-city/harness";
 import { IRREVERSIBLE_OFFICES } from "@scope-city/mcp";
@@ -119,7 +120,13 @@ async function main(): Promise<void> {
   if (PINNED_MODELS.length === 0) {
     source = "discovered";
     try {
-      found = await driver.listModels();
+      // Filtered, not just listed. Rotation treats every model as
+      // interchangeable, which is true of four Gemini keys and false of a 7B on
+      // a laptop -- a mission that rotated onto the local model when the hosted
+      // keys were cooling did not fail, it just became something nobody would
+      // watch. Naming it in SCOPE_MODELS is a decision; discovering it is an
+      // accident.
+      found = rotationCandidates(await driver.listModels());
     } catch (error) {
       found = [];
       console.warn(

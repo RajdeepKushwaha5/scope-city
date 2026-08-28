@@ -233,6 +233,23 @@ class SmtpConversation {
   }
 }
 
+/**
+ * What the agent is told when the mail server cannot be reached.
+ *
+ * Sanitised, not passed through. Node writes the address into its own message
+ * -- "connect ECONNREFUSED 127.0.0.1:1025" -- and this error reaches the agent
+ * through a tool result, so forwarding it hands over the mail server's location
+ * by failing to reach it. The code is kept because it tells the operator what
+ * went wrong without telling the agent where.
+ *
+ * Its own function so the sanitising can be tested on a known error rather than
+ * by arranging a real connection failure, which needs a port nothing is
+ * listening on and cannot be guaranteed to stay that way.
+ */
+export function unreachableError(error: NodeJS.ErrnoException): Error {
+  return new Error(`SMTP: could not reach the mail server (${error.code ?? "failed"})`);
+}
+
 export async function sendMail(message: SmtpMessage, options: SmtpOptions): Promise<void> {
   assertSafeAddress(message.from, "from");
   assertSafeAddress(message.to, "to");
@@ -258,15 +275,7 @@ export async function sendMail(message: SmtpMessage, options: SmtpOptions): Prom
       // in their own configuration and in the systems line at startup.
       reject(new Error(`SMTP: no response from the mail server in ${timeoutMs}ms`));
     });
-    // Sanitised, not passed through. Node writes the address into its own
-    // message -- "connect ECONNREFUSED 127.0.0.1:1025" -- and this error
-    // reaches the agent through a tool result, so forwarding it hands over the
-    // mail server's location by failing to reach it. The timeout above was
-    // already careful about this; the connection error is the commoner case and
-    // was not.
-    s.once("error", (error: NodeJS.ErrnoException) => {
-      reject(new Error(`SMTP: could not reach the mail server (${error.code ?? "failed"})`));
-    });
+    s.once("error", (error: NodeJS.ErrnoException) => reject(unreachableError(error)));
   });
 
   try {

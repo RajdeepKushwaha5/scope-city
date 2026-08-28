@@ -74,7 +74,49 @@ describe("the script keeps the comparison first", () => {
     expect(recorded).toBeGreaterThan(comparison);
   });
 
-  it("refuses to let the verifier be cut", () => {
-    expect(script).toMatch(/Never cut.*comparison or the verifier/i);
+  it("refuses to let the comparison or the verifier be cut", () => {
+    const cuts = script.slice(script.indexOf("What to cut"));
+
+    expect(cuts).toMatch(/never cut/i);
+    for (const protectedItem of ["comparison", "verifier"]) {
+      expect(cuts.toLowerCase(), `${protectedItem} must be protected`).toContain(protectedItem);
+    }
+  });
+});
+
+/**
+ * The verifier reads a bundled recording of a live mission. The two comparison
+ * runs are deterministic browser replays that write no record at all.
+ *
+ * An earlier draft ran them back to back and said "everything I've shown you is
+ * a claim on a screen, so don't take it from me" -- which invited a viewer to
+ * believe the verifier was checking the two runs they had just watched. It was
+ * not, and being caught overclaiming on camera would be the video doing exactly
+ * what the project accuses everyone else of.
+ */
+describe("the script does not point the verifier at the scripted runs", () => {
+  const realRun = script.indexOf("Now one that actually ran");
+  const verify = script.indexOf("verify-record.mjs");
+
+  it("introduces a real mission before verifying anything", () => {
+    expect(realRun).toBeGreaterThan(-1);
+    expect(verify).toBeGreaterThan(realRun);
+  });
+
+  it("says out loud that the comparison runs are scripted", () => {
+    expect(script).toMatch(/two runs you just watched are scripted/i);
+    expect(script).toMatch(/no record/i);
+  });
+
+  it("claims records for live missions rather than for every run", () => {
+    // "Every mission writes a hash-chained record" is false for the scripted
+    // ones, and they are the two the viewer has just been shown.
+    expect(script).toContain("Every live mission writes a hash-chained record");
+    expect(script).not.toContain("Every mission writes a hash-chained record");
+  });
+
+  it("protects the sentence that keeps the proof honest", () => {
+    const cuts = script.slice(script.indexOf("What to cut"));
+    expect(cuts).toMatch(/introducing the recorded run as a real one/i);
   });
 });

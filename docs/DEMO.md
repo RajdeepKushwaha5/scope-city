@@ -137,12 +137,46 @@ Approve it. Show it complete.
 
 ---
 
-## 2:20 — Go and check (30 seconds)
+## 2:20 — Now one that actually ran (20 seconds)
+
+Say this part exactly. Getting it wrong is the one thing that could sink the
+demo, because it would be the video doing what the project accuses everyone else
+of.
+
+**The two runs you just watched are scripted.** They are deterministic replays
+in the browser: no keys, no server, no model, and no record. That is on purpose
+— anyone can open the deployed site and press them — but they prove the
+interface, not the system.
+
+So do not point the verifier at them. Introduce the real one first:
+
+> Those two were scripted, deliberately: they run in the browser with no keys
+> and no server, so anyone can press them. But scripted runs prove an interface,
+> not a system. So here is a mission that actually happened.
+
+Press **Replay a real run**.
+
+> This is a captured TrueForge session, played back from its own record. Real
+> model, real proxy, a real Stripe refund in test mode.
+
+Let it reach the gate, and point at **THE FIELD** while it does:
+
+> And this is the delegation. The agent created two workers while it ran — a
+> source investigator and a target verifier — and every one of those threads is
+> judged by the same scope you granted the root. There is no per-subagent
+> permission to get wrong, because there isn't one.
+
+That folds the subagent story into a run you were showing anyway, which is why
+it does not need its own slot later.
+
+---
+
+## 2:40 — Go and check (30 seconds)
 
 **The most important twenty seconds of the video.** Do not skip it, and do not
 narrate it from memory — run the command on camera.
 
-> Everything I've shown you is a claim on a screen. So don't take it from me.
+> That run is a claim on a screen too. So don't take it from me.
 
 Switch to the terminal:
 
@@ -162,9 +196,14 @@ node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
     sandbox checks   2
 ```
 
-> Every mission writes a hash-chained record. This verifier re-implements the
-> hashing independently rather than importing ours, so a bug in ours can't
-> cancel itself out. Change one entry and it names the first broken link.
+> Every live mission writes a hash-chained record, and that is the file the city
+> just replayed. This verifier re-implements the hashing independently rather
+> than importing ours, so a bug in ours can't cancel itself out. Change one entry
+> and it names the first broken link.
+
+Point at `threads 3`:
+
+> Including the two workers you just watched appear.
 
 Then the honesty line, which buys more credibility than it costs:
 
@@ -173,12 +212,11 @@ Then the honesty line, which buys more credibility than it costs:
 
 ---
 
-## 2:50 — One surprise (25 seconds)
+## 3:10 — One surprise (25 seconds)
 
-Pick **one**. Do not do all three. My order of preference:
-
-**Code Mode** — the strongest, because it answers the objection a security
-audience is already forming.
+The subagents are already spent — they happened inside the recorded run, which
+is why that run earns its place. So this is **Code Mode**, and it is the right
+one anyway: it answers the objection a security audience is already forming.
 
 > You might be thinking: fine, but the agent has a sandbox. It can write Python.
 > So I tested that.
@@ -196,18 +234,14 @@ pnpm --filter @scope-city/demo probe:code-mode
 > Arbitrary code, same boundary. The in-scope call still came back redacted —
 > writing Python doesn't get you a wider response.
 
-**Or — the subagents.** Open the recorded run and point at **THE FIELD**:
-
-> The agent creates its own workers at runtime. Three threads here, and every one
-> of them is judged by the same scope you granted the root. There's no
-> per-subagent permission to get wrong, because there isn't one.
-
-**Or — the Yard**, if the audience is more product than security: the over-reach
-run, where a too-wide scope is caught and narrowed *before* anything is granted.
+**Swap for the Yard** if the audience is more product than security: the
+over-reach run, where a scope drawn too wide is caught and narrowed *before*
+anything is granted. It is a weaker close for a security room and a better one
+for a product room.
 
 ---
 
-## 3:15 — Close (10 seconds)
+## 3:35 — Close (10 seconds)
 
 > Built on TrueForge, the open-source agent harness — the sandbox, the subagents
 > and the approval gate are all its primitives. Scope City is the boundary
@@ -232,9 +266,16 @@ you do not have.
 
 ## What to cut if you are over time
 
-In this order:
+This runs about three and a half minutes read at a normal pace, which is long.
+Cut in this order:
 
-1. The clean-job run. It proves no false positives, and nobody doubts that yet.
-2. The Yard / over-reach run.
-3. The projection line at 1:45 — painful to lose, first to go.
-4. **Never cut** the two-run comparison or the verifier. Those are the demo.
+1. The clean-job run, if you were going to show it at all. It proves the
+   boundary has no false positives, and nobody doubts that yet.
+2. The projection line at 1:45 — painful to lose, and the first to go.
+3. Code Mode. Keep it in your pocket for the questions instead; it is the best
+   answer you have to "but the agent can write code".
+4. The subagent aside at 2:20. Say only "a captured session" and move on.
+
+**Never cut** the two-run comparison, or the verifier, or the sentence
+introducing the recorded run as a real one. The first is the argument, the
+second is the proof, and the third is what keeps the second honest.

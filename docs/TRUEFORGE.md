@@ -143,6 +143,51 @@ within a session. Ships with git, curl, jq, ripgrep, tree, helm, zip and Python
 Sandbox-as-tool: the agent runs *outside* the sandbox and calls it over an API,
 so credentials never enter it. Provider is Daytona.
 
+## Code Mode, and whether it is a way round the scope
+
+An agent with a sandbox can write Python that calls MCP tools directly, bridged
+back through the harness -- Code Mode, or Programmatic Tool Calling. Scope City
+enables the sandbox on every mission, so this has been available to the agent
+from the beginning.
+
+That is the case the project's central claim has to survive. If reach is decided
+by the scope rather than by the agent's good behaviour, then an agent that can
+execute arbitrary code must not get further than one that cannot. Whether that
+holds is not a matter of opinion, so it is measured:
+
+```bash
+pnpm --filter @scope-city/demo probe:code-mode
+```
+
+One sandbox script makes three calls. Measured against a live TrueForge:
+
+| From inside the script | What happened |
+| --- | --- |
+| `ticket.get tkt_184` — in scope | Allowed, **and still redacted and injection-scanned** |
+| `ticket.get tkt_999` — out of scope | `Refused: resource_not_in_scope. tkt_999 is not a granted ticket_ids` |
+| `charge.refund` — countersign required | `requires interactive handling and is not callable from sandbox` |
+
+The boundary recorded `call.allowed`, `call.out_of_scope`, `response.redacted`
+and `response.injection_detected` — the same four things a direct tool call
+produces. The refund never reached the proxy at all.
+
+Two things worth stating precisely.
+
+**The response filtering matters more than the refusal.** A refusal is the
+obvious test and the boring one. The interesting result is that the in-scope
+call still had its response projected and scanned for injected instructions on
+the way back, which is what stops Code Mode being a way to read a full record
+that a direct call would have trimmed. A success that skipped those would be a
+bypass wearing a success message.
+
+**The countersign is stronger from code than from a direct call, and the docs
+say otherwise.** TrueForge's documentation states that a script calling a tool
+matching `require_approval_for_tools` "pauses for user approval just like a
+direct tool call". It does not. The harness refuses it outright: *Tool
+'scope-city-probe/charge.refund' requires interactive handling and is not
+callable from sandbox.* Safer than documented, but not what was written down --
+which is exactly why this is probed rather than cited.
+
 ## Subagents
 
 Dynamic and parallel, **one level deep**, sharing the root's tools and sandbox.

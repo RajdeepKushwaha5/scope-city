@@ -277,6 +277,37 @@ So the shipped recording is single-threaded on purpose: it is a mission that
 completed. The measurements are in
 [docs/TRUEFORGE.md](docs/TRUEFORGE.md#what-delegation-costs-measured).
 
+### The agent can write code. The boundary does not care.
+
+TrueForge lets an agent with a sandbox write Python that calls MCP tools
+directly, bridged back through the harness. Scope City enables the sandbox on
+every mission, so this has been available to the agent from the start -- which
+makes it the case this project's claim has to survive. An agent that can execute
+arbitrary code must not get further than one that cannot.
+
+That is measured rather than asserted:
+
+```bash
+pnpm --filter @scope-city/demo probe:code-mode
+```
+
+One sandbox script, three calls, against a live TrueForge:
+
+```
+  HELD    in-scope       allowed, and the response still filtered
+  HELD    out-of-scope   Refused: resource_not_in_scope. tkt_999 is not a granted ticket_ids
+  HELD    countersigned  requires interactive handling and is not callable from sandbox
+```
+
+The in-scope case is the interesting one. The refusal is the obvious test; what
+matters is that the allowed call still had its response projected and scanned
+for injected instructions on the way back, exactly as a direct call does. A
+success that skipped those would be a bypass wearing a success message.
+
+The full findings, including a place where TrueForge's own documentation says
+something the harness does not do, are in
+[docs/TRUEFORGE.md](docs/TRUEFORGE.md#code-mode-and-whether-it-is-a-way-round-the-scope).
+
 ### Checking the record yourself
 
 The recording the city replays is a hash-chained mission record, and you do not

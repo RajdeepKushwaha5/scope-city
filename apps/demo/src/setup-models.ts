@@ -14,7 +14,10 @@
  * told a sequence of clicks.
  */
 
-import { readFileSync } from "node:fs";
+// Loads .env on import, before anything below reads the environment. The
+// same loader the control plane uses -- this file had kept its own copy,
+// which had never been given the precedence fix the shared one got.
+import "./load-env.js";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { REASONING_EFFORTS } from "@scope-city/harness";
 
@@ -27,24 +30,6 @@ import { REASONING_EFFORTS } from "@scope-city/harness";
  * availability moves, and hard-coding a model here would mean editing source
  * to react to that.
  */
-/** Load .env without a dependency: this runs once, by hand, before anything else. */
-function loadEnv(): void {
-  try {
-    const text = readFileSync(new URL("../../../.env", import.meta.url), "utf8");
-    for (const raw of text.split("\n")) {
-      const line = raw.trim();
-      if (!line || line.startsWith("#")) continue;
-      const eq = line.indexOf("=");
-      if (eq < 1) continue;
-      const key = line.slice(0, eq).trim();
-      const value = line.slice(eq + 1).trim().replace(/^["']|["']$/g, "");
-      if (!process.env[key]) process.env[key] = value;
-    }
-  } catch {
-    // No .env is fine; the variables may already be exported.
-  }
-}
-
 interface Slot {
   /** Provider name in TrueForge. Also the label the pool reports. */
   readonly provider: string;
@@ -52,6 +37,27 @@ interface Slot {
   readonly model: string;
   readonly envKey: string;
   readonly contextLength: number;
+  /**
+   * Where the OpenAI-compatible endpoint lives. Defaults to Gemini's.
+   *
+   * A slot is not tied to a vendor -- it is a base URL, a key and a model id.
+   * That is what lets a local Ollama join the same pool as a hosted key
+   * without the proxy, the scope or the city knowing the difference.
+   */
+  readonly baseUrl?: string;
+  /** The upstream model id, when it is not the shared Gemini one. */
+  readonly modelId?: string;
+  /**
+   * Whether this model accepts a reasoning effort.
+   *
+   * Declared per slot because it is not a property of the harness. Gemini
+   * takes one; a local Qwen answers `400 does not support thinking`, so
+   * claiming support here would turn the operator's choice into a failed
+   * launch rather than an ignored hint.
+   */
+  readonly reasoningEfforts?: readonly string[];
+  /** Local endpoints need no credential, so the env key is not required. */
+  readonly keyOptional?: boolean;
 }
 
 /**
@@ -100,22 +106,70 @@ const SLOTS: readonly Slot[] = [
   },
 ];
 
-async function main(): Promise<void> {
-  loadEnv();
+/**
+ * A local model, when one is running.
+ *
+ * The point is not that it is cheaper. It is that the boundary does not care
+ * which model is behind it: the scope, the proxy, the ledger and the gate are
+ * the same whether the agent is Gemini or a Qwen on this laptop. Being able to
+ * swap the model and watch nothing about the enforcement change is the clearest
+ * demonstration that enforcement does not depend on trusting the model.
+ *
+ * Off unless OLLAMA_HOST is set, because a fresh clone with nothing listening
+ * on 11434 must not fail model discovery on a slot nobody asked for.
+ *
+ * No reasoning efforts declared: Ollama refuses one outright rather than
+ * ignoring it, so claiming support would turn the operator's choice into a
+ * failed launch.
+ *
+ * Built from the environment as a function, not read at module load. `.env` is
+ * loaded by `main`, so a module-level read happens first and sees nothing --
+ * which meant the documented way of configuring this was the one way that did
+ * not work. It appeared to work only for someone who had already exported the
+ * variable in their shell.
+ */
+function localSlots(): readonly Slot[] {
+  const host = process.env.OLLAMA_HOST ?? "";
+  if (!host) return [];
 
+  return [
+    {
+      provider: "local",
+      model: "qwen",
+      // The credential, not the endpoint. Naming OLLAMA_HOST here passed the
+      // URL itself as the API key and made the fallback below unreachable --
+      // harmless against Ollama, which ignores it, and wrong for any other
+      // OpenAI-compatible endpoint, which would be handed a URL where its
+      // token should be and reject every call.
+      envKey: "OLLAMA_API_KEY",
+      keyOptional: true,
+      contextLength: 32_768,
+      baseUrl: `${host.replace(/\/+$/, "")}/v1`,
+      modelId: process.env.OLLAMA_MODEL ?? "qwen2.5:7b",
+      reasoningEfforts: [],
+    },
+  ];
+}
+
+async function main(): Promise<void> {
   const baseUrl = process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790";
-  const modelId = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
+  const sharedModelId = process.env.GEMINI_MODEL ?? "gemini-2.5-flash";
 
   const client = new TrueForge({ baseUrl, timeoutInSeconds: 60 });
   const configured: string[] = [];
   const skipped: string[] = [];
 
-  for (const slot of SLOTS) {
+  for (const slot of [...SLOTS, ...localSlots()]) {
     const apiKey = process.env[slot.envKey];
-    if (!apiKey) {
+    // A local endpoint usually has no credential to present. Requiring one
+    // would skip the slot for lacking something it does not need -- but the
+    // key is still read, so an endpoint that does want one gets it.
+    if (!apiKey && !slot.keyOptional) {
       skipped.push(slot.envKey);
       continue;
     }
+
+    const efforts = slot.reasoningEfforts ?? REASONING_EFFORTS;
 
     // Note the camelCase. The SDK's TypeScript surface is camelCase and it
     // converts to snake_case on the wire; the OpenAPI document shows the wire
@@ -125,11 +179,13 @@ async function main(): Promise<void> {
       manifest: {
         type: "custom",
         name: slot.provider,
-        baseUrl: GEMINI_OPENAI_BASE_URL,
-        auth: { apiKey },
+        baseUrl: slot.baseUrl ?? GEMINI_OPENAI_BASE_URL,
+        // Ollama ignores the credential; sending an empty one is what its
+        // OpenAI-compatible endpoint expects rather than omitting the field.
+        auth: { apiKey: apiKey ?? "local" },
         models: [
           {
-            modelId,
+            modelId: slot.modelId ?? sharedModelId,
             name: slot.model,
             properties: {
               contextLength: slot.contextLength,
@@ -142,7 +198,14 @@ async function main(): Promise<void> {
               // "does not support configurable reasoning effort". Registering
               // the levels is what makes the operator's choice reach the
               // provider instead of being an unused control.
-              reasoningEfforts: REASONING_EFFORTS,
+              // Per slot, not global, and omitted rather than empty.
+              //
+              // TrueForge refuses `reasoning_efforts: []` outright -- the field
+              // must have at least one entry or not be there at all. Absent is
+              // the honest encoding for a model that takes no effort: the
+              // harness then refuses any effort sent to it, which is exactly
+              // the behaviour wanted. See the note on `Slot.reasoningEfforts`.
+              ...(efforts.length > 0 ? { reasoningEfforts: efforts } : {}),
             },
           },
         ],

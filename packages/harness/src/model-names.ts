@@ -11,6 +11,10 @@ export interface ModelListEntry {
   readonly name?: string;
   readonly id?: string;
   readonly model_id?: string;
+  readonly properties?: {
+    readonly reasoning_efforts?: readonly string[];
+    readonly reasoningEfforts?: readonly string[];
+  };
 }
 
 /**
@@ -41,4 +45,37 @@ export function qualifiedModelNames(entries: readonly ModelListEntry[]): readonl
   return entries
     .map((entry) => entry.name ?? entry.id)
     .filter((name): name is string => typeof name === "string" && name.includes("/"));
+}
+
+/**
+ * Which models will accept a reasoning effort, by qualified name.
+ *
+ * Needed because not every model does, and the ones that do not reject the
+ * request rather than ignoring it. A local Qwen behind Ollama answers a
+ * reasoning effort with `400 "qwen2.5:3b" does not support thinking`, so
+ * sending one on the operator's behalf turns a working mission into a failed
+ * launch.
+ *
+ * Read from what each model declares rather than guessed from its name: the
+ * harness already validates an effort against this list, and the control plane
+ * should agree with it instead of finding out at session creation.
+ *
+ * Both spellings are accepted. The wire format is snake_case and the SDK
+ * converts to camelCase, and which one arrives depends on the path a listing
+ * took to get here.
+ */
+export function reasoningEffortsByModel(
+  entries: readonly ModelListEntry[],
+): ReadonlyMap<string, readonly string[]> {
+  const byModel = new Map<string, readonly string[]>();
+
+  for (const entry of entries) {
+    const name = entry.name ?? entry.id;
+    if (typeof name !== "string" || !name.includes("/")) continue;
+
+    const efforts = entry.properties?.reasoning_efforts ?? entry.properties?.reasoningEfforts ?? [];
+    byModel.set(name, efforts);
+  }
+
+  return byModel;
 }

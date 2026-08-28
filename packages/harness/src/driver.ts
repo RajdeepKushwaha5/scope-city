@@ -2,7 +2,7 @@ import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { iterationLimitFor } from "./reasoning-effort.js";
 import type { AgentSpec, McpServerManifest, TurnEvent, TurnInput } from "./types.js";
 import { MCP_SERVER_NAME_PATTERN } from "./types.js";
-import { qualifiedModelNames, type ModelListEntry } from "./model-names.js";
+import { qualifiedModelNames, reasoningEffortsByModel, type ModelListEntry } from "./model-names.js";
 
 /**
  * Drives a real TrueForge session.
@@ -73,6 +73,20 @@ export class HarnessDriver {
     const response = await this.#client.models.list();
     const data = (response as { data?: ModelListEntry[] }).data ?? [];
     return qualifiedModelNames(data);
+  }
+
+  /**
+   * What each model says it will accept, not just what it is called.
+   *
+   * The names alone were enough while every model was the same Gemini behind
+   * four keys. They are not once a local model is in the pool: a reasoning
+   * effort that Gemini honours is a 400 from Ollama, so the control plane has
+   * to know which is which before it builds a spec.
+   */
+  async listModelCapabilities(): Promise<ReadonlyMap<string, readonly string[]>> {
+    const response = await this.#client.models.list();
+    const data = (response as { data?: ModelListEntry[] }).data ?? [];
+    return reasoningEffortsByModel(data);
   }
 
   async listMcpServers(): Promise<readonly { name: string }[]> {
@@ -270,6 +284,18 @@ export function missionAgentSpec(params: {
    * silently becomes an effort it ignores.
    */
   reasoningEffort?: string;
+  /**
+   * The turn budget, when the caller has to state it rather than let it follow
+   * from the effort.
+   *
+   * These are two settings that happen to share an input. The effort is the
+   * provider's; the budget is ours, and a model that accepts no effort still
+   * gets one. Deriving the budget from an effort that was dropped because the
+   * chosen model refuses it silently promoted every low and medium run to the
+   * high ceiling -- and the brief, which reads the operator's original choice,
+   * went on promising the smaller number.
+   */
+  iterationLimit?: number;
 }): AgentSpec {
   // Every key here is camelCase, and that is not a style choice.
   //
@@ -310,7 +336,7 @@ export function missionAgentSpec(params: {
       // still had twenty-four turns to work through the job -- the label
       // described the thinking and not the work. "high" keeps the ceiling every
       // run has had, so only the lower settings change anything.
-      iterationLimit: iterationLimitFor(params.reasoningEffort),
+      iterationLimit: params.iterationLimit ?? iterationLimitFor(params.reasoningEffort),
     },
   };
 }

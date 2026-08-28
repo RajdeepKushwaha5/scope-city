@@ -130,6 +130,14 @@ every branch reachable from a test.
   Node 24 has it outright. The whole of 23 is excluded rather than bisected: it
   is a non-LTS line, and pinning the supported range to what was actually tested
   beats guessing which 23.x changed it.
+- **A local model is optional, and proves something.** Point `OLLAMA_HOST` at
+  Ollama, vLLM or any OpenAI-compatible endpoint and it joins the pool beside
+  the hosted keys -- TrueForge registers it as a `custom` provider, the same
+  mechanism the Gemini slots use. The scope, the proxy, the ledger and the gate
+  are unchanged: being able to swap the model and watch nothing about the
+  enforcement change is the clearest demonstration that enforcement does not
+  depend on trusting the model. A local model may accept no reasoning effort,
+  so the control plane drops that setting for it rather than failing the launch.
 - **Mail is optional, and needs no account.** Without it the Post House keeps an
   in-memory outbox, which enforces correctly but cannot be looked at. Point
   `MAILPIT_HOST` at a running [Mailpit](https://mailpit.axllent.org) and the

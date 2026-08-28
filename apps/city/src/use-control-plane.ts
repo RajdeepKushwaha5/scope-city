@@ -24,10 +24,30 @@ export type ControlPlane = "checking" | "available" | "absent";
  * not enough: a static host answers `/api/health` with its 404 page, which
  * resolves successfully and is emphatically not a control plane.
  */
+/**
+ * Why the probe answered as it did.
+ *
+ * Four distinguishable outcomes rather than a boolean, because they call for
+ * different words on screen: a static host is a deployment where live missions
+ * were never possible, an unwell harness is a live control plane with a real
+ * problem to report, and a timeout is neither. Collapsing them meant the city
+ * could only say "no backend" to all three.
+ */
+export type ProbeReason =
+  | "control-plane"
+  | "harness-unwell"
+  | "not-a-control-plane"
+  | "unreachable";
+
+export interface ProbeResult {
+  readonly available: boolean;
+  readonly reason: ProbeReason;
+}
+
 export async function probeControlPlane(
   fetchImpl: typeof fetch = fetch,
   timeoutMs = 4_000,
-): Promise<"available" | "absent"> {
+): Promise<ProbeResult> {
   // Aborted rather than left hanging: a host that swallows the request would
   // otherwise leave the UI in `checking` forever, which reads as a broken page
   // rather than an honest one.
@@ -56,9 +76,16 @@ export async function probeControlPlane(
     // alone reported a control plane there -- the city offered to launch live
     // missions on the one URL judges actually visit, and every one of them
     // would have posted to an endpoint returning HTML.
-    return isHealth(await response.json().catch(() => null)) ? "available" : "absent";
+    const body: unknown = await response.json().catch(() => null);
+    if (!isHealth(body)) return { available: false, reason: "not-a-control-plane" };
+
+    // Present either way. `ok: false` is the control plane reporting that the
+    // harness behind it is unreachable, which is a thing only a control plane
+    // can tell you.
+    const healthy = (body as { ok: boolean }).ok;
+    return { available: true, reason: healthy ? "control-plane" : "harness-unwell" };
   } catch {
-    return "absent";
+    return { available: false, reason: "unreachable" };
   } finally {
     clearTimeout(timer);
   }
@@ -77,7 +104,7 @@ export function useControlPlane(): ControlPlane {
   useEffect(() => {
     let cancelled = false;
     void probeControlPlane().then((result) => {
-      if (!cancelled) setState(result);
+      if (!cancelled) setState(result.available ? "available" : "absent");
     });
     return () => {
       cancelled = true;

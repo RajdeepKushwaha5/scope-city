@@ -137,13 +137,39 @@ describe("the Qodo evidence section", () => {
     // And no printed total, which is the other way it goes stale: the count
     // moves on the next merge whether or not anyone edits this file.
     expect(total, "a total here is false at the next merge").not.toMatch(/\d+ of the \d+/);
-    // Every one of them, not any one of them. The first version of this used
-    // alternation, so it passed while eight of the nine could be deleted --
-    // which is the same shape of hole as the claim it was written to guard.
+    /*
+     * The set, not a membership test.
+     *
+     * This started as alternation, so it passed while eight of the nine could
+     * be deleted. Tightened to a loop, it still only proved each expected one
+     * was present -- so the section could claim "all but nine" while naming
+     * eleven, and nothing here would notice. The claim is about a set, and only
+     * comparing sets checks a claim about a set.
+     */
     const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97];
-    for (const pr of NO_QODO) {
-      expect(total, `#${pr} is an exception and has to be named`).toContain(`pull/${pr}`);
-    }
+
+    /*
+     * The sentence that lists them, not the whole section, which also links
+     * #60 and #61 while discussing the pre-workflow commits.
+     *
+     * Whitespace is collapsed first because the README is hard-wrapped: the
+     * anchor phrase is split across a line break in the file, so searching the
+     * raw text for it finds nothing and the slice silently covers everything.
+     */
+    const flat = total.replace(/\s+/g, " ");
+    const listStart = flat.indexOf("They are");
+    const listEnd = flat.indexOf("Every one of them", listStart);
+    expect(listStart, "the exception list has moved or gone").toBeGreaterThan(-1);
+    expect(listEnd).toBeGreaterThan(listStart);
+    const list = flat.slice(listStart, listEnd);
+
+    const named = [...new Set([...list.matchAll(/pull\/(\d+)/g)].map((m) => Number(m[1])))].sort(
+      (a, b) => a - b,
+    );
+
+    expect(named, "the exceptions named must be exactly the ones without a Qodo review").toEqual(
+      NO_QODO,
+    );
     expect(total, "and the list is how a reader checks the rest").toContain("is%3Amerged");
   });
 

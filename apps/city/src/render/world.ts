@@ -191,6 +191,73 @@ export function apronEdges(u: number, v: number): ("-u" | "+u" | "-v" | "+v")[] 
 }
 
 /**
+ * The hoardings, and the ground they stand on.
+ *
+ * One table rather than a list of draw calls, because a billboard needs two
+ * things that were in two different files: a position to be drawn at, and a
+ * cell nothing else may take. The two existing boards were drawn without
+ * reserving anything, so a street tree could grow through the face of one --
+ * which is the kind of defect that only shows up in a screenshot, and by then
+ * it is in the video.
+ *
+ * `accent` is the title colour. Nobody's logo file is shipped here: at this
+ * size a board is eighty-four pixels wide and the wordmark is what reads, so a
+ * scaled-down mark would be mush even if the provenance were settled -- and it
+ * is not (see the artwork issue). Colour and type carry the identification
+ * instead, and a real asset can replace the face later without moving anything.
+ *
+ * The cells are chosen so that a board is actually on screen at the zoom the
+ * city opens at, and that is not automatic in two separate ways. The HUD
+ * columns cover about three hundred pixels down each side, which put one board
+ * behind the console outright. And the city itself is in the way: a hoarding is
+ * forty-eight pixels of face and the tower on the next diagonal is three
+ * hundred, drawn later, so a board can be swallowed whole by a building that
+ * stands behind it in the world and in front of it on the screen.
+ *
+ * Both are checked in `hoardings.test.ts` against the real layout rather than
+ * chosen by eye, because both failures look identical to a board that was never
+ * added -- and neither is a rendering fault. Every one of these draws perfectly.
+ */
+export interface Hoarding {
+  readonly cell: Cell;
+  readonly title: string;
+  readonly subtitle: string;
+  readonly accent: string;
+}
+
+export const HOARDINGS: readonly Hoarding[] = [
+  {
+    cell: { u: 4, v: 23 },
+    title: "Scope City",
+    subtitle: "Authority has borders",
+    accent: "#f0a830",
+  },
+  {
+    cell: { u: 26, v: 29 },
+    title: "TrueFoundry",
+    subtitle: "TrueForge harness",
+    accent: "#8b7cf6",
+  },
+  {
+    cell: { u: 15, v: 5 },
+    title: "WeMakeDevs",
+    subtitle: "Hackathon 2026",
+    accent: "#4ec9d6",
+  },
+  {
+    cell: { u: 39, v: 14 },
+    title: "Qodo",
+    subtitle: "Reviews every PR",
+    accent: "#c778dd",
+  },
+];
+
+/** Cells a hoarding stands on. Nothing else may be placed there. */
+export function isHoardingCell(u: number, v: number): boolean {
+  return HOARDINGS.some((board) => board.cell.u === u && board.cell.v === v);
+}
+
+/**
  * Everything standing on the island.
  *
  * Offices are placed first, on the block cells nearest their district's
@@ -231,6 +298,7 @@ export function layOutCity(
         if (tileKindAt(u, v) !== "grass") continue;
         if (taken.has(key(u, v))) continue;
         if (isFacilityCell(u, v)) continue;
+        if (isHoardingCell(u, v)) continue;
         slots.push({ u, v });
       }
     }
@@ -267,6 +335,7 @@ export function layOutCity(
       if (tileKindAt(u, v) !== "grass") continue;
       if (taken.has(key(u, v))) continue;
       if (isFacilityCell(u, v)) continue;
+      if (isHoardingCell(u, v)) continue;
 
       const seed = cellSeed(u, v);
 
@@ -330,6 +399,7 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
       if (built.has(`${u}:${v}`)) continue;
       if (isLandmarkPlazaCell(u, v)) continue;
       if (isFacilityCell(u, v)) continue;
+      if (isHoardingCell(u, v)) continue;
       const seed = cellSeed(u, v);
       // Fountains own their park cell; never place a canopy over the feature.
       if (kind === "grass" && seed % 30 === 0) continue;
@@ -366,6 +436,7 @@ export function fountainCells(buildings: readonly Building[]): Cell[] {
       if (tileKindAt(u, v) !== "grass" || built.has(`${u}:${v}`)) continue;
       if (isLandmarkPlazaCell(u, v)) continue;
       if (isFacilityCell(u, v)) continue;
+      if (isHoardingCell(u, v)) continue;
       // Filler parks are cells whose base seed is divisible by six. A second
       // divisor of thirty selects a stable subset without relying on a second
       // correlated hash that can accidentally select none of them.

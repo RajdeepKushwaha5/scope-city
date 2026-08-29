@@ -13,6 +13,7 @@ import {
   treeCells,
 } from "./world.js";
 import { OFFICES } from "../useMission.js";
+import { SIGN_MAX } from "./shapes.js";
 
 /**
  * Hardstanding.
@@ -182,6 +183,69 @@ describe("the naval yard", () => {
       const v = Number(at[2]);
       expect(facilityAt(u, v), `a prop at ${u},${v} is outside the yard`).toBe("naval");
       expect(isApron(u, v), `a prop at ${u},${v} is not on apron`).toBe(true);
+    }
+  });
+});
+
+describe("the port and the airfield", () => {
+  const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
+  const facility = scene.slice(
+    scene.indexOf("function facilityItems"),
+    scene.indexOf("function navalYardItems"),
+  );
+
+  it("was found in the source", () => {
+    expect(facility.length).toBeGreaterThan(1000);
+  });
+
+  it("gives the port somewhere to work from and a name on the gate", () => {
+    // It was cranes, containers and a ship: the plant of a port with none of
+    // the establishment, so it read as a building site on a quay.
+    for (const prop of ["drawQuayHut", "drawFacilitySign", "drawFloodlight", "drawBollards"]) {
+      expect(facility, `the port has no ${prop}`).toContain(prop);
+    }
+  });
+
+  it("gives the airfield somewhere to get on", () => {
+    // A hangar, a tower and an aeroplane is a maintenance base. The terminal is
+    // the building that makes it an airport, and the windsock is what makes the
+    // strip a runway rather than a black rectangle with stripes on it.
+    expect(facility).toContain("drawTerminal");
+    expect(facility).toContain("drawWindsock");
+  });
+
+  it("has no pier decks left on either quay", () => {
+    // The apron is paved to the water now, so there is nothing for a deck to be
+    // laid on top of -- and a row of them read as eight jetties, not one wall.
+    expect(facility).not.toContain("drawPier(");
+  });
+
+  it("puts every prop on its own apron", () => {
+    // The same check the naval yard gets, and for the same reason: the port is
+    // crossed by two streets and the airfield by three, so a coordinate typed
+    // into a literal lands on one about half the time.
+    const placements = [
+      ...facility.matchAll(
+        /draw(?:QuayHut|FacilitySign|Floodlight|Terminal|Windsock|Crane|ContainerStack|Hangar|ControlTower)\(ctx, (\d+), (\d+)/g,
+      ),
+    ];
+    expect(placements.length).toBeGreaterThanOrEqual(12);
+
+    for (const at of placements) {
+      const u = Number(at[1]);
+      const v = Number(at[2]);
+      const where = facilityAt(u, v);
+      expect(where, `a prop at ${u},${v} is outside every facility`).not.toBeNull();
+      expect(isApron(u, v), `a prop at ${u},${v} is on a street or in the water`).toBe(true);
+    }
+  });
+
+  it("keeps every nameplate short enough to read", () => {
+    // The board is a fixed size and the type is not fitted to it. A name that
+    // does not fit gets cut rather than shrunk, so the limit has to be checked
+    // here instead of discovered on screen.
+    for (const sign of facility.matchAll(/drawFacilitySign\(ctx, \d+, \d+, "([^"]+)"\)/g)) {
+      expect(sign[1]!.length, `${sign[1]} does not fit a nameplate`).toBeLessThanOrEqual(SIGN_MAX);
     }
   });
 });

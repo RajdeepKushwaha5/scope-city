@@ -1006,6 +1006,135 @@ export function drawBollards(
   ctx.restore();
 }
 
+/** Characters that fit across a facility nameplate at its fixed size. */
+export const SIGN_MAX = 9;
+
+/**
+ * A named board over the entrance to a facility.
+ *
+ * Smaller than a hoarding and doing a different job: a hoarding is advertising
+ * and this is a nameplate. It is what lets someone looking at the map for the
+ * first time know that the row of cranes is a port rather than a building site.
+ */
+export function drawFacilitySign(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  text: string,
+): void {
+  const c = toScreen(u, v, 0);
+  const label = text.toUpperCase();
+  ctx.save();
+
+  ctx.fillStyle = COAST.signPost;
+  ctx.fillRect(c.x - 20, c.y - 14, 3, 16);
+  ctx.fillRect(c.x + 17, c.y - 14, 3, 16);
+
+  ctx.fillStyle = COAST.signFace;
+  ctx.fillRect(c.x - 26, c.y - 30, 52, 17);
+  ctx.strokeStyle = COAST.apronLine;
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(c.x - 26, c.y - 30, 52, 17);
+
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  // Fixed size and a hard limit on the name instead of fitting the text to the
+  // board. A nameplate with nine characters of room should have a name that
+  // fits in nine, and the alternative -- shrinking the type until it does --
+  // ends with a sign nobody can read. `SIGN_MAX` is asserted in the tests, so a
+  // longer name fails the build rather than running off both ends of the board.
+  ctx.font = "700 8px monospace";
+  ctx.fillStyle = COAST.apronLine;
+  ctx.fillText(label.slice(0, SIGN_MAX), c.x, c.y - 21);
+  ctx.restore();
+}
+
+/**
+ * A windsock on a pole, leaning downwind.
+ *
+ * The one thing on an airfield that says which way the wind is, and the detail
+ * that separates a runway from a black rectangle with stripes on it.
+ */
+export function drawWindsock(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = COAST.floodMast;
+  ctx.fillRect(c.x - 1, c.y - 30, 2, 30);
+  ctx.strokeStyle = COAST.floodMast;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y - 30);
+  ctx.lineTo(c.x + 6, c.y - 27);
+  ctx.stroke();
+
+  // Alternating bands, wide end at the pole. Tapered, because a sock that does
+  // not taper is a flag.
+  const bands: readonly [number, number, string][] = [
+    [6, 9, COAST.sockRed],
+    [15, 7, COAST.sockWhite],
+    [22, 5, COAST.sockRed],
+    [28, 4, COAST.sockWhite],
+  ];
+  for (const [dx, h, colour] of bands) {
+    ctx.fillStyle = colour;
+    ctx.fillRect(c.x + dx, c.y - 28 - h / 2, 8, h);
+  }
+  ctx.restore();
+}
+
+/**
+ * The terminal: a barrel-vaulted glass shed with a landside canopy.
+ *
+ * The airfield had a hangar, a tower and an aeroplane, which is a maintenance
+ * base rather than an airport -- there was nowhere for anybody to get on. The
+ * curved roof is doing the recognising here: at map scale nothing else on this
+ * island is a cylinder lying on its side.
+ */
+export function drawTerminal(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+
+  ctx.fillStyle = COAST.shadow;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y + 5, 44, 14, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = COAST.terminalWall;
+  ctx.fillRect(c.x - 40, c.y - 30, 80, 32);
+
+  // The vault. Two arcs, the second inset, so the glazing reads as glass over
+  // a frame rather than as a painted stripe.
+  ctx.fillStyle = COAST.terminalRoof;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 29, 40, 20, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = COAST.terminalGlass;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 29, 34, 16, 0, Math.PI, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = COAST.terminalRib;
+  ctx.lineWidth = 1;
+  for (const at of [-24, -12, 0, 12, 24]) {
+    ctx.beginPath();
+    ctx.moveTo(c.x + at, c.y - 29);
+    ctx.lineTo(c.x + at, c.y - 29 - Math.sqrt(Math.max(0, 1 - (at / 34) ** 2)) * 16);
+    ctx.stroke();
+  }
+
+  // Landside canopy and the departures board under it.
+  ctx.fillStyle = COAST.terminalTrim;
+  ctx.fillRect(c.x - 42, c.y - 12, 84, 3);
+  ctx.fillStyle = COAST.signFace;
+  ctx.fillRect(c.x - 14, c.y - 24, 28, 9);
+  ctx.fillStyle = COAST.apronLine;
+  ctx.fillRect(c.x - 11, c.y - 21, 22, 3);
+
+  ctx.fillStyle = COAST.terminalDoor;
+  for (const at of [-26, -8, 10]) ctx.fillRect(c.x + at, c.y - 9, 14, 9);
+  ctx.restore();
+}
+
 /** A cylindrical fuel tank with a banded top and a walkway rail. */
 export function drawFuelTank(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);

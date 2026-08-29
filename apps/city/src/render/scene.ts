@@ -19,11 +19,14 @@ import {
   drawApronMarking,
   drawBillboard,
   drawBollards,
+  drawFacilitySign,
   drawFence,
   drawFlag,
   drawFloodlight,
   drawFuelTank,
   drawQuayHut,
+  drawTerminal,
+  drawWindsock,
   drawClouds,
   drawCivicDome,
   drawContainerStack,
@@ -406,14 +409,32 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport) },
     { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
     { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
+    // A hangar, a tower and an aeroplane is a maintenance base: there was
+    // nowhere for anybody to get on. The terminal is the building that makes it
+    // an airport, and the windsock is what makes the strip a runway rather than
+    // a black rectangle with stripes on it.
+    { z: depth(7, 28, 3), draw: (ctx) => drawTerminal(ctx, 7, 28) },
+    { z: depth(13, 29, 4), draw: (ctx) => drawWindsock(ctx, 13, 29) },
+    { z: depth(4, 29, 3), draw: (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield") },
+    { z: depth(11, 31, 4), draw: (ctx) => drawFloodlight(ctx, 11, 31) },
     { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
   );
 
+  // Bollards along the quay rather than a row of pier decks, for the same
+  // reason as the naval yard: the apron is paved to the water now, so there is
+  // nothing left for a deck to be laid on top of.
   for (let u = 28; u <= 37; u += 1) {
     const cu = u;
-    items.push({ z: depth(cu, 32, -0.2), draw: (ctx) => drawPier(ctx, cu, 32) });
+    items.push({ z: depth(cu, 32, 0.4), draw: (ctx) => drawBollards(ctx, cu, 32) });
   }
-  for (const [u, v, seed] of [[29, 29, 1], [31, 29, 2], [33, 29, 3], [35, 29, 4]] as const) {
+  for (const [u, v, seed] of [
+    [29, 29, 1],
+    [31, 29, 2],
+    [33, 29, 3],
+    [35, 29, 4],
+    [28, 31, 5],
+    [32, 28, 6],
+  ] as const) {
     items.push({ z: depth(u, v, 1), draw: (ctx) => drawContainerStack(ctx, u, v, seed) });
   }
   items.push(
@@ -421,6 +442,12 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(34, 31, 3), draw: (ctx) => drawCrane(ctx, 34, 31) },
     { z: depth(37.5, 31, 4), draw: (ctx) => drawLighthouse(ctx, 37.5, 31, time) },
     { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
+    // The things that make a quay a port rather than a building site: somewhere
+    // to work from, something to work by, and a name on the gate.
+    { z: depth(27, 28, 2), draw: (ctx) => drawQuayHut(ctx, 27, 28) },
+    { z: depth(34, 28, 3), draw: (ctx) => drawFacilitySign(ctx, 34, 28, "Port") },
+    { z: depth(31, 31, 4), draw: (ctx) => drawFloodlight(ctx, 31, 31) },
+    { z: depth(35, 31, 4), draw: (ctx) => drawFloodlight(ctx, 35, 31) },
   );
 
   // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid

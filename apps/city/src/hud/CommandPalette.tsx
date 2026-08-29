@@ -79,7 +79,7 @@ export function CommandPalette(props: {
         if (e.target === e.currentTarget) props.onClose();
       }}
     >
-      <div className="cmd-modal">
+      <div className="cmd-modal" role="dialog" aria-modal="true" aria-label="Command palette">
         <div className="cmd-head">
           <span className="cmd-icon">?</span>
           <input

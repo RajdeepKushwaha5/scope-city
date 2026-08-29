@@ -275,6 +275,62 @@
   white-space: nowrap;
 }
 
+/*
+ * The title gives way before the controls do.
+ *
+ * The bar does not wrap and the window clips, so on a narrow screen something
+ * has to lose. It should be the words: a truncated title is still a title, and
+ * a clipped mute button is a control the operator cannot reach. The console
+ * drops to 42vw on a phone, where the name, the status chip, three icons and
+ * their gaps do not fit together.
+ */
+.window__bar > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.window__bar .status-chip {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  /* The chip's word goes; its dot still says the same thing in less room. */
+  .window__bar .status-chip {
+    font-size: 0;
+    padding: 2px;
+  }
+
+  .window__bar .status-chip__dot {
+    font-size: 9px;
+  }
+
+  /*
+   * Room for the title, not only for the controls.
+   *
+   * Truncating the title was the right order of sacrifice and it was the whole
+   * of the fix, which left about five pixels of it on a 390px phone -- a
+   * control nobody can read the owner of. The bar buys the space back from its
+   * own padding and gaps instead: the icons keep a 20px touch target, and the
+   * dotted rule that fills the bar gives up its minimum, since it is decoration
+   * and the only thing here that is.
+   */
+  .window__bar {
+    gap: 5px;
+    padding-left: 17px;
+    padding-right: 7px;
+  }
+
+  .window__bar::before {
+    left: 7px;
+  }
+
+  .window__rule {
+    min-width: 0;
+  }
+}
+
 .window__bar::before {
   content: "";
   position: absolute;
@@ -283,6 +339,36 @@
   height: 14px;
   background: var(--accent);
   box-shadow: 0 0 9px rgba(240, 168, 48, 0.45);
+}
+
+/*
+ * Square controls sitting in a window's title bar.
+ *
+ * Sized to the bar rather than to the body: these are chrome, and a button the
+ * height of a sentence in the panel below would read as content that happens
+ * to be up here. Same footprint as the collapse chevron beside them, so the
+ * right end of the bar is a row of equal squares.
+ */
+.window__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  flex: none;
+  padding: 0;
+  border: 1px solid var(--panel-edge-lit);
+  background: transparent;
+  color: var(--ink-dim);
+  font-family: var(--font-ui);
+  font-size: 11px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.window__icon:hover {
+  color: var(--accent);
+  border-color: var(--accent-dim);
 }
 
 /* The dotted run that fills the bar to its right edge. Cheap, and it does more
@@ -2059,187 +2145,6 @@ canvas.world:active {
 
 /* ---- PROOF --------------------------------------------------------------- */
 
-
-/* ==========================================================================
-   TOPNAV HEADER & SCENARIO BAR
-   ========================================================================== */
-
-.topnav {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 48px;
-  background: rgba(12, 16, 23, 0.88);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border-bottom: 1px solid var(--hud-rule);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 0 16px;
-  z-index: 120;
-  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-}
-
-.topnav__brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-}
-
-.topnav__badge {
-  font-size: 8px;
-  font-weight: 700;
-  letter-spacing: 0.12em;
-  background: #ffc247;
-  color: #0c1017;
-  padding: 3px 6px;
-  border-radius: 2px;
-}
-
-.topnav__title-stack {
-  display: flex;
-  flex-direction: column;
-}
-
-.topnav__title {
-  margin: 0;
-  font-size: 14px;
-  font-family: Silkscreen, "VT323", monospace;
-  font-weight: 700;
-  letter-spacing: 0.08em;
-  color: #ffc247;
-  text-shadow: 0 0 10px rgba(255, 194, 71, 0.35);
-  line-height: 1;
-}
-
-.topnav__subtitle {
-  font-size: 9px;
-  color: var(--hud-dim);
-  letter-spacing: 0.06em;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  margin-top: 2px;
-}
-
-.topnav__dot {
-  width: 6px;
-  height: 6px;
-  border-radius: 50%;
-  background: #3fb950;
-  display: inline-block;
-  box-shadow: 0 0 8px rgba(63, 185, 80, 0.8);
-}
-
-.topnav__dot--offline {
-  background: #ff5e7e;
-  box-shadow: 0 0 8px rgba(255, 94, 126, 0.8);
-}
-
-.topnav__dot--connecting, .topnav__dot--reconnecting {
-  background: #ffc247;
-  box-shadow: 0 0 8px rgba(255, 194, 71, 0.8);
-}
-
-.topnav__scenarios {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.topnav__pill {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid var(--hud-rule);
-  color: var(--hud-text);
-  font-family: inherit;
-  font-size: 11px;
-  padding: 4px 10px;
-  border-radius: 4px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.15s ease;
-}
-
-.topnav__pill:hover {
-  background: rgba(255, 194, 71, 0.12);
-  border-color: rgba(255, 194, 71, 0.5);
-  color: #ffffff;
-}
-
-.topnav__pill--active {
-  background: rgba(255, 194, 71, 0.22);
-  border-color: #ffc247;
-  color: #ffc247;
-  box-shadow: 0 0 12px rgba(255, 194, 71, 0.3);
-}
-
-.topnav__pill--danger:hover {
-  background: rgba(255, 94, 126, 0.15);
-  border-color: rgba(255, 94, 126, 0.6);
-  color: #ff5e7e;
-}
-
-.topnav__pill--danger.topnav__pill--active {
-  background: rgba(255, 94, 126, 0.25);
-  border-color: #ff5e7e;
-  color: #ff5e7e;
-  box-shadow: 0 0 12px rgba(255, 94, 126, 0.4);
-}
-
-.topnav__pill-icon {
-  font-size: 10px;
-}
-
-.topnav__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.topnav__btn {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid var(--hud-rule);
-  color: var(--hud-text);
-  font-family: inherit;
-  font-size: 10px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 3px;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 5px;
-  transition: all 0.15s ease;
-}
-
-.topnav__btn:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: #ffffff;
-  border-color: var(--hud-dim);
-}
-
-.topnav__btn--highlight {
-  border-color: rgba(255, 194, 71, 0.5);
-  color: #ffc247;
-}
-
-.topnav__btn--highlight:hover {
-  background: rgba(255, 194, 71, 0.2);
-  border-color: #ffc247;
-}
-
-.topnav__btn--help {
-  font-weight: 700;
-  width: 26px;
-  height: 26px;
-  padding: 0;
-  justify-content: center;
-  border-radius: 50%;
-}
 
 /* ==========================================================================
    MAP CAMERA CONTROLS WIDGET

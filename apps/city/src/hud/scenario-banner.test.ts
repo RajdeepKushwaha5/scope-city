@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+import { existsSync, readFileSync } from "node:fs";
 
 const NL = String.fromCharCode(10);
 import { fileURLToPath } from "node:url";
@@ -239,37 +239,89 @@ describe("a probed office is not a called office", () => {
   });
 });
 
-describe("the quick-nav pills", () => {
-  const nav = readFileSync(fileURLToPath(new URL("./TopNav.tsx", import.meta.url)), "utf8");
+/**
+ * Every run stays reachable, and from one place.
+ *
+ * These three tests used to read `TopNav.tsx`, a bar across the top of the
+ * screen carrying a pill per scenario. Each of them was written for a bug the
+ * bar had produced: a run missing from it, a pill wearing its neighbour's
+ * label, a pill dressed as a failure because it had been copied from the one
+ * that is. All three are the same bug -- a second surface for a control that
+ * already existed, drifting from the first.
+ *
+ * The bar is gone and the map runs to the edge of the screen. What is checked
+ * now is the property the pills were meant to deliver, against the surfaces
+ * that remain.
+ */
+describe("every scenario is reachable, from one surface", () => {
+  const app = readFileSync(fileURLToPath(new URL("../App.tsx", import.meta.url)), "utf8");
+  const order = readFileSync(
+    fileURLToPath(new URL("./MissionOrder.tsx", import.meta.url)),
+    "utf8",
+  );
 
-  it("offers every scenario the app can run", () => {
-    // The over-reach run existed in the command palette and the mission panel
-    // but not in the row of pills a judge actually clicks.
+  /**
+   * The palette's own item list, not the whole file -- and through the element
+   * that consumes it, not stopping short of it. Cutting at `<CommandPalette`
+   * tested a declaration nothing had to render: pointing the component at a
+   * different array, or dropping the prop, left every assertion below green
+   * while the palette showed none of what they check.
+   */
+  const paletteItems = app.slice(
+    app.indexOf("const commandItems"),
+    app.indexOf("/>", app.indexOf("<CommandPalette")),
+  );
+
+  it("offers every scenario in the command palette", () => {
+    // Searched the palette's own array rather than all of App.tsx. Matching
+    // anywhere in the file passed on the scenario dispatcher -- which contains
+    // every one of these literals by definition -- so the test went on being
+    // green while the palette itself was unreachable.
+    expect(paletteItems.length).toBeGreaterThan(200);
+    // The array reaches the component that draws it.
+    expect(paletteItems, "the palette must be given these items").toContain(
+      "items={commandItems}",
+    );
     for (const scenario of SCENARIOS) {
-      expect(nav, `${scenario} has no pill`).toContain(`onSelectScenario("${scenario}")`);
+      expect(paletteItems, `${scenario} is not in the palette`).toContain(
+        `runScenario("${scenario}")`,
+      );
     }
   });
 
-  it("labels each pill with its own name", () => {
-    // Added by copying the neighbouring pill, this one kept the label "No
-    // Scope" and gained a stray "Over-reach" outside the span -- two names on
-    // one button, neither in the right place.
-    const labels = [...nav.matchAll(/<span>([^<]+)<\/span>/g)].map((m) => m[1]!.trim());
-    expect(new Set(labels).size, "two pills share a label").toBe(labels.length);
-    expect(labels).toContain("Over-reach");
+  it("can actually open the palette", () => {
+    // The bar carried the only `setCommandOpen(true)` in the app. Removing it
+    // left the palette mounted, closed, and impossible to open -- taking the
+    // over-reach run with it, which has no button of its own.
+    //
+    // What this used to assert was that three substrings appeared *somewhere*
+    // in App.tsx: the setter, the modifier test, and the prop. None of the
+    // three is tied to the other two, so a handler that matched Ctrl+K and then
+    // returned would have passed. The chord itself is decided by
+    // `opensCommandPalette`, which is tested against real chords in
+    // `command-shortcut.test.ts`; what is left to check here is that this file
+    // is what calls it, and that a visible control exists beside the keystroke.
+    expect(app, "the tested predicate must be the one bound").toMatch(
+      /opensCommandPalette\(event, aModalIsOpen\(\)\)/,
+    );
+    expect(app, "and it must be what opens the palette").toMatch(
+      /opensCommandPalette[\s\S]{0,400}setCommandOpen\(true\)/,
+    );
+    expect(app, "and a control, since a hidden keystroke is nearly absent").toContain(
+      "onOpenCommand=",
+    );
   });
 
-  it("does not dress the over-reach run as a failure", () => {
-    // Nothing goes wrong in it: a boundary is found too wide and narrowed
-    // before anything is granted, which is the system working. It inherited the
-    // no-scope pill's danger styling and refusal sound by being copied from it.
-    const pill = nav.slice(
-      nav.lastIndexOf("<button", nav.indexOf('onSelectScenario("overreach")')),
-      nav.indexOf("</button>", nav.indexOf('onSelectScenario("overreach")')),
-    );
+  it("puts the comparison on a button, not only behind a keystroke", () => {
+    // The two runs the demo turns on have to be pressable without knowing
+    // Ctrl+K exists.
+    expect(order).toContain("1 · Without a scope");
+    expect(order).toContain("2 · With a scope");
+  });
 
-    expect(pill).not.toContain("topnav__pill--danger");
-    expect(pill).not.toContain("playRefusal");
+  it("has no second bar to drift from", () => {
+    expect(app).not.toContain("TopNav");
+    expect(existsSync(fileURLToPath(new URL("./TopNav.tsx", import.meta.url)))).toBe(false);
   });
 });
 

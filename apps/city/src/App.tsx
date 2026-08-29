@@ -17,7 +17,6 @@ import { ScenarioBanner, type Scenario } from "./hud/ScenarioBanner.js";
 import { placeTooltip } from "./hud/tooltip-placement.js";
 import { MissionOrder } from "./hud/MissionOrder.js";
 import { CitySnapshot } from "./hud/CitySnapshot.js";
-import { TopNav } from "./hud/TopNav.js";
 import { MapControls } from "./hud/MapControls.js";
 import { IntroDialogue } from "./hud/IntroDialogue.js";
 import { CommandPalette, type CommandItem } from "./hud/CommandPalette.js";
@@ -29,6 +28,7 @@ import { useRecordedMission } from "./useRecordedMission.js";
 import { useControlPlane } from "./use-control-plane.js";
 import { toScreen } from "./iso/projection.js";
 import { nextOfficeIndex } from "./map-keyboard.js";
+import { aModalIsOpen, opensCommandPalette } from "./command-shortcut.js";
 
 /**
  * The city.
@@ -75,6 +75,33 @@ export function App(): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
+
+  /*
+   * Ctrl/Cmd+K, and it has to live here.
+   *
+   * The palette listens for Escape itself, but nothing listened for the
+   * keystroke that opens it -- that was a button on the top bar, and removing
+   * the bar took the only `setCommandOpen(true)` in the app with it. The
+   * palette became unreachable, and with it the over-reach run, which has no
+   * button of its own. There is a control for it in the console title bar too,
+   * because a feature reachable only by a keystroke nobody mentioned is close
+   * enough to absent.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      // The decision lives in `command-shortcut.ts` and is tested there. It
+      // also declines while a dialogue is open: the palette renders above
+      // everything, so it used to stack over the intro and the crew sheet with
+      // both of their key handlers still bound underneath.
+      if (!opensCommandPalette(event, aModalIsOpen())) return;
+      // Only once we are taking it. The browser's own binding wins otherwise,
+      // and a dialogue -- unlike the canvas -- has text worth searching.
+      event.preventDefault();
+      setCommandOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [flashing, setFlashing] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeScenario, setActiveScenario] =
@@ -504,16 +531,21 @@ export function App(): React.JSX.Element {
 
   return (
     <>
-      <TopNav
-        connection={live.connection}
-        activeScenario={activeScenario}
-        onSelectScenario={runScenario}
-        onOpenCommand={() => setCommandOpen(true)}
-        onOpenIntro={() => setIntroOpen(true)}
-        onTakeSnapshot={takeSnapshot}
-        onResetView={() => setCamera(fitCamera(size))}
-      />
-
+      {/*
+        * No bar across the top, so the city runs to the edge of the screen.
+        *
+        * There was one, and almost everything on it was a second copy of a
+        * control that already existed: the scenario pills are in the mission
+        * panel and the command palette, the snapshot is its own panel, the
+        * city's name and connection are the console's own title bar, and
+        * Ctrl+K opens the palette without a button to press. Two surfaces for
+        * one control is how they drift -- the bar was still offering "Poisoned
+        * Ticket" and "No Scope" after those runs had been renamed and paired
+        * as one comparison, so a visitor could start the same run from two
+        * places and be told two different things about it.
+        *
+        * What it cost was the top of the map, permanently, on every screen.
+        */}
       <canvas
         ref={canvasRef}
         className="world"
@@ -676,6 +708,8 @@ export function App(): React.JSX.Element {
             missionId={mission.missionId}
             onExpireNow={() => void mission.expireNow()}
             verification={mission.verification}
+            onOpenIntro={() => setIntroOpen(true)}
+            onOpenCommand={() => setCommandOpen(true)}
           />
         </div>
       </div>

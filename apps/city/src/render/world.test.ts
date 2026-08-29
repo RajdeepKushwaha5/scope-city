@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   DISTRICT_PLOTS,
+  ISLAND_H,
+  ISLAND_W,
+  ROAD_EVERY,
   fountainCells,
   isFacilityCell,
   isInScope,
@@ -80,5 +83,72 @@ describe("city fabric", () => {
   it("surrounds the island with navigable water", () => {
     expect(tileKindAt(-8, 12)).toBe("water");
     expect(tileKindAt(47, 18)).toBe("water");
+  });
+});
+
+describe("room to breathe", () => {
+  const offices = [
+    { office: "ticket.get", district: "records" },
+    { office: "charge.refund", district: "exchequer" },
+    { office: "mail.send", district: "post-house" },
+  ] as const;
+
+  const buildings = layOutCity(offices);
+  // Filler only. Offices are placed first and take the cells nearest their
+  // landmark whatever those are, which is right -- there are nine of them and
+  // they have to stand somewhere. The garden is a rule about what fills the
+  // rest, and asserting it over offices too just made the test wrong.
+  const built = new Set(
+    buildings.filter((b) => b.kind !== "office").map(({ cell }) => `${cell.u}:${cell.v}`),
+  );
+
+  /** Every cell a filler building could stand on. */
+  const buildable: { u: number; v: number }[] = [];
+  for (let u = 2; u <= ISLAND_W - 2; u += 1) {
+    for (let v = 2; v <= ISLAND_H - 2; v += 1) {
+      if (tileKindAt(u, v) !== "grass") continue;
+      if (isFacilityCell(u, v)) continue;
+      buildable.push({ u, v });
+    }
+  }
+
+  it("leaves a garden in the middle of every block", () => {
+    // The centre is the cell with no street frontage, so it is the one to give
+    // up first: what remains is a block lining the road, which is the shape a
+    // block has, rather than a scatter with holes in it.
+    const centres = buildable.filter((c) => c.u % ROAD_EVERY === 3 && c.v % ROAD_EVERY === 3);
+    expect(centres.length).toBeGreaterThan(10);
+    for (const cell of centres) {
+      expect(built.has(`${cell.u}:${cell.v}`), `built on the garden at ${cell.u},${cell.v}`).toBe(false);
+    }
+  });
+
+  it("builds on about half of what is left", () => {
+    // One cell in six used to be open, which filled eight of the nine buildable
+    // cells in a block and made the island a solid field of towers from one
+    // beach to the other. Nine of these structures are offices the agent can
+    // actually call, and a wall of identical roofs makes the one thing an
+    // operator is looking for the hardest thing to find.
+    const density = buildings.length / buildable.length;
+    expect(density).toBeGreaterThan(0.3);
+    expect(density).toBeLessThan(0.6);
+  });
+
+  it("still finds a plot for every office", () => {
+    // The thing that must not break when the city thins out. Offices are placed
+    // before any filler and take the cells nearest their landmark, so this is
+    // safe -- and it is worth a test precisely because it looks like the sort
+    // of thing that would quietly stop being true.
+    for (const entry of offices) {
+      expect(
+        buildings.some((b) => b.office === entry.office),
+        `${entry.office} has nowhere to stand`,
+      ).toBe(true);
+    }
+  });
+
+  it("plants the space it opened up", () => {
+    // Otherwise this is not a city with parks in it, it is a city with gaps.
+    expect(treeCells(buildings).length).toBeGreaterThan(buildings.length / 2);
   });
 });

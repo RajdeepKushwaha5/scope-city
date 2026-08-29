@@ -210,8 +210,25 @@ export function layOutCity(
       if (isFacilityCell(u, v)) continue;
 
       const seed = cellSeed(u, v);
-      // Leave one cell in six open for pocket parks and vegetation.
-      if (seed % 6 === 0) continue;
+
+      // A garden in the middle of every block, and a third of the rest left
+      // open.
+      //
+      // One cell in six used to be open, which filled roughly eight of the nine
+      // buildable cells in a block and produced a city that is a solid field of
+      // towers from one beach to the other. Two things are wrong with that. It
+      // does not look like a city -- blocks have frontage on the street and
+      // something behind it, which is why a courtyard reads as urban and a
+      // ninth tower reads as a tile map. And it works against the product: nine
+      // of these two hundred and forty structures are offices the agent can
+      // actually call, and hiding them in a wall of identical roofs makes the
+      // one thing an operator is looking for the hardest thing to find.
+      //
+      // The centre of each block goes first because it is the cell with no
+      // street frontage, so the buildings that remain are the ones lining the
+      // road -- which is the shape a block has, rather than a random scatter.
+      if (u % ROAD_EVERY === 3 && v % ROAD_EVERY === 3) continue;
+      if (seed % 2 === 0) continue;
 
       const distance = Math.hypot(u - midU, v - midV) / maxDist;
       const downtown = distance < 0.45;

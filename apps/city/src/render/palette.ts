@@ -226,7 +226,13 @@ export const COAST = {
   containerEdge: "rgba(8, 18, 25, 0.55)", crane: "#e0a33c",
   lighthouse: "#efe8d5", lighthouseStripe: "#c75045", lighthouseRoof: "#223745",
   lighthouseLamp: "#ffe58c", lighthouseBeam: "#fff3a8", wake: "rgba(220, 246, 255, 0.55)",
-  shipWake: "rgba(224, 246, 255, 0.32)", boatHull: "#3a2a22", sail: "#f6f0df",
+  shipWake: "rgba(224, 246, 255, 0.32)", sail: "#f6f0df",
+  // A wooden hull rather than a dark wedge: three tones, because a boat is a
+  // solid like everything else here and was the one object drawn in a single
+  // flat colour. The deck catches the light, the near side is in half shadow,
+  // and the strake at the waterline is darker still.
+  boatDeck: "#a9713f", boatHull: "#8a5730", boatKeel: "#5c391e",
+  sailShade: "#dcd3bd", mast: "#4a3524", pennant: "#d0503c",
   cargoHull: "#172632", navyHull: "#28343b", cargoCab: "#dbe2df", navyCab: "#718087",
   cargoContainers: ["#bf5b3d", "#d5a13b", "#3f7890", "#6d8356"] as const,
   navyDeck: "#18262f", navyMark: "#d8b454", wave: "rgba(205, 237, 250, 0.24)",

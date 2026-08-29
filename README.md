@@ -152,6 +152,12 @@ every branch reachable from a test.
   22.13.0 -- a bare `22` would let `nvm use` select an already-installed 22.0-22.12,
   which is the same broken class this is meant to avoid.
 
+  If you are already on Node 23 and would rather not switch, the flag is the
+  escape hatch -- `NODE_OPTIONS=--experimental-sqlite pnpm test` runs the whole
+  suite on 23.2. It is an escape hatch and not a supported configuration:
+  nothing here is tested on 23, and the flag only answers the one import that
+  fails loudly. Prefer 22.13.
+
   Node 22.13 or later, not "22 or newer" -- and not Node 23. pnpm 11 imports
   `node:sqlite`, which was flag-gated until 22.13 and which Node 23.2 still
   only exposes behind `--experimental-sqlite`. Where it is gated, every pnpm

@@ -22,6 +22,19 @@ happened**, then one surprise, then credit the harness.
 pnpm --filter @scope-city/city dev
 ```
 
+**Check `pnpm` runs before you start recording.** On Node 23 it does not: pnpm
+11 imports `node:sqlite`, which 23.2 hides behind a flag, so every pnpm command
+dies on an unknown-builtin-module trace. Finding that out with the recorder
+running is a bad minute.
+
+```bash
+pnpm --version                                    # 11.10.0, or you are on 23
+NODE_OPTIONS=--experimental-sqlite pnpm --version  # the escape hatch, if so
+```
+
+Node 22.13 is the supported line and the better answer. The flag is there so a
+machine that is already on 23 is not a blocker at nineteen hundred hours.
+
 - **Check which model the pool is on before you record.** Development runs on
   the local model to save the hosted quota, and the two produce different
   videos. Measured, not guessed -- the same poisoned ticket, both ways:

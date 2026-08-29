@@ -568,6 +568,15 @@ export function useMission() {
     grant,
     denyScope,
     revoke,
+    /**
+     * Cancel whatever is scheduled and go back to an idle city.
+     *
+     * Exported because the recorded replay has to be able to stop this one
+     * before it starts: the two players write to different state and the city
+     * renders whichever holds a record, so a scripted run left ticking under a
+     * recording is a second set of timers mutating a view nobody is looking at.
+     */
+    reset,
     countersign,
     runPoisonedTicket,
     runCleanJob,

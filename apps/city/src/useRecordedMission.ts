@@ -28,7 +28,10 @@ export function useRecordedMission(): {
   readonly verdict: ReplayVerdict | null;
   readonly error: string | null;
   play: (url: string) => Promise<void>;
+  /** Pause playback, keeping the recording as the mission on screen. */
   stop: () => void;
+  /** Stop, and hand the city back to whatever else wants to draw it. */
+  leave: () => void;
 } {
   const [state, setState] = useState<LiveCityState>(initialLiveCityState);
   const [playing, setPlaying] = useState(false);
@@ -45,6 +48,22 @@ export function useRecordedMission(): {
     loadRef.current = null;
     setPlaying(false);
   }, []);
+
+  /**
+   * Stop, and stop being the mission on screen.
+   *
+   * `stop` pauses playback and keeps the record, which is right for a pause and
+   * wrong for switching away: the city renders the recorded view whenever a
+   * record is held, so a scripted scenario started after `stop` ran underneath
+   * the recording it thought it had replaced. The operator picked a run and
+   * watched a different one, with the banner naming the one they picked.
+   */
+  const leave = useCallback(() => {
+    stop();
+    setRecord(null);
+    setVerdict(null);
+    setError(null);
+  }, [stop]);
 
   // A replay left running after unmount dispatches into a dead tree.
   useEffect(() => () => handleRef.current?.stop(), []);
@@ -130,5 +149,5 @@ export function useRecordedMission(): {
     idleJob: record?.job ?? "No mission",
   });
 
-  return { state, view, playing, record, verdict, error, play, stop };
+  return { state, view, playing, record, verdict, error, play, stop, leave };
 }

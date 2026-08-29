@@ -489,17 +489,23 @@ export function App(): React.JSX.Element {
       // dismissing one banner must not suppress the next.
       setBannerDismissed(false);
       if (scenario === "recorded") {
+        // Cancel the scripted player first. The two write to different state
+        // and the city renders whichever holds a record, so a scripted run left
+        // ticking under the recording is a second set of timers mutating a view
+        // nobody is looking at -- and its steps land on the recorded city.
+        replay.reset();
         void recorded.play(RECORDING_URL);
         return;
       }
 
-      // Stop the recording before starting a scripted run.
+      // Leave the recording, not merely pause it.
       //
-      // The city reads from the recorded player whenever it holds a record, so
-      // starting a scripted scenario without clearing it left the previous
-      // replay on screen while the new one ran underneath -- the operator
-      // picked a run and watched a different one.
-      recorded.stop();
+      // The city reads from the recorded player whenever it *holds a record*,
+      // and `stop` keeps the record -- so this comment described the intended
+      // behaviour while the code did the opposite: the scripted run started
+      // underneath the recording, and the operator picked a run and watched a
+      // different one with the banner naming the one they picked.
+      recorded.leave();
 
       if (scenario === "clean") replay.runCleanJob();
       else if (scenario === "poisoned") replay.runPoisonedTicket();

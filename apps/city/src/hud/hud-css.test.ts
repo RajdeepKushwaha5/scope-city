@@ -136,11 +136,19 @@ describe("the HUD stylesheet", () => {
       dupes.set(selector, (dupes.get(selector) ?? 0) + 1);
     }
 
-    const repeated = [...dupes]
+    // Over the union, not just what the file happens to contain. Iterating the
+    // discovered selectors alone meant a GROUPED entry whose rules were both
+    // deleted had a count of zero, never appeared in the map, and was never
+    // compared -- so removing the styling from a live component left this
+    // green. Absent is a wrong count like any other.
+    const checked = new Set([...dupes.keys(), ...GROUPED.keys()]);
+
+    const wrong = [...checked]
+      .map((selector) => [selector, dupes.get(selector) ?? 0] as const)
       .filter(([selector, count]) => count !== (GROUPED.get(selector) ?? 1))
       .map(([selector, count]) => `${selector} (${count}, expected ${GROUPED.get(selector) ?? 1})`);
 
-    expect(repeated, "declared the wrong number of times").toEqual([]);
+    expect(wrong, "declared the wrong number of times").toEqual([]);
   });
 
   it("keeps the full-viewport containers transparent to the pointer", () => {

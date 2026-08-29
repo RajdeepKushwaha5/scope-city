@@ -17,15 +17,21 @@ import {
   drawBuilding,
   drawBoat,
   drawApronMarking,
+  drawBarracks,
   drawBillboard,
   drawBollards,
+  drawCommandBuilding,
   drawFacilitySign,
   drawFence,
   drawFlag,
   drawFloodlight,
   drawFuelTank,
+  drawHelicopter,
+  drawHelipad,
   drawQuayHut,
   drawTerminal,
+  drawTank,
+  drawTurret,
   drawWindsock,
   drawClouds,
   drawCivicDome,
@@ -563,18 +569,45 @@ export function facilityProps(time: number): FacilityProp[] {
   }
 
   // The yard is crossed by three streets -- u=36, v=18 and v=24 are all on the
-  // road grid -- and the first placement put the guardroom and both fuel tanks
-  // in the middle of them.
-  at("naval", 35, 19, 2, (ctx) => drawQuayHut(ctx, 35, 19));
+  // road grid -- and props are placed on valid apron hard standing.
+
+  // 1. Aircraft / Vehicle Hangar with N47 marking
+  at("naval", 35, 17, 3, (ctx) => drawHangar(ctx, 35, 17, COAST.hangarRoofNaval));
+
+  // 2. Helipad and Military Twin-Blade Helicopter
+  at("naval", 37, 17, 1, (ctx) => drawHelipad(ctx, 37, 17));
+  at("naval", 37, 17, 2, (ctx) => drawHelicopter(ctx, 37, 17));
+
+  // 3. Military Barracks / Guardroom Command Post with Red Gabled Roof & Chimney
+  at("naval", 35, 19, 2.5, (ctx) => drawBarracks(ctx, 35, 19) /* drawQuayHut */);
+
+  // 4. Armored Tanks / APCs in depot
+  at("naval", 37, 19, 2, (ctx) => drawTank(ctx, 37, 19));
+  at("naval", 37, 21, 2, (ctx) => drawTank(ctx, 37, 21));
+
+  // 5. Dual Cylindrical Fuel Storage Tanks with Safety Railings
+  at("naval", 35, 21, 3, (ctx) => drawFuelTank(ctx, 35, 21));
   at("naval", 35, 22, 3, (ctx) => drawFuelTank(ctx, 35, 22));
-  at("naval", 35, 23, 3, (ctx) => drawFuelTank(ctx, 35, 23));
-  // Where a shore establishment's air search set would be, and the one thing on
-  // this map that rotates.
+
+  // 6. Rotating Air-Search Radar Set on fortified mount
   at("naval", 37, 20, 4, (ctx) => drawRadar(ctx, 37, 20, time));
+
+  // 7. 3-Story Fortified Command Headquarters
+  at("naval", 35, 25, 4, (ctx) => drawCommandBuilding(ctx, 35, 25));
+
+  // 8. Missile Defense Launcher Turrets
+  at("naval", 38, 22, 2.5, (ctx) => drawTurret(ctx, 38, 22));
+  at("naval", 38, 25, 2.5, (ctx) => drawTurret(ctx, 38, 25));
+
+  // 9. Perimeter Floodlights
   at("naval", 38, 19, 4, (ctx) => drawFloodlight(ctx, 38, 19));
   at("naval", 38, 23, 4, (ctx) => drawFloodlight(ctx, 38, 23));
-  at("naval", 35, 17, 4, (ctx) => drawFlag(ctx, 35, 17));
+
+  // 10. Command Pennants / Red Flags
+  at("naval", 35, 23, 4, (ctx) => drawFlag(ctx, 35, 23));
   at("naval", 37, 25, 4, (ctx) => drawFlag(ctx, 37, 25));
+
+  // 11. Moored Naval Warship / Destroyer
   at("naval", 41.5, 22, 4, (ctx) => drawShip(ctx, 41.5, 22, "v", "navy"), "water");
 
   return props;

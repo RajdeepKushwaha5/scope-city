@@ -1534,6 +1534,438 @@ export function drawFuelTank(ctx: CanvasRenderingContext2D, u: number, v: number
   ctx.restore();
 }
 
+/** Marked helicopter landing zone on tarmac with yellow ring and bold 'H'. */
+export function drawHelipad(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0.02);
+  ctx.save();
+
+  // Darkened tarmac square
+  drawDiamond(ctx, u, v, 0.02, "#1b252c", 0.95);
+
+  // Yellow boundary ring
+  ctx.strokeStyle = "#f6bd60";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y, 22, 11, 0, 0, Math.PI * 2);
+  ctx.stroke();
+
+  // Bold Yellow 'H'
+  ctx.fillStyle = "#f6bd60";
+  ctx.font = "bold 13px sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("H", c.x, c.y);
+
+  ctx.restore();
+}
+
+/** Military twin-blade attack / transport helicopter parked on the pad. */
+export function drawHelicopter(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Contact Shadow
+  poly("rgba(7, 17, 22, 0.35)", [
+    pt(-0.5, -0.4, 0),
+    pt(0.5, -0.4, 0),
+    pt(0.6, 0.4, 0),
+    pt(-0.5, 0.4, 0),
+  ]);
+
+  // 2. Landing Skids (z: 0 -> 0.12)
+  for (const dv of [-0.22, 0.22] as const) {
+    const s0 = pt(-0.35, dv, 0.04);
+    const s1 = pt(0.35, dv, 0.04);
+    ctx.strokeStyle = "#10232e";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(s0.x, s0.y);
+    ctx.lineTo(s1.x, s1.y);
+    ctx.stroke();
+
+    // Skid struts
+    for (const du of [-0.15, 0.15] as const) {
+      const b0 = pt(du, dv, 0.04);
+      const b1 = pt(du, dv * 0.5, 0.18);
+      ctx.beginPath();
+      ctx.moveTo(b0.x, b0.y);
+      ctx.lineTo(b1.x, b1.y);
+      ctx.stroke();
+    }
+  }
+
+  // 3. Military Olive Green Fuselage Body (z: 0.18 -> 0.45)
+  poly("#3c5233", [
+    pt(0.45, 0, 0.3),
+    pt(0.3, 0.2, 0.45),
+    pt(-0.3, 0.2, 0.45),
+    pt(-0.4, 0, 0.3),
+    pt(-0.3, -0.2, 0.45),
+    pt(0.3, -0.2, 0.45),
+  ]);
+  poly("#283722", [
+    pt(0.3, 0.2, 0.45),
+    pt(-0.3, 0.2, 0.45),
+    pt(-0.3, 0.2, 0.18),
+    pt(0.3, 0.2, 0.18),
+  ]);
+
+  // 4. Cyan Cockpit Glass Canopy
+  poly("#68c9df", [
+    pt(0.44, 0, 0.32),
+    pt(0.3, 0.16, 0.42),
+    pt(0.12, 0.16, 0.42),
+    pt(0.15, 0, 0.26),
+  ]);
+
+  // 5. Tail Boom & Vertical Fin with Tail Rotor
+  const boom0 = pt(-0.3, 0, 0.32);
+  const boom1 = pt(-0.75, 0, 0.32);
+  ctx.strokeStyle = "#3c5233";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(boom0.x, boom0.y);
+  ctx.lineTo(boom1.x, boom1.y);
+  ctx.stroke();
+
+  // Vertical Tail Fin
+  poly("#283722", [
+    pt(-0.7, 0, 0.32),
+    pt(-0.82, 0, 0.55),
+    pt(-0.85, 0, 0.55),
+    pt(-0.78, 0, 0.32),
+  ]);
+
+  // Tail Rotor Disc
+  const tr = pt(-0.85, -0.05, 0.5);
+  ctx.fillStyle = "rgba(183, 241, 247, 0.4)";
+  ctx.beginPath();
+  ctx.arc(tr.x, tr.y, 4, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 6. Main Rotor Mast & Spinning Rotor Disc
+  const mast = pt(0, 0, 0.45);
+  const hub = pt(0, 0, 0.58);
+  ctx.strokeStyle = "#10232e";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(mast.x, mast.y);
+  ctx.lineTo(hub.x, hub.y);
+  ctx.stroke();
+
+  // Main Rotor Disc
+  ctx.fillStyle = "rgba(183, 241, 247, 0.4)";
+  ctx.beginPath();
+  ctx.ellipse(hub.x, hub.y, 24, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Rotor Blades
+  ctx.strokeStyle = "rgba(245, 247, 242, 0.85)";
+  ctx.lineWidth = 1.2;
+  ctx.beginPath();
+  ctx.moveTo(hub.x - 22, hub.y - 2);
+  ctx.lineTo(hub.x + 22, hub.y + 2);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Military Barracks / Command Post with red gabled roof, chimney and windows. */
+export function drawBarracks(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.3)", [
+    pt(-0.8, -0.6, 0),
+    pt(0.8, -0.6, 0),
+    pt(0.8, 0.7, 0),
+    pt(-0.8, 0.7, 0),
+  ]);
+
+  // 2. White Concrete Walls (u: -0.65..0.65, v: -0.45..0.45, z: 0 -> 0.75)
+  poly("#f5f7f2", [
+    pt(-0.65, 0.45, 0.75),
+    pt(0.65, 0.45, 0.75),
+    pt(0.65, 0.45, 0),
+    pt(-0.65, 0.45, 0),
+  ]);
+  poly("#d4e3e3", [
+    pt(0.65, 0.45, 0.75),
+    pt(0.65, -0.45, 0.75),
+    pt(0.65, -0.45, 0),
+    pt(0.65, 0.45, 0),
+  ]);
+
+  // 3. Red Gabled Roof (ridge along u, z: 0.75 -> 1.3)
+  poly("#9e2a2b", [
+    pt(0.65, 0.45, 0.75),
+    pt(0.65, 0, 1.3),
+    pt(0.65, -0.45, 0.75),
+  ]);
+  poly("#c13c41", [
+    pt(-0.75, 0.5, 0.75),
+    pt(0.75, 0.5, 0.75),
+    pt(0.75, 0, 1.3),
+    pt(-0.75, 0, 1.3),
+  ]);
+  poly("#852223", [
+    pt(-0.75, 0, 1.3),
+    pt(0.75, 0, 1.3),
+    pt(0.75, -0.5, 0.75),
+    pt(-0.75, -0.5, 0.75),
+  ]);
+
+  // Brick Chimney
+  poly("#78281f", [
+    pt(-0.3, 0.1, 1.45),
+    pt(-0.15, 0.1, 1.45),
+    pt(-0.15, 0.1, 1.1),
+    pt(-0.3, 0.1, 1.1),
+  ]);
+
+  // Rectangular Windows with Gold Frames
+  for (const du of [-0.4, 0, 0.4] as const) {
+    poly("#68c9df", [
+      pt(du - 0.1, 0.46, 0.55),
+      pt(du + 0.1, 0.46, 0.55),
+      pt(du + 0.1, 0.46, 0.25),
+      pt(du - 0.1, 0.46, 0.25),
+    ]);
+  }
+
+  ctx.restore();
+}
+
+/** Armored Tank / APC with tread tracks, rotating turret and cannon barrel. */
+export function drawTank(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.35)", [
+    pt(-0.45, -0.3, 0),
+    pt(0.45, -0.3, 0),
+    pt(0.45, 0.35, 0),
+    pt(-0.45, 0.35, 0),
+  ]);
+
+  // 2. Black Tread Tracks (z: 0 -> 0.15)
+  for (const dv of [-0.22, 0.22] as const) {
+    poly("#10232e", [
+      pt(-0.4, dv + 0.08, 0.15),
+      pt(0.4, dv + 0.08, 0.15),
+      pt(0.45, dv + 0.08, 0),
+      pt(-0.45, dv + 0.08, 0),
+    ]);
+  }
+
+  // 3. Olive Green Armored Hull (z: 0.12 -> 0.28)
+  poly("#3c5233", [
+    pt(-0.35, -0.22, 0.28),
+    pt(0.35, -0.22, 0.28),
+    pt(0.35, 0.22, 0.28),
+    pt(-0.35, 0.22, 0.28),
+  ]);
+  poly("#283722", [
+    pt(-0.35, 0.22, 0.28),
+    pt(0.35, 0.22, 0.28),
+    pt(0.35, 0.22, 0.12),
+    pt(-0.35, 0.22, 0.12),
+  ]);
+
+  // 4. Armored Turret & Cannon Barrel (z: 0.28 -> 0.45)
+  poly("#4a653f", [
+    pt(-0.18, -0.15, 0.42),
+    pt(0.18, -0.15, 0.42),
+    pt(0.18, 0.15, 0.42),
+    pt(-0.18, 0.15, 0.42),
+  ]);
+  poly("#31442a", [
+    pt(-0.18, 0.15, 0.42),
+    pt(0.18, 0.15, 0.42),
+    pt(0.18, 0.15, 0.28),
+    pt(-0.18, 0.15, 0.28),
+  ]);
+
+  // Long Cannon Barrel pointing along +v
+  const cannon0 = pt(0, 0.15, 0.35);
+  const cannon1 = pt(0, 0.55, 0.35);
+  ctx.strokeStyle = "#10232e";
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  ctx.moveTo(cannon0.x, cannon0.y);
+  ctx.lineTo(cannon1.x, cannon1.y);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** 3-Story Fortified Military Command Headquarters with observation windows and comms mast. */
+export function drawCommandBuilding(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.35)", [
+    pt(-1.1, -0.9, 0),
+    pt(1.1, -0.9, 0),
+    pt(1.1, 1.1, 0),
+    pt(-1.1, 1.1, 0),
+  ]);
+
+  // 2. Base Floor (z: 0 -> 0.8)
+  poly("#3a4b56", [pt(-0.9, 0.7, 0.8), pt(0.9, 0.7, 0.8), pt(0.9, 0.7, 0), pt(-0.9, 0.7, 0)]);
+  poly("#28343c", [pt(0.9, 0.7, 0.8), pt(0.9, -0.7, 0.8), pt(0.9, -0.7, 0), pt(0.9, 0.7, 0)]);
+  poly("#4a5e6b", [pt(-0.9, -0.7, 0.8), pt(0.9, -0.7, 0.8), pt(0.9, 0.7, 0.8), pt(-0.9, 0.7, 0.8)]);
+
+  // 3. Middle Floor with Observation Glazing (z: 0.8 -> 1.5)
+  poly("#68c9df", [pt(-0.75, 0.55, 1.4), pt(0.75, 0.55, 1.4), pt(0.75, 0.55, 0.9), pt(-0.75, 0.55, 0.9)]);
+  poly("#3a4b56", [pt(-0.75, 0.55, 1.5), pt(0.75, 0.55, 1.5), pt(0.75, 0.55, 1.4), pt(-0.75, 0.55, 1.4)]);
+  poly("#28343c", [pt(0.75, 0.55, 1.5), pt(0.75, -0.55, 1.5), pt(0.75, -0.55, 0.8), pt(0.75, 0.55, 0.8)]);
+  poly("#4a5e6b", [pt(-0.75, -0.55, 1.5), pt(0.75, -0.55, 1.5), pt(0.75, 0.55, 1.5), pt(-0.75, 0.55, 1.5)]);
+
+  // 4. Top Observation Cab (z: 1.5 -> 2.1)
+  poly("#28343c", [pt(-0.55, 0.4, 2.1), pt(0.55, 0.4, 2.1), pt(0.55, 0.4, 1.5), pt(-0.55, 0.4, 1.5)]);
+  poly("#68c9df", [pt(-0.5, 0.41, 2.0), pt(0.5, 0.41, 2.0), pt(0.5, 0.41, 1.6), pt(-0.5, 0.41, 1.6)]);
+  poly("#1e272d", [pt(0.55, 0.4, 2.1), pt(0.55, -0.4, 2.1), pt(0.55, -0.4, 1.5), pt(0.55, 0.4, 1.5)]);
+  poly("#3a4b56", [pt(-0.55, -0.4, 2.1), pt(0.55, -0.4, 2.1), pt(0.55, 0.4, 2.1), pt(-0.55, 0.4, 2.1)]);
+
+  // 5. Rooftop Antenna Mast & Satellite
+  const mast0 = pt(0, 0, 2.1);
+  const mast1 = pt(0, 0, 2.7);
+  ctx.strokeStyle = "#f5f7f2";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(mast0.x, mast0.y);
+  ctx.lineTo(mast1.x, mast1.y);
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+/** Missile defense launcher turret with angled launcher tubes. */
+export function drawTurret(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Base circular plinth
+  const c = toScreen(u, v, 0);
+  ctx.fillStyle = "#10232e";
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y, 14, 6, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Turret Mount Box
+  poly("#3a4b56", [
+    pt(-0.25, 0.25, 0.35),
+    pt(0.25, 0.25, 0.35),
+    pt(0.25, 0.25, 0),
+    pt(-0.25, 0.25, 0),
+  ]);
+  poly("#28343c", [
+    pt(0.25, 0.25, 0.35),
+    pt(0.25, -0.25, 0.35),
+    pt(0.25, -0.25, 0),
+    pt(0.25, 0.25, 0),
+  ]);
+
+  // Dual Angled Missile Launch Tubes (elevated 35 deg along +v)
+  for (const du of [-0.12, 0.12] as const) {
+    const t0 = pt(du, -0.1, 0.35);
+    const t1 = pt(du, 0.45, 0.65);
+    ctx.strokeStyle = "#f6bd60";
+    ctx.lineWidth = 3.5;
+    ctx.beginPath();
+    ctx.moveTo(t0.x, t0.y);
+    ctx.lineTo(t1.x, t1.y);
+    ctx.stroke();
+
+    // Red missile nose cone tips
+    ctx.fillStyle = "#f05d68";
+    ctx.beginPath();
+    ctx.arc(t1.x, t1.y, 2, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 /** A floodlight mast: a pole and a head of lamps, lit. */
 export function drawFloodlight(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);
@@ -2166,7 +2598,11 @@ export function drawShip(
   kind: "cargo" | "navy",
 ): void {
   ctx.save();
-  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+  const pt = (dLong: number, dLat: number, dz = 0) => {
+    const du = axis === "u" ? dLong : dLat;
+    const dv = axis === "u" ? dLat : dLong;
+    return toScreen(u + du, v + dv, dz);
+  };
 
   const poly = (color: string, points: Point[], alpha = 1) => {
     ctx.fillStyle = color;
@@ -2309,22 +2745,32 @@ export function drawShip(
     ctx.stroke();
 
   } else {
-    // Warship
-    poly("#2c3e50", [
+    // 2. Red Boot-Topping Keel (z: -0.05 -> 0.08)
+    poly("#c0392b", [
+      pt(-1.7, 0.35, 0.08),
+      pt(1.5, 0.35, 0.08),
+      pt(1.85, 0, 0.08),
+      pt(1.85, 0, -0.05),
+      pt(1.5, 0.35, -0.05),
+      pt(-1.7, 0.35, -0.05),
+    ]);
+
+    // 3. Dark Navy Charcoal Hull (z: 0.08 -> 0.35)
+    poly("#1a252f", [
       pt(-1.7, 0.35, 0.35),
       pt(1.5, 0.35, 0.35),
       pt(1.85, 0, 0.35),
-      pt(1.85, 0, 0),
-      pt(1.5, 0.35, 0),
-      pt(-1.7, 0.35, 0),
+      pt(1.85, 0, 0.08),
+      pt(1.5, 0.35, 0.08),
+      pt(-1.7, 0.35, 0.08),
     ]);
-    poly("#1a252f", [
+    poly("#10171d", [
       pt(-1.7, 0.35, 0.35),
       pt(-1.7, -0.35, 0.35),
-      pt(-1.7, -0.35, 0),
-      pt(-1.7, 0.35, 0),
+      pt(-1.7, -0.35, 0.08),
+      pt(-1.7, 0.35, 0.08),
     ]);
-    poly("#34495e", [
+    poly("#2c3e50", [
       pt(-1.6, -0.3, 0.35),
       pt(1.4, -0.3, 0.35),
       pt(1.7, 0, 0.35),
@@ -2332,31 +2778,91 @@ export function drawShip(
       pt(-1.6, 0.3, 0.35),
     ]);
 
-    // Superstructure & Gun Turrets
-    poly("#4a6572", [
-      pt(-0.8, 0.2, 0.75),
-      pt(0.4, 0.2, 0.75),
-      pt(0.4, 0.2, 0.35),
-      pt(-0.8, 0.2, 0.35),
-    ]);
+    // 4. Rear Helipad Flight Deck (at stern: dLong: -1.5..-0.9)
+    const heliPos = pt(-1.2, 0, 0.36);
+    ctx.strokeStyle = "rgba(245, 247, 242, 0.7)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.ellipse(heliPos.x, heliPos.y, 7, 3.5, 0, 0, Math.PI * 2);
+    ctx.stroke();
+    ctx.fillStyle = "rgba(245, 247, 242, 0.7)";
+    ctx.font = "bold 6px sans-serif";
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText("H", heliPos.x, heliPos.y);
+
+    // 5. Tiered Superstructure & Bridge (dLong: -0.8..0.4, z: 0.35 -> 1.0)
+    // Tier 1 Base
     poly("#34495e", [
-      pt(0.4, 0.2, 0.75),
-      pt(0.4, -0.2, 0.75),
-      pt(0.4, -0.2, 0.35),
-      pt(0.4, 0.2, 0.35),
+      pt(-0.8, 0.22, 0.75),
+      pt(0.4, 0.22, 0.75),
+      pt(0.4, 0.22, 0.35),
+      pt(-0.8, 0.22, 0.35),
+    ]);
+    poly("#23313f", [
+      pt(0.4, 0.22, 0.75),
+      pt(0.4, -0.22, 0.75),
+      pt(0.4, -0.22, 0.35),
+      pt(0.4, 0.22, 0.35),
+    ]);
+    poly("#4a6572", [
+      pt(-0.8, -0.22, 0.75),
+      pt(0.4, -0.22, 0.75),
+      pt(0.4, 0.22, 0.75),
+      pt(-0.8, 0.22, 0.75),
     ]);
 
-    // Forward Gun Turret (u = 0.9)
+    // Tier 2 Command Bridge (dLong: -0.3..0.2, z: 0.75 -> 1.15)
+    poly("#34495e", [
+      pt(-0.3, 0.18, 1.15),
+      pt(0.2, 0.18, 1.15),
+      pt(0.2, 0.18, 0.75),
+      pt(-0.3, 0.18, 0.75),
+    ]);
+    poly("#23313f", [
+      pt(0.2, 0.18, 1.15),
+      pt(0.2, -0.18, 1.15),
+      pt(0.2, -0.18, 0.75),
+      pt(0.2, 0.18, 0.75),
+    ]);
+    poly("#4a6572", [
+      pt(-0.3, -0.18, 1.15),
+      pt(0.2, -0.18, 1.15),
+      pt(0.2, 0.18, 1.15),
+      pt(-0.3, 0.18, 1.15),
+    ]);
+
+    // Cyan Bridge Windows
+    poly("#68c9df", [
+      pt(-0.15, 0.19, 1.08),
+      pt(0.15, 0.19, 1.08),
+      pt(0.15, 0.19, 0.92),
+      pt(-0.15, 0.19, 0.92),
+    ]);
+
+    // Radar Mast & Communications Array (z: 1.15 -> 1.65)
+    const mast0 = pt(-0.1, 0, 1.15);
+    const mast1 = pt(-0.1, 0, 1.65);
+    ctx.strokeStyle = "#f5f7f2";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(mast0.x, mast0.y);
+    ctx.lineTo(mast1.x, mast1.y);
+    ctx.stroke();
+
+    // 6. Forward Naval Gun Turret (dLong = 0.9, z = 0.42)
     const gun = pt(0.9, 0, 0.42);
     ctx.fillStyle = "#10232e";
     ctx.beginPath();
-    ctx.arc(gun.x, gun.y, 4, 0, Math.PI * 2);
+    ctx.arc(gun.x, gun.y, 4.5, 0, Math.PI * 2);
     ctx.fill();
+
+    const barrelEnd = pt(1.4, 0, 0.42);
     ctx.strokeStyle = "#10232e";
-    ctx.lineWidth = 2;
+    ctx.lineWidth = 2.5;
     ctx.beginPath();
     ctx.moveTo(gun.x, gun.y);
-    ctx.lineTo(gun.x + 8, gun.y + 4);
+    ctx.lineTo(barrelEnd.x, barrelEnd.y);
     ctx.stroke();
   }
 

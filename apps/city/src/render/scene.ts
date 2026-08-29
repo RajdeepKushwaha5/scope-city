@@ -244,7 +244,7 @@ export function drawScene(
 
   const items: Drawable[] = [
     ...facilityItems(framed, time),
-    ...hoardingItems(),
+    ...hoardingItems(framed),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...activityRouteItems(buildings, state, time),
@@ -400,12 +400,26 @@ function groundItems(state: SceneState): Drawable[] {
  * stopped a street tree growing through one: the drawing knew where they stood
  * and the layout did not.
  */
-function hoardingItems(): Drawable[] {
-  return HOARDINGS.map((board) => ({
-    z: depth(board.cell.u, board.cell.v, 3),
-    draw: (ctx: CanvasRenderingContext2D) =>
-      drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent),
-  }));
+function hoardingItems(state: SceneState): Drawable[] {
+  return HOARDINGS.map((board) => {
+    // Dimmed with the ground it stands on, like the trees and the fountains.
+    // A lit, readable board over fogged terrain is a piece of the map claiming
+    // to be reachable when it is not -- which is a small thing here and the
+    // whole argument everywhere else in this project.
+    const muted =
+      state.scopeState !== "none" && !isInScope(board.cell, state.granted);
+    return {
+      z: depth(board.cell.u, board.cell.v, 3),
+      draw: (ctx: CanvasRenderingContext2D) => {
+        if (muted) {
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+        }
+        drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
+        if (muted) ctx.restore();
+      },
+    };
+  });
 }
 
 /** Airport, commercial port and naval quay: visible destinations, not decoration. */

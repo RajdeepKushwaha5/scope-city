@@ -62,10 +62,18 @@ describe("the ground a hoarding stands on", () => {
 });
 
 describe("a hoarding nobody can see", () => {
-  /**
+  /*
    * A reference screen, and the HUD's own rectangles on it -- measured in the
    * browser rather than derived from the stylesheet, because a panel's height
    * is whatever its contents came to.
+   *
+   * Desktop only, and deliberately. The review pointed out that at 700px the
+   * boards are all behind the HUD, which is true and is not something a
+   * placement can fix: the narrow layout gives the scan column 322px and the
+   * console 294px, so 616 of 700 pixels are panel and every board in every
+   * position is covered. So is most of the city. What that finding describes is
+   * the HUD's behaviour on a phone, not the boards'; pretending otherwise by
+   * moving them would only make them invisible on a desktop as well.
    */
   const viewport = { width: 1382, height: 748 };
   const PANELS: readonly Rect[] = [
@@ -144,6 +152,37 @@ describe("a hoarding nobody can see", () => {
 });
 
 describe("telling one board from another", () => {
+  it("is the four boards this exists to put up", () => {
+    // Every other assertion in this file derives its expectation from whatever
+    // `HOARDINGS` currently contains, so deleting a board -- or all four --
+    // left them all green with fewer entries to check. The identities are the
+    // feature; they have to be named somewhere that does not read them back
+    // out of the thing under test.
+    expect(HOARDINGS.map((board) => board.title).sort()).toEqual([
+      "Qodo",
+      "Scope City",
+      "TrueFoundry",
+      "WeMakeDevs",
+    ]);
+  });
+
+  it("puts no two of them on the same cell", () => {
+    const cells = HOARDINGS.map((board) => `${board.cell.u}:${board.cell.v}`);
+    expect(new Set(cells).size).toBe(cells.length);
+  });
+
+  it("dims a board whose ground is outside the scope", () => {
+    // Like the trees and the fountains. A lit, readable board over fogged
+    // terrain is a piece of the map claiming to be reachable when it is not.
+    const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
+    const hoardings = scene.slice(
+      scene.indexOf("...hoardingItems("),
+      scene.indexOf("function facilityItems"),
+    );
+    expect(hoardings).toContain("...hoardingItems(framed)");
+    expect(hoardings).toContain("isInScope(board.cell, state.granted)");
+  });
+
   it("gives each its own colour", () => {
     // Four identical dark rectangles read as street furniture, not as four
     // different names -- and at map zoom the colour is all that survives.

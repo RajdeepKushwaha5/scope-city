@@ -1006,6 +1006,23 @@ export function drawBollards(
   ctx.restore();
 }
 
+/**
+ * Sets a shape's own transparency without discarding the caller's.
+ *
+ * `ctx.globalAlpha = 0.12` replaces whatever the caller had set, which matters
+ * because the scene dims an out-of-scope facility prop by wrapping its draw
+ * call in `globalAlpha = 0.4`. Any shape that then assigned its own alpha
+ * punched a fully lit hole through the fog: the lighthouse body went grey and
+ * its beam stayed bright, which is worse than not dimming it at all.
+ *
+ * Multiplying composes instead. A shape saying "I am a twelfth as opaque as
+ * whatever is going on" is true in both contexts; a shape saying "I am 0.12"
+ * is only true in one.
+ */
+export function fadeBy(ctx: CanvasRenderingContext2D, factor: number): void {
+  ctx.globalAlpha = ctx.globalAlpha * factor;
+}
+
 /** Characters that fit across a facility nameplate at its fixed size. */
 export const SIGN_MAX = 9;
 
@@ -1197,8 +1214,9 @@ export function drawFloodlight(ctx: CanvasRenderingContext2D, u: number, v: numb
   for (const at of [-8, -1, 6]) ctx.fillRect(c.x + at, c.y - 45, 5, 3);
 
   // A pool of light on the apron under it. Low alpha, because this is a lamp
-  // on a bright map and not a lamp at night.
-  ctx.globalAlpha = 0.12;
+  // on a bright map and not a lamp at night -- and multiplied rather than
+  // assigned, so a floodlight on fogged ground fades with the rest of it.
+  fadeBy(ctx, 0.12);
   ctx.fillStyle = COAST.floodLamp;
   ctx.beginPath();
   ctx.ellipse(c.x, c.y + 2, 28, 11, 0, 0, Math.PI * 2);
@@ -1300,7 +1318,11 @@ export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: numb
   ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
   ctx.fillStyle = COAST.lighthouseLamp;
   ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
-  ctx.globalAlpha = 0.12 + (Math.sin(time / 650) + 1) * 0.06;
+  // Multiplied, not assigned. This overwrote the fog the scene had set around
+  // an out-of-scope lighthouse, so the tower went grey and its beam stayed
+  // bright -- a fully lit hole punched through the fog, which reads worse than
+  // not dimming it at all.
+  fadeBy(ctx, 0.12 + (Math.sin(time / 650) + 1) * 0.06);
   ctx.fillStyle = COAST.lighthouseBeam;
   ctx.beginPath();
   ctx.moveTo(c.x, c.y - 54);

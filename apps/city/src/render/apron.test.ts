@@ -186,12 +186,45 @@ describe("the naval yard", () => {
     expect(props.length).toBeGreaterThanOrEqual(30);
 
     for (const prop of props) {
-      // Everything is inside the rectangle it belongs to, whatever it stands
-      // on -- a runway segment laid over a street is still the airfield's.
-      expect(
-        facilityAt(Math.floor(prop.u), Math.floor(prop.v)) ?? prop.facility,
-        `a ${prop.facility} prop at ${prop.u},${prop.v} is on the wrong facility`,
-      ).toBe(prop.facility);
+      const box = FACILITIES[prop.facility];
+      const owner = facilityAt(Math.floor(prop.u), Math.floor(prop.v));
+
+      if (owner !== null) {
+        // Inside a facility, it must be inside its own. A terminal on the
+        // port's apron passed the first version of this, which accepted any
+        // non-null answer.
+        expect(
+          owner,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is on the wrong facility`,
+        ).toBe(prop.facility);
+      } else {
+        /*
+         * Outside every facility, which only `water` and `over` may be -- and
+         * then only just outside their own.
+         *
+         * The first version wrote `facilityAt(...) ?? prop.facility`, which
+         * made the assertion tautological for exactly the props that are
+         * allowed to sit off the apron: a ship moved to the far side of the
+         * island would have passed. Being permitted to float is not permission
+         * to float anywhere.
+         */
+        expect(
+          prop.ground,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is outside every facility`,
+        ).not.toBe("apron");
+
+        const away = Math.max(
+          box.u0 - prop.u,
+          prop.u - box.u1,
+          box.v0 - prop.v,
+          prop.v - box.v1,
+          0,
+        );
+        expect(
+          away,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is ${away} cells from its facility`,
+        ).toBeLessThanOrEqual(4);
+      }
 
       if (prop.ground !== "apron") continue;
       expect(

@@ -82,12 +82,3 @@ export function blit(
     baked.canvas.height / dpr,
   );
 }
-
-/** Drops every sprite. Only needed if the palette changes at runtime. */
-export function clearBakes(): void {
-  cache.clear();
-}
-
-export function bakedCount(): number {
-  return cache.size;
-}

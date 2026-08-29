@@ -134,9 +134,16 @@ describe("the Qodo evidence section", () => {
       total,
       "an unqualified coverage claim is the thing that went stale",
     ).not.toMatch(/every merged pull request carries a Qodo review/i);
-    expect(total, "the exceptions have to be named to be checkable").toMatch(
-      /pull\/28|pull\/97/,
-    );
+    // And no printed total, which is the other way it goes stale: the count
+    // moves on the next merge whether or not anyone edits this file.
+    expect(total, "a total here is false at the next merge").not.toMatch(/\d+ of the \d+/);
+    // Every one of them, not any one of them. The first version of this used
+    // alternation, so it passed while eight of the nine could be deleted --
+    // which is the same shape of hole as the claim it was written to guard.
+    const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97];
+    for (const pr of NO_QODO) {
+      expect(total, `#${pr} is an exception and has to be named`).toContain(`pull/${pr}`);
+    }
     expect(total, "and the list is how a reader checks the rest").toContain("is%3Amerged");
   });
 

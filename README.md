@@ -637,8 +637,12 @@ took four rounds and all four are in the thread.
 
 ### The record
 
-**Every merged pull request goes through review, and 76 of the 85 carry a Qodo
-one.** The nine that do not are
+**Every merged pull request goes through review, and all but nine carry a Qodo
+one.** No total is printed here on purpose -- two have gone stale already, and
+the first draft of this very correction hard-coded a count of seventy-six out of
+eighty-five, which the next merge would have falsified. What does not go stale is which pull requests
+are the exceptions, because a merged PR does not acquire a review later. They
+are
 [#28](https://github.com/RajdeepKushwaha5/scope-city/pull/28),
 [#41](https://github.com/RajdeepKushwaha5/scope-city/pull/41),
 [#46](https://github.com/RajdeepKushwaha5/scope-city/pull/46),
@@ -651,7 +655,8 @@ one.** The nine that do not are
 was reviewed by Sourcery; what they lack is the Qodo pass.
 
 This section said "every one" until an audit counted them, which is the second
-time a claim here has outlived the fact behind it. Qodo posts about five minutes
+time a claim here has outlived the fact behind it -- and the third was caught in
+review, on the PR fixing the second. Qodo posts about five minutes
 after a push, and most of those nine were merged inside that window -- #28 was
 open for one minute and #97 for three. Merging on a green CI check rather than on
 a completed review is the mistake, and it is mine.

@@ -9,6 +9,7 @@ import { CityConsole } from "./hud/CityConsole.js";
 import { ScopePanel } from "./hud/ScopePanel.js";
 import { ScopeReview } from "./hud/ScopeReview.js";
 import { BuildingInspector } from "./hud/BuildingInspector.js";
+import { PlaceInspector } from "./hud/PlaceInspector.js";
 import { FieldPanel } from "./hud/FieldPanel.js";
 import { YardPanel } from "./hud/YardPanel.js";
 import { DistrictScan } from "./hud/DistrictScan.js";
@@ -29,6 +30,7 @@ import { useControlPlane } from "./use-control-plane.js";
 import { toScreen } from "./iso/projection.js";
 import { nextOfficeIndex } from "./map-keyboard.js";
 import { aModalIsOpen, opensCommandPalette } from "./command-shortcut.js";
+import { describePlace, type Place } from "./place.js";
 
 /**
  * The city.
@@ -73,7 +75,16 @@ export function App(): React.JSX.Element {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [size, setSize] = useState({ width: 0, height: 0 });
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
-  const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
+  /**
+   * The building the operator picked, whatever kind it is.
+   *
+   * This was an office name, which is why two hundred and thirty of the city's
+   * structures could not be selected: there was no key to hold them by. A
+   * `Place` describes any of them, and the office -- when there is one -- is a
+   * field on it.
+   */
+  const [selected, setSelected] = useState<Place | null>(null);
+  const selectedOffice = selected?.office ?? null;
   const [commandOpen, setCommandOpen] = useState(false);
 
   /*
@@ -112,7 +123,7 @@ export function App(): React.JSX.Element {
   // than returning null -- which would white-screen the page before it drew
   // anything, on the one URL a judge opens.
   const [introOpen, setIntroOpen] = useState(() => readSetting("scope_city_welcomed") === null);
-  const [hovered, setHovered] = useState<{ office: string; x: number; y: number } | null>(null);
+  const [hovered, setHovered] = useState<{ place: Place; x: number; y: number } | null>(null);
   const [preview, setPreview] = useState<{ office: string; districts: readonly string[] } | null>(null);
   const dragRef = useRef<{ x: number; y: number; moved: boolean } | null>(null);
   const suppressClickRef = useRef(false);
@@ -219,17 +230,17 @@ export function App(): React.JSX.Element {
       refusedAt: mission.refusedAt,
       scopeState: mission.scopeState,
       buildings: runtimeStates,
-      selected: selectedOffice,
-      hovered: hovered?.office ?? null,
+      selected: selected?.cell ?? null,
+      hovered: hovered?.place.cell ?? null,
       counterfactual: preview,
     }),
-    [mission, runtimeStates, selectedOffice, hovered, preview],
+    [mission, runtimeStates, selected, hovered, preview],
   );
 
   useEffect(() => {
     const clear = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
-      setSelectedOffice(null);
+      setSelected(null);
       setHovered(null);
       mission.inspect(null);
     };
@@ -281,11 +292,14 @@ export function App(): React.JSX.Element {
     const start = dragRef.current;
     if (!start) {
       const world = toWorld(e.clientX, e.clientY);
-      const { building } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
+      const { building, cell } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
+      // Every building answers, not only the nine that are offices. Open ground
+      // does not: a tooltip that follows the pointer across a park is noise,
+      // and a click there still reports the district.
       setHovered(
-        isMeaningful(building)
-          ? { office: building.office!, x: e.clientX, y: e.clientY }
-          : null,
+        building === null
+          ? null
+          : { place: describePlace(building, cell), x: e.clientX, y: e.clientY },
       );
       return;
     }
@@ -354,21 +368,13 @@ export function App(): React.JSX.Element {
       const world = toWorld(e.clientX, e.clientY);
       const { building, cell } = pickBuilding(cityFor(mission.offices).buildings, world.x, world.y);
 
-      // A building answers the narrow question -- may the agent refund *this*
-      // charge -- and the district answers only where it stands. Prefer the
-      // building, and fall back to the district so clicking open ground still
-      // does something rather than nothing.
-      if (isMeaningful(building)) {
-        setSelectedOffice(building.office);
-        mission.inspect(building.district);
-        return;
-      }
-
-      setSelectedOffice(null);
-      const plot = DISTRICT_PLOTS.find(
-        (p) => cell.u >= p.u0 && cell.u <= p.u1 && cell.v >= p.v0 && cell.v <= p.v1,
-      );
-      mission.inspect(plot?.id ?? null);
+      // Everything answers. An office answers the narrow question -- may the
+      // agent refund *this* charge -- and anything else answers with where it
+      // stands and what happens there, which is the fact a newcomer is short
+      // of, because the districts are the metaphor and nothing explained them.
+      const place = describePlace(building, cell);
+      setSelected(place);
+      mission.inspect(place.district);
     },
     [toWorld, mission],
   );
@@ -377,7 +383,7 @@ export function App(): React.JSX.Element {
     (building: (typeof officeBuildings)[number]) => {
       const point = toScreen(building.cell.u, building.cell.v, building.height / 2);
       const zoom = Math.max(camera.zoom, 1.35);
-      setSelectedOffice(building.office!);
+      setSelected(describePlace(building, building.cell));
       mission.inspect(building.district!);
       setCamera({ x: -point.x * zoom, y: -point.y * zoom, zoom });
     },
@@ -410,14 +416,14 @@ export function App(): React.JSX.Element {
 
       event.preventDefault();
       const building = officeBuildings[next]!;
-      setSelectedOffice(building.office!);
+      setSelected(describePlace(building, building.cell));
       setHovered(null);
       mission.inspect(building.district!);
     },
     [focusBuilding, mission, officeBuildings, selectedOffice],
   );
 
-  const hoveredState = hovered ? runtimeStates.get(hovered.office) : null;
+  const hoveredState = hovered?.place.office ? runtimeStates.get(hovered.place.office) : null;
   // Flipped to the other side of the cursor near an edge, so a building at the
   // city limits does not describe itself off the screen.
   const tooltipAt = placeTooltip(hovered ?? { x: 0, y: 0 }, size);
@@ -563,15 +569,23 @@ export function App(): React.JSX.Element {
         onKeyDown={onMapKeyDown}
       />
 
-      {hovered && hoveredState ? (
+      {hovered ? (
         <div
-          className={`map-tooltip map-tooltip--${hoveredState.activity}`}
+          className={`map-tooltip map-tooltip--${hoveredState?.activity ?? "idle"}`}
           style={{ left: tooltipAt.left, top: tooltipAt.top }}
           role="status"
         >
-          <strong>{hovered.office}</strong>
-          <span>{hoveredState.authority} · {hoveredState.activity}</span>
-          <small>Click to inspect · double-click to focus</small>
+          <strong>{hovered.place.title}</strong>
+          <span>
+            {hoveredState
+              ? `${hoveredState.authority} · ${hoveredState.activity}`
+              : hovered.place.detail}
+          </span>
+          <small>
+            {hovered.place.office
+              ? "Click to inspect · double-click to focus"
+              : "Click to read the district"}
+          </small>
         </div>
       ) : null}
 
@@ -601,6 +615,42 @@ export function App(): React.JSX.Element {
       <div className="hud">
         <div className="hud__main">
           <div className="hud__scan-stack">
+            {/*
+              * First in the stack, and that is the whole of why it works.
+              *
+              * It used to sit below four other panels, which put it about three
+              * hundred pixels past the bottom of a scrolling column on a 1400
+              * by 900 screen. Clicking a building opened a panel the operator
+              * could not see, which is indistinguishable from clicking a
+              * building and nothing happening -- and that is what the map
+              * appeared to do.
+              *
+              * It belongs at the top on its own merits too: it is the answer to
+              * something the operator just did, and it is the only panel here
+              * that they opened deliberately and can close again.
+              *
+              * One slot, two panels. An office has its own authority to report;
+              * anything else reports the district it stands in, and offers that
+              * district's offices as the way in.
+              */}
+            {selectedOffice !== null ? (
+              <BuildingInspector
+                state={runtimeStates.get(selectedOffice) ?? null}
+                onClose={() => setSelected(null)}
+              />
+            ) : selected !== null ? (
+              <PlaceInspector
+                place={selected}
+                offices={mission.offices}
+                states={runtimeStates}
+                online={mission.online}
+                onSelectOffice={(office) => {
+                  const building = officeBuildings.find((b) => b.office === office);
+                  if (building) focusBuilding(building);
+                }}
+                onClose={() => setSelected(null)}
+              />
+            ) : null}
             <DistrictScan
               online={mission.online}
               granted={mission.granted}
@@ -638,10 +688,6 @@ export function App(): React.JSX.Element {
                 onPreview={setPreview}
               />
             ) : null}
-            <BuildingInspector
-              state={selectedOffice === null ? null : (runtimeStates.get(selectedOffice) ?? null)}
-              onClose={() => setSelectedOffice(null)}
-            />
             <FieldPanel
               figures={mission.figures}
               threadWork={currentRaw.threadWork}

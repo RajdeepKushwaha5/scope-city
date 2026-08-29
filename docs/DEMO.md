@@ -22,18 +22,28 @@ happened**, then one surprise, then credit the harness.
 pnpm --filter @scope-city/city dev
 ```
 
-**Check `pnpm` runs before you start recording.** On Node 23 it does not: pnpm
-11 imports `node:sqlite`, which 23.2 hides behind a flag, so every pnpm command
-dies on an unknown-builtin-module trace. Finding that out with the recorder
-running is a bad minute.
+**Check `pnpm` runs before you start recording.** pnpm 11 imports
+`node:sqlite`, which Node 22.13 exposes and Node 23.0-23.3 hide behind a flag,
+so on those releases every pnpm command dies on an unknown-builtin-module
+trace. Finding that out with the recorder running is a bad minute.
 
 ```bash
-pnpm --version                                    # 11.10.0, or you are on 23
-NODE_OPTIONS=--experimental-sqlite pnpm --version  # the escape hatch, if so
+pnpm --version    # 11.10.0, or you are on a release that gates node:sqlite
 ```
 
-Node 22.13 is the supported line and the better answer. The flag is there so a
-machine that is already on 23 is not a blocker at nineteen hundred hours.
+If it fails, export the flag once and every pnpm command in this document
+works, including the one above -- prefixing only the version check proves
+nothing and starts nothing:
+
+```bash
+export NODE_OPTIONS=--experimental-sqlite
+pnpm --filter @scope-city/city dev
+```
+
+Node 22.13 is the supported line and the better answer; 23.4 unflagged
+`node:sqlite` again, so the problem is a window rather than a whole major
+version. The flag is here so a machine already inside that window is not a
+blocker at nineteen hundred hours.
 
 - **Check which model the pool is on before you record.** Development runs on
   the local model to save the hosted quota, and the two produce different

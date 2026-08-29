@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32" shape-rendering="crispEdges">
+  <title>Scope City</title>
+  <!--
+    One idea, at sixteen pixels: a tower standing inside a boundary. The city
+    is what the product draws, the boundary is what it argues about, and the
+    two together are the whole product in one shape.
+
+    Three versions to get here, and the two that failed both failed the same
+    way. Punching the building out of a solid amber diamond is legible at any
+    size and reads as a hole, not a building, because an isometric cube's
+    silhouette is a hexagon and a hexagon inside a diamond is a gap. The
+    building has to be lighter than what surrounds it to read as an object.
+
+    So: amber boundary, pale tower, dark ground. Three flat colours, one
+    contrast step between each, nothing that depends on a line thinner than
+    the pixel it lands on.
+
+    The prose here carries no double hyphen, which is this project's house
+    style everywhere else. Inside an XML comment it closes the comment, and
+    the first version of this file was invalid for exactly that reason: the
+    browser served it as image/svg+xml and drew a broken-image glyph.
+  -->
+  <rect width="32" height="32" rx="6" fill="#081923"/>
+
+  <!-- The city limits. Thick enough to survive being one pixel wide. -->
+  <path d="M16 3 L30 16 L16 29 L2 16 Z" fill="none" stroke="#f0a830" stroke-width="3.5"/>
+
+  <!-- One office inside them: a lit roof and two walls, which is the entire
+       vocabulary the map uses for a building. -->
+  <path d="M16 9 L23 14 L16 19 L9 14 Z" fill="#e6eaef"/>
+  <path d="M9 14 L16 19 L16 25 L9 20 Z" fill="#aab4c0"/>
+  <path d="M23 14 L23 20 L16 25 L16 19 Z" fill="#7d8794"/>
+</svg>

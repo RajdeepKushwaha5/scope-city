@@ -501,36 +501,46 @@ export function facilityProps(time: number): FacilityProp[] {
   at("airport", 11, 29, 4, (ctx) => drawFloodlight(ctx, 11, 29));
 
   // --- the container port ----------------------------------------------
-  // Not on the two cells where a street meets the quay. The row crosses the
-  // road grid at u=30 and u=36, and the test caught a bollard standing in the
-  // middle of each of them -- the same gate the naval yard's fence leaves.
+  // Bollards along the quay edge with hazard stripes and tire fenders
   for (let u = 28; u <= 37; u += 1) {
     if (u % ROAD_EVERY === 0) continue;
     at("port", u, 32, 0.4, (ctx) => drawBollards(ctx, u, 32, "+v"));
   }
+  // 3D ISO Container Stacks
   for (const [u, v, seed] of [
-    [29, 29, 1],
-    [31, 29, 2],
-    [33, 29, 3],
-    [35, 29, 4],
+    [27, 29, 1],
+    [28, 29, 2],
+    [29, 29, 3],
+    [27, 31, 4],
     [28, 31, 5],
-    [32, 28, 6],
+    [31, 28, 6],
+    [32, 28, 7],
   ] as const) {
     at("port", u, v, 1, (ctx) => drawContainerStack(ctx, u, v, seed));
   }
+  // 3 Rail-mounted portal gantry cranes
   at("port", 29, 31, 3, (ctx) => drawCrane(ctx, 29, 31));
-  at("port", 34, 31, 3, (ctx) => drawCrane(ctx, 34, 31));
-  // On the point at the end of the quay -- which is the port's own ground, so
-  // it is checked like everything else standing on it. It was declared `water`
-  // and the review pointed out that made it exempt from a check it passes.
+  at("port", 32, 31, 3, (ctx) => drawCrane(ctx, 32, 31));
+  at("port", 35, 31, 3, (ctx) => drawCrane(ctx, 35, 31));
+
+  // Timber jetty jutting out into sea
+  at("port", 33.5, 32.5, 1, (ctx) => drawPier(ctx, 33.5, 32.5), "over");
+
+  // Moored cargo vessel with red boot-topping and multi-tier superstructure
+  at("port", 30.5, 33.2, 4, (ctx) => drawShip(ctx, 30.5, 33.2, "u", "cargo"), "water");
+
+  // Port master warehouse
+  at("port", 35, 28, 3, (ctx) => drawQuayHut(ctx, 35, 28));
+
+  // Bold black and gold PORT signboard
+  at("port", 37, 28, 3, (ctx) => drawFacilitySign(ctx, 37, 28, "Port"));
+
+  // Lighthouse on the point
   at("port", 37.5, 31, 4, (ctx) => drawLighthouse(ctx, 37.5, 31, time));
-  // The things that make a quay a port rather than a building site: somewhere
-  // to work from, something to work by, and a name on the gate.
-  at("port", 27, 28, 2, (ctx) => drawQuayHut(ctx, 27, 28));
-  at("port", 34, 28, 3, (ctx) => drawFacilitySign(ctx, 34, 28, "Port"));
-  at("port", 31, 31, 4, (ctx) => drawFloodlight(ctx, 31, 31));
-  at("port", 35, 31, 4, (ctx) => drawFloodlight(ctx, 35, 31));
-  at("port", 34.5, 34.5, 4, (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo"), "water");
+
+  // Perimeter floodlights
+  at("port", 28, 28, 4, (ctx) => drawFloodlight(ctx, 28, 28));
+  at("port", 34, 28, 4, (ctx) => drawFloodlight(ctx, 34, 28));
 
   // --- the naval yard ---------------------------------------------------
   const yard = FACILITIES.naval;

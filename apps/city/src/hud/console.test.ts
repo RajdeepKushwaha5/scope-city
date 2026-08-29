@@ -22,7 +22,7 @@ describe("the crew portrait", () => {
     // placeholder that outlived the asset it stood in for, and the asset was
     // sitting in `public/crew` being used by the panel on the other side of the
     // screen.
-    expect(console_).toContain("effortSpriteUrl(props.effort)");
+    expect(console_).toContain("effortSpriteUrl(props.crew ?? \"medium\")");
     expect(console_, "the placeholder boxes are still being drawn").not.toContain(
       "crew-card__head",
     );
@@ -60,6 +60,35 @@ describe("who is on duty", () => {
   });
 });
 
+describe("whose run the console is describing", () => {
+  it("does not caption a replay with the launch form's setting", () => {
+    // The bug this PR introduced and the review caught. A recorded run carries
+    // no effort metadata at all, and the console was handed the picker's
+    // current value -- so it labelled somebody else's captured session "Medium
+    // effort", and the operator could change that label while it played.
+    expect(app).toContain("crew={live.active ? dispatched : replaying ? null : effort}");
+    expect(console_).toContain('"effort not recorded"');
+  });
+
+  it("reports the effort a live mission was dispatched with, not the current pick", () => {
+    // The picker is a form and this is a fact about a run. They diverge the
+    // moment the operator touches the control after dispatching.
+    expect(app).toContain("setDispatched(level)");
+    expect(app).toMatch(/const \[dispatched, setDispatched\] = useState<EffortLevel \| null>/);
+  });
+
+  it("locks the picker while a replay is on screen", () => {
+    // It was gated on `live.active` alone, so it stayed editable during a
+    // recording -- and the console was reading it.
+    expect(app).toContain("active={live.active || replaying}");
+  });
+
+  it("says which of the two it is showing", () => {
+    // "Medium effort" and "Medium effort selected" are different claims.
+    expect(console_).toContain('props.crewIsRunning ? "" : " selected"');
+  });
+});
+
 describe("what the console claims to know", () => {
   it("does not report a spend nothing is measuring", () => {
     // The live view returned a hard-coded `0` for this, so a real mission
@@ -73,6 +102,20 @@ describe("what the console claims to know", () => {
 
   it("says so in words rather than with a zero", () => {
     expect(console_).toContain('"not metered"');
+  });
+
+  it("counts money in whole units", () => {
+    // Every other monetary value in this codebase is an integer in minor units,
+    // because the evaluator compares amounts and cannot afford drift. There is
+    // no reason for two rules about money in one project, and the accumulator
+    // here was floating-point dollars rounded back to four places on every
+    // addition -- the pattern those rules exist to refuse.
+    const mission = read("../useMission.ts");
+    expect(mission).toMatch(/spend: \(units\) => setTreasury\(\(t\) => t \+ Math\.max\(0, Math\.round\(units\)\)\)/);
+    expect(mission, "a fractional literal is how it drifted before").toMatch(
+      /export const SPEND_PER_TURN = \d+;/,
+    );
+    expect(console_, "converted only for display").toContain("/ 10_000");
   });
 
   it("calls it what it is", () => {

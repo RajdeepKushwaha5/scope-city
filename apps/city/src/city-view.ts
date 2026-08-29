@@ -27,7 +27,8 @@ export interface CityView {
   readonly sandboxOpen: boolean;
   readonly yard: LiveCityState["yard"];
   /**
-   * What the model has cost so far, or null where nothing is measuring it.
+   * What the model has cost so far in ten-thousandths of a dollar, or null
+   * where nothing is measuring it.
    *
    * Null is the important value. This was `number`, and the live view returned
    * a hard-coded `0` for it -- so a real mission displayed "Treasury $0.0000"

@@ -98,6 +98,19 @@ export function App(): React.JSX.Element {
   const [effort, setEffort] = useState<EffortLevel>("medium");
 
   /*
+   * The effort the running mission was actually dispatched with.
+   *
+   * Separate from the picker, because the picker is a form and this is a fact.
+   * Handing the console the picker's current value let it label a recorded
+   * replay -- which carries no effort metadata at all -- with whatever the
+   * operator happened to have selected, and let them change that label
+   * mid-playback. A console captioning someone else's run with a setting from
+   * a form is the same fabrication this project spends its argument on.
+   */
+  const [dispatched, setDispatched] = useState<EffortLevel | null>(null);
+
+
+  /*
    * Ctrl/Cmd+K, and it has to live here.
    *
    * The palette listens for Escape itself, but nothing listened for the
@@ -142,6 +155,15 @@ export function App(): React.JSX.Element {
   const live = useLiveMission();
   const recorded = useRecordedMission();
   const controlPlane = useControlPlane();
+
+  /**
+   * A past run is on screen: a captured session, or one of the scripted ones.
+   *
+   * The console must not caption either with the launch form's setting, and the
+   * form itself must not stay editable underneath one.
+   */
+  const replaying =
+    recorded.playing || recorded.record !== null || replay.rawState.phase !== "drafting";
 
   // Live wins, then a recorded run, then the scripted replays. Ordered by how
   // much each one proves: a live mission is happening, a recording happened,
@@ -709,7 +731,10 @@ export function App(): React.JSX.Element {
 
           <div className="hud__order">
             <MissionOrder
-              active={live.active}
+              /* Locked during a replay as well as a live run. The picker was
+                 gated on `live.active` alone, so it stayed editable while a
+                 recording played -- and the console was reading it. */
+              active={live.active || replaying}
               connection={live.connection}
               error={live.error ?? recorded.error}
               /* Every path that starts a run goes through `runScenario`, or the
@@ -721,6 +746,7 @@ export function App(): React.JSX.Element {
               onEffort={setEffort}
               onLaunch={async (order, level) => {
                 setActiveScenario(null);
+                setDispatched(level);
                 await live.launch(order, level);
               }}
               onStop={live.leave}
@@ -753,7 +779,10 @@ export function App(): React.JSX.Element {
             phase={mission.phase}
             job={mission.job}
             treasury={mission.treasury}
-            effort={effort}
+            // The mission's own crew, or nothing: a replay carries no effort
+            // and must not borrow the launch form's.
+            crew={live.active ? dispatched : replaying ? null : effort}
+            crewIsRunning={live.active}
             fieldSize={mission.figures.length}
             structureCount={structureCount}
             sandboxOpen={mission.sandboxOpen}

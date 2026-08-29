@@ -63,7 +63,8 @@ interface StepApi {
   proposeScope: (scope: ScopeView) => void;
   sandbox: (open: boolean) => void;
   phase: (phase: Phase) => void;
-  spend: (usd: number) => void;
+  /** Adds to the running cost, in integer ten-thousandths of a dollar. */
+  spend: (units: number) => void;
   grantScope: () => void;
   /**
    * Publish a Yard report.
@@ -91,6 +92,15 @@ const ALL_DISTRICTS = ["records", "exchequer", "post-house", "yard", "gate"] as 
  * wholesale or withheld, which is exactly what makes `customer.list` the
  * instructive counterfactual.
  */
+/**
+ * What one model turn costs the scripted replay, in ten-thousandths of a dollar.
+ *
+ * 140 is $0.0140. Written as an integer because it is added to an integer
+ * total -- see `spend` -- and because a number with a decimal point in it here
+ * is how the accumulator drifted in the first place.
+ */
+export const SPEND_PER_TURN = 140;
+
 export const OFFICES = [
   { office: "ticket.get", district: "records", consumes: ["ticket_ids"] },
   { office: "ticket.reply", district: "records", consumes: ["ticket_ids"] },
@@ -309,7 +319,20 @@ export function useMission() {
       }),
     sandbox: setSandboxOpen,
     phase: setPhase,
-    spend: (usd) => setTreasury((t) => Number((t + usd).toFixed(4))),
+    /*
+     * Accumulated in integer hundredths of a cent, not in dollars.
+     *
+     * This was `Number((t + usd).toFixed(4))` -- floating-point dollars
+     * rounded back to four places on every addition, which is the pattern the
+     * rest of this codebase refuses for money. `maxAmountMinor` exists because
+     * the evaluator compares amounts and cannot afford drift; a cost readout
+     * has no boundary riding on it, but there is no reason for two rules about
+     * money in one project, and integers here cost nothing.
+     *
+     * Cents are too coarse: a turn costs on the order of $0.014, so a cent
+     * would round most of them to nothing. The unit is 1/10000 of a dollar.
+     */
+    spend: (units) => setTreasury((t) => t + Math.max(0, Math.round(units))),
     grantScope: () => {
       setScope(NARROW_SCOPE);
       setScopeState("granted");
@@ -451,7 +474,7 @@ export function useMission() {
       api.log(`Countersigned ${request.office}`, "allowed");
       schedule(() => {
         api.log("$49.00 refunded on ch_184", "allowed");
-        api.spend(0.014);
+        api.spend(SPEND_PER_TURN);
       }, 500);
     },
     [gate, schedule, scopeState],

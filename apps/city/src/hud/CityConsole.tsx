@@ -16,9 +16,23 @@ const PHASE_LABEL: Record<string, string> = {
 export function CityConsole(props: {
   phase: string;
   job: string;
+  /**
+   * What the model has cost, in integer ten-thousandths of a dollar, or null
+   * where nothing is measuring it. Integer, because every other monetary value
+   * in this codebase is, and because `toFixed` on an accumulating float is the
+   * pattern those rules exist to refuse.
+   */
   treasury: number | null;
-  /** The crew on duty, so the portrait matches the one in the mission order. */
-  effort: EffortLevel;
+  /**
+   * The crew this mission ran with, or null where that is not known.
+   *
+   * Null for a recorded or scripted replay: neither carries effort metadata,
+   * and the launch form's current selection is a fact about the form rather
+   * than about the run on screen.
+   */
+  crew: EffortLevel | null;
+  /** Whether that crew is out on a mission now, or merely the one selected. */
+  crewIsRunning: boolean;
   fieldSize: number;
   structureCount: number;
   sandboxOpen: boolean;
@@ -140,14 +154,21 @@ export function CityConsole(props: {
           * Keyed off the same effort the operator picked, so the two panels
           * cannot show different crews.
           */}
-        <span className="console__portrait">
-          <img className="console__portrait-img" src={effortSpriteUrl(props.effort)} alt="" />
+        <span className={`console__portrait${props.crew === null ? " console__portrait--unknown" : ""}`}>
+          <img
+            className="console__portrait-img"
+            src={effortSpriteUrl(props.crew ?? "medium")}
+            alt=""
+          />
         </span>
         <div>
           <span className="hud-label">Crew on duty</span>
           <strong>Boundary agent</strong>
           <small>
-            {effortLabel(props.effort)} effort &middot;{" "}
+            {props.crew === null
+              ? "effort not recorded"
+              : `${effortLabel(props.crew)} effort${props.crewIsRunning ? "" : " selected"}`}
+            {" · "}
             {PHASE_LABEL[props.phase] ?? props.phase.toUpperCase()}
           </small>
         </div>
@@ -161,7 +182,7 @@ export function CityConsole(props: {
           this is what the model has cost. And an em dash where nothing is
           measuring it, rather than a zero that looks like a reading. */}
       <Stat label="Model spend">
-        {props.treasury === null ? "not metered" : `$${props.treasury.toFixed(4)}`}
+        {props.treasury === null ? "not metered" : `$${(props.treasury / 10_000).toFixed(4)}`}
       </Stat>
 
       {props.expiresIn === null ? null : (

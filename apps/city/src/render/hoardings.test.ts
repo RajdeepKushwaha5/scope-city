@@ -19,6 +19,16 @@ import { OFFICES } from "../useMission.js";
 
 const city = layOutCity(OFFICES);
 
+interface Rect {
+  readonly left: number;
+  readonly top: number;
+  readonly right: number;
+  readonly bottom: number;
+}
+
+const overlaps = (a: Rect, b: Rect): boolean =>
+  a.left < b.right && a.right > b.left && a.top < b.bottom && a.bottom > b.top;
+
 describe("the ground a hoarding stands on", () => {
   it("is not shared with a building", () => {
     // The two boards that existed were drawn without reserving anything: the
@@ -53,38 +63,82 @@ describe("the ground a hoarding stands on", () => {
 
 describe("a hoarding nobody can see", () => {
   /**
-   * The HUD's own gutters, from `hud.css`: a 310px stack on the left, a 340px
-   * console on the right, and 14px of padding either side.
+   * A reference screen, and the HUD's own rectangles on it -- measured in the
+   * browser rather than derived from the stylesheet, because a panel's height
+   * is whatever its contents came to.
    */
-  const LEFT = 310 + 14 * 2;
-  const RIGHT = 340 + 14 * 2;
-  /** Half the drawn face, so the assertion is about the board and not its centre. */
-  const HALF_FACE = 42;
-
   const viewport = { width: 1382, height: 748 };
-  const camera = fitCamera(viewport);
+  const PANELS: readonly Rect[] = [
+    { left: 14, top: 14, right: 324, bottom: 449 }, // the scan stack
+    { left: 14, top: 449, right: 574, bottom: 734 }, // the mission order
+    { left: 1028, top: 14, right: 1368, bottom: 734 }, // the console
+  ];
 
-  const centreOf = (u: number, v: number) => ({
-    x: viewport.width / 2 + camera.x + toScreen(u, v, 3).x * camera.zoom,
-    y: viewport.height / 2 + camera.y + toScreen(u, v, 3).y * camera.zoom,
+  const camera = fitCamera(viewport);
+  const z = camera.zoom;
+
+  /** Where a world point lands on that screen. */
+  const at = (u: number, v: number, h = 0) => {
+    const p = toScreen(u, v, h);
+    return {
+      x: viewport.width / 2 + camera.x + p.x * z,
+      y: viewport.height / 2 + camera.y + p.y * z,
+    };
+  };
+
+  /** The face and posts, from the rectangles `drawBillboard` fills. */
+  const faceOf = (board: (typeof HOARDINGS)[number]): Rect => {
+    const c = at(board.cell.u, board.cell.v);
+    return { left: c.x - 42 * z, top: c.y - 48 * z, right: c.x + 42 * z, bottom: c.y + 33 * z };
+  };
+
+  it("is behind a panel", () => {
+    // `Qodo` at (37,5) landed at x=1096, entirely behind the console; the
+    // original `Scope City` board was half behind the left stack.
+    for (const board of HOARDINGS) {
+      const face = faceOf(board);
+      expect(face.left, `${board.title} is off the left`).toBeGreaterThan(0);
+      expect(face.right, `${board.title} is off the right`).toBeLessThan(viewport.width);
+      expect(face.top, `${board.title} is off the top`).toBeGreaterThan(0);
+      expect(face.bottom, `${board.title} is off the bottom`).toBeLessThan(viewport.height);
+
+      for (const panel of PANELS) {
+        expect(overlaps(face, panel), `${board.title} is behind a HUD panel`).toBe(false);
+      }
+    }
   });
 
-  it("is worse than no hoarding at all", () => {
-    // Measured, after two placements that were not. `Qodo` at (37,5) landed at
-    // x=1096, entirely behind the console; the original `Scope City` board at
-    // (4,25) was half behind the left stack. Neither is a rendering fault --
-    // both draw perfectly, off the edge of what the operator is looking at --
-    // so nothing but arithmetic like this would have caught them.
+  it("is behind a building", () => {
+    // The second way, and the one the operator reported: a hoarding is 48px of
+    // face and the tower on the next diagonal is 300, drawn later because it is
+    // nearer. So a board can be swallowed whole by a building standing behind
+    // it in the world and in front of it on the screen -- which looks exactly
+    // like a board nobody added, and is not a rendering fault. Every one of
+    // these draws perfectly.
+    //
+    // Checked against the real layout, because that is what decides it: a
+    // district gaining an office shifts the filler, and a placement that was
+    // clear yesterday is behind a tower today.
     for (const board of HOARDINGS) {
-      const at = centreOf(board.cell.u, board.cell.v);
-      const half = HALF_FACE * camera.zoom;
+      const face = faceOf(board);
+      const boardDepth = (board.cell.u + board.cell.v) * 1000 + 3;
 
-      expect(at.x - half, `${board.title} is behind the left panels`).toBeGreaterThan(LEFT);
-      expect(at.x + half, `${board.title} is behind the console`).toBeLessThan(
-        viewport.width - RIGHT,
-      );
-      expect(at.y, `${board.title} is off the top`).toBeGreaterThan(0);
-      expect(at.y, `${board.title} is off the bottom`).toBeLessThan(viewport.height);
+      const blocker = city.find((b) => {
+        // Only what is painted afterwards can cover it.
+        if ((b.cell.u + b.cell.v) * 1000 + b.height <= boardDepth) return false;
+        const anchor = at(b.cell.u, b.cell.v);
+        return overlaps(face, {
+          left: anchor.x - 48 * z,
+          top: anchor.y - (b.height * 32 + 46) * z,
+          right: anchor.x + 48 * z,
+          bottom: anchor.y + 30 * z,
+        });
+      });
+
+      expect(
+        blocker,
+        `${board.title} is hidden by the building at ${blocker?.cell.u},${blocker?.cell.v}`,
+      ).toBeUndefined();
     }
   });
 });

@@ -207,10 +207,16 @@ export function apronEdges(u: number, v: number): ("-u" | "+u" | "-v" | "+v")[] 
  * instead, and a real asset can replace the face later without moving anything.
  *
  * The cells are chosen so that a board is actually on screen at the zoom the
- * city opens at, which is not automatic: the HUD columns cover about three
- * hundred pixels down each side. Measured, after the first two placements put
- * one board half behind the left stack and another entirely behind the console.
- * A hoarding nobody can see is worse than none, because it reads as care taken.
+ * city opens at, and that is not automatic in two separate ways. The HUD
+ * columns cover about three hundred pixels down each side, which put one board
+ * behind the console outright. And the city itself is in the way: a hoarding is
+ * forty-eight pixels of face and the tower on the next diagonal is three
+ * hundred, drawn later, so a board can be swallowed whole by a building that
+ * stands behind it in the world and in front of it on the screen.
+ *
+ * Both are checked in `hoardings.test.ts` against the real layout rather than
+ * chosen by eye, because both failures look identical to a board that was never
+ * added -- and neither is a rendering fault. Every one of these draws perfectly.
  */
 export interface Hoarding {
   readonly cell: Cell;
@@ -221,25 +227,25 @@ export interface Hoarding {
 
 export const HOARDINGS: readonly Hoarding[] = [
   {
-    cell: { u: 1, v: 14 },
+    cell: { u: 4, v: 23 },
     title: "Scope City",
     subtitle: "Authority has borders",
     accent: "#f0a830",
   },
   {
-    cell: { u: 35, v: 27 },
+    cell: { u: 26, v: 29 },
     title: "TrueFoundry",
     subtitle: "TrueForge harness",
     accent: "#8b7cf6",
   },
   {
-    cell: { u: 5, v: 3 },
+    cell: { u: 15, v: 5 },
     title: "WeMakeDevs",
     subtitle: "Hackathon 2026",
     accent: "#4ec9d6",
   },
   {
-    cell: { u: 25, v: 2 },
+    cell: { u: 39, v: 16 },
     title: "Qodo",
     subtitle: "Reviews every PR",
     accent: "#c778dd",

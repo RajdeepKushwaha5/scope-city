@@ -105,11 +105,50 @@ describe("whose run the console is describing", () => {
     expect(app).toContain("active={live.active}");
     const order = read("./MissionOrder.tsx");
     expect(order, "the form must freeze on either").toContain(
-      "const frozen = props.active || (props.locked ?? false);",
+      "const frozen = props.active || running;",
     );
     expect(order, "but Halt must depend on a live mission alone").toContain(
       "{props.active ? (",
     );
+  });
+
+  it("leaves the replay buttons usable while a replay is on screen", () => {
+    /*
+     * The regression the previous round introduced, found by driving the built
+     * page rather than by reading the diff.
+     *
+     * Locking the form with one flag closed the scenario buttons too, and the
+     * scoped run parks at the Gate awaiting a countersign -- so `replayRunning`
+     * never went false and every button was disabled for the rest of the
+     * session. The demo is two scripted runs back to back; that made it one,
+     * again, by a different route than the last time.
+     *
+     * The replay buttons are how an operator leaves a replay. Only a live
+     * mission may close them.
+     */
+    const order = read("./MissionOrder.tsx");
+    expect(order).toContain("const switchingBlocked = props.active;");
+
+    for (const handler of [
+      "props.onRecordedReplay();",
+      "props.onNoScopeReplay();",
+      "props.onPoisonedReplay();",
+      "props.onCleanReplay();",
+    ]) {
+      const at = order.indexOf(handler);
+      expect(at, `${handler} is not in the panel`).toBeGreaterThan(-1);
+      const button = order.slice(order.lastIndexOf("<button", at), at);
+      expect(button, `${handler} is closed by a replay`).toContain("disabled={switchingBlocked}");
+      expect(button, `${handler} is closed by a replay`).not.toContain("disabled={frozen}");
+    }
+  });
+
+  it("still closes the order and the crew while a replay is on screen", () => {
+    // The other half. The buttons that switch runs stay open; the controls that
+    // would start a *live* mission underneath one do not.
+    const order = read("./MissionOrder.tsx");
+    expect(order).toContain("const frozen = props.active || running;");
+    expect(order).toContain("disabled={frozen || !order.trim() || !canDispatch}");
   });
 
   it("does not let a live mission start on top of a replay", () => {

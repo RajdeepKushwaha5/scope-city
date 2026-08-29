@@ -54,9 +54,28 @@ export function MissionOrder(props: {
   const setThinkingEffort = props.onEffort;
 
   const canDispatch = props.canDispatch ?? true;
-  // Everything that edits the order is closed while either is true; only
-  // `active` decides whether there is something to halt.
-  const frozen = props.active || (props.locked ?? false);
+
+  /*
+   * Three states, not two, and collapsing them broke the demo.
+   *
+   * `active` is a live mission: everything closes, because a second dispatch
+   * would run two missions at once and the replay buttons would swap the city
+   * out from under one that is really happening.
+   *
+   * `locked` is a replay on screen. It closes the order and the crew, because
+   * a live mission must not be launched on top of a replay -- but it must not
+   * close the replay buttons themselves. They are how an operator leaves a
+   * replay, and the demo is two scripted runs back to back.
+   *
+   * Folding the two together disabled every scenario button for the rest of the
+   * session: the scoped run parks at the Gate awaiting a countersign, so the
+   * lock never lifted and the second half of the comparison could not be
+   * started without reloading the page.
+   */
+  const running = props.locked ?? false;
+  const frozen = props.active || running;
+  /** Closed only by a live mission. A replay is a thing you switch away from. */
+  const switchingBlocked = props.active;
 
   return (
     <>
@@ -205,7 +224,7 @@ export function MissionOrder(props: {
           <div>
             <button
               className="btn btn--primary"
-              disabled={frozen}
+              disabled={switchingBlocked}
               onClick={() => {
                 soundEngine.playClick();
                 props.onRecordedReplay();
@@ -236,7 +255,7 @@ export function MissionOrder(props: {
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             <button
               className="btn btn--danger"
-              disabled={frozen}
+              disabled={switchingBlocked}
               onClick={() => {
                 soundEngine.playClick();
                 props.onNoScopeReplay();
@@ -246,7 +265,7 @@ export function MissionOrder(props: {
             </button>
             <button
               className="btn"
-              disabled={frozen}
+              disabled={switchingBlocked}
               onClick={() => {
                 soundEngine.playClick();
                 props.onPoisonedReplay();
@@ -256,7 +275,7 @@ export function MissionOrder(props: {
             </button>
             <button
               className="btn"
-              disabled={frozen}
+              disabled={switchingBlocked}
               onClick={() => {
                 soundEngine.playClick();
                 props.onCleanReplay();

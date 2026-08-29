@@ -22,7 +22,13 @@ export const GROUND: Record<string, Material> = {
   // texture. A single flat green is the clearest sign a map was generated.
   grass: { top: "#63ad52", left: "#579b48", right: "#4c8b3f", edge: "#3a6b30" },
   sand: { top: "#ddc99a", left: "#c9b485", right: "#b3a074", edge: "#8f8059" },
-  water: { top: "#3f7fbd", left: "#356ba2", right: "#2c5a89", edge: "#22496f" },
+  // Water comes in two depths and three shades each, and the three are much
+  // closer together than a material's usual top/left/right. Those exist to
+  // shade the faces of a solid; these are all the *top* of a flat tile, picked
+  // per cell so a plane of identical diamonds gets edges. Spread them as far as
+  // the greens and the sea reads as choppy static.
+  water: { top: "#3f7fbd", left: "#3b7ab6", right: "#3775af", edge: "#22496f" },
+  waterShallow: { top: "#59a2d4", left: "#549cce", right: "#4f96c8", edge: "#3c7fae" },
   road: { top: "#9298a1", left: "#82878f", right: "#71767d", edge: "#565b61" },
   pavement: { top: "#b6bcc4", left: "#a3a9b0", right: "#91969d", edge: "#70757b" },
   fogged: { top: "#39434f", left: "#323b46", right: "#2b333c", edge: "#232a32" },
@@ -146,7 +152,20 @@ export const LANDMARKS: Record<string, BuildingStyleSet> = {
 
 /** HUD chrome. One accent colour; a second turns an instrument into a toy. */
 export const UI = {
-  sky: "#22597f",
+  /*
+   * What is painted where the drawn ocean runs out.
+   *
+   * This was a dark teal, three shades below the water, and it put a hard band
+   * of navy around the map: the ocean is only ten cells wider than the island,
+   * so at the zoom the city opens at the corners of the screen are this colour
+   * and not water. It read as a vignette nobody asked for, and made the sea
+   * look like a rug the island was sitting on.
+   *
+   * The same blue as deep water now, so the two are indistinguishable and the
+   * ocean has no edge. The tile texture still stops at the margin; matching the
+   * colour is what makes that invisible rather than what fixes it.
+   */
+  sky: "#3f7fbd",
   panel: "#0e1622",
   panelEdge: "#1d2a3d",
   ink: "#c8d4e3",

@@ -17,6 +17,7 @@ import {
   drawBuilding,
   drawBoat,
   drawBillboard,
+  drawClouds,
   drawCivicDome,
   drawContainerStack,
   drawControlTower,
@@ -59,6 +60,7 @@ import {
   type Building,
 } from "./world.js";
 import { planActivityRoutes, segmentActivityRoute } from "./activity-routes.js";
+import { hasWave, isShallow, isShoal, waterVariant } from "./sea.js";
 
 /**
  * Draws one frame.
@@ -215,6 +217,18 @@ export function drawScene(
   ground.sort((a, b) => a.z - b.z);
   for (const item of ground) item.draw(ctx);
 
+  // On the sea, after the sea. Drawing them before the ground -- the obvious
+  // way to keep clouds off the land -- put them under opaque water tiles, so
+  // the only ones visible were past the edge of the drawn ocean, in the corners
+  // of the screen. They are clipped to outside the island's own outline
+  // instead, and are inside the camera transform so they pan with the map.
+  drawClouds(ctx, time, [
+    toScreen(0, 0),
+    toScreen(ISLAND_W, 0),
+    toScreen(ISLAND_W, ISLAND_H),
+    toScreen(0, ISLAND_H),
+  ]);
+
   const items: Drawable[] = [
     ...facilityItems(time),
     ...fountainItems(fountains, state),
@@ -271,7 +285,6 @@ function groundItems(state: SceneState): Drawable[] {
 
   const isGrass = (u: number, v: number) => tileKindAt(u, v) === "grass";
   const isSand = (u: number, v: number) => tileKindAt(u, v) === "sand";
-  const isWater = (u: number, v: number) => tileKindAt(u, v) === "water";
 
   for (let u = -OCEAN_MARGIN; u <= ISLAND_W + OCEAN_MARGIN; u += 1) {
     for (let v = -OCEAN_MARGIN; v <= ISLAND_H + OCEAN_MARGIN; v += 1) {
@@ -294,24 +307,41 @@ function groundItems(state: SceneState): Drawable[] {
         continue;
       }
 
-      // Blend grass into sand, and sand into water, so no boundary is a hard
-      // line. Only the landward side of each pair carries the dither.
+      // Grass dithers into sand so that boundary is not a hard line.
+      //
+      // Sand no longer dithers into water. It used to, and it was the only
+      // transition this map had at the shore; the banks offshore do that job
+      // now, at whole-tile scale, and leaving both in put a fine checkerboard
+      // underneath a coarse one. Two overlapping dithers read as static.
       let blend = null;
       let amount = 0;
+      let paint = material;
+      let variant = 0;
+
       if (kind === "grass") {
         amount = blendAmount(cu, cv, isGrass, isSand);
         blend = state.scopeState === "none" || inScope ? GROUND.sand! : GROUND.fogged!;
-      } else if (kind === "sand") {
-        amount = blendAmount(cu, cv, isSand, isWater);
-        blend = GROUND.water!;
+        variant = hash(`${cu}:${cv}`) % 3;
+      } else if (kind === "water") {
+        // Three shades per cell, so the sea has tile edges. Without them a
+        // plane of identical diamonds reads as the paper the island is printed
+        // on rather than as something the island sits in.
+        variant = waterVariant(cu, cv);
+        paint = isShallow(cu, cv) ? GROUND.waterShallow! : GROUND.water!;
+
+        // A sandbank surfacing. Whole tiles, because at this scale that is what
+        // a bank is, and because the whole look is flat tiles in a small
+        // palette -- the alternative was a soft falloff, and it would have been
+        // the one soft edge on the map.
+        if (isShoal(cu, cv)) paint = GROUND.sand!;
       }
 
-      const variant = kind === "grass" ? hash(`${cu}:${cv}`) % 3 : 0;
+      const wave = kind === "water" && !isShoal(cu, cv) && hasWave(cu, cv);
       items.push({
         z: depth(cu, cv, -1),
         draw: (ctx) => {
-          drawDitheredTile(ctx, cu, cv, material, blend, amount, variant);
-          if (kind === "water" && hash(`wave:${cu}:${cv}`) % 13 === 0) {
+          drawDitheredTile(ctx, cu, cv, paint, blend, amount, variant);
+          if (wave) {
             const p = toScreen(cu, cv, 0.01);
             ctx.fillStyle = COAST.wave;
             ctx.fillRect(p.x - 7, p.y, 12, 1);

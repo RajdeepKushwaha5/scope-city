@@ -645,6 +645,109 @@ export function drawBillboard(
   ctx.restore();
 }
 
+/**
+ * Cloud shadows drifting over the open water.
+ *
+ * Drawn in world space immediately after the camera transform, which puts them
+ * behind every tile -- so they are only ever seen on the sea, never washing
+ * over the streets. Being inside the transform is also what makes them pan and
+ * zoom with the map; in screen space they would have hung in front of the
+ * canvas like dirt on a lens the moment anyone dragged the city.
+ *
+ * Very low alpha and very slow. The point is that the sea stops being a flat
+ * colour if you look at it for a while, not that there is weather.
+ */
+/**
+ * Where the clouds sit, in the grid's own coordinates rather than in pixels.
+ *
+ * The first set was written straight into world pixels, and every one of them
+ * missed: three were off the top of the screen, three were behind a HUD panel,
+ * and two were over the island and so clipped away. Nothing was visible at any
+ * opacity, which took a while to work out because the drawing was correct.
+ *
+ * Cells are checkable. Each of these is water -- outside the island's rectangle
+ * on one axis or the other -- and each lands in a part of the sea the HUD
+ * leaves alone.
+ */
+const CLOUD_CELLS = [
+  { u: -6, v: -6, w: 300, h: 78, drift: 5.5 },
+  { u: -4, v: -9, w: 210, h: 56, drift: 4.0 },
+  { u: 4, v: -8, w: 340, h: 86, drift: 6.5 },
+  { u: 16, v: -7, w: 240, h: 62, drift: 3.4 },
+  { u: -8, v: 8, w: 260, h: 66, drift: 5.0 },
+  { u: 44, v: 30, w: 320, h: 80, drift: 4.4 },
+  { u: 46, v: 22, w: 200, h: 54, drift: 6.0 },
+  { u: 42, v: 44, w: 280, h: 72, drift: 3.8 },
+] as const;
+
+const CLOUDS = CLOUD_CELLS.map((cloud) => {
+  const at = toScreen(cloud.u, cloud.v, 0);
+  return { x: at.x, y: at.y, w: cloud.w, h: cloud.h, drift: cloud.drift };
+});
+
+/**
+ * How far a cloud wanders from where it was placed before wrapping back.
+ *
+ * Short, and that is the point: the anchors are chosen to be in open water the
+ * HUD does not cover, and a cloud free to drift the width of the ocean would
+ * spend most of its time somewhere nobody can see it. At these speeds a lap
+ * takes two to four minutes.
+ */
+const CLOUD_SPAN = 900;
+
+export function drawClouds(
+  ctx: CanvasRenderingContext2D,
+  time: number,
+  island: readonly Point[],
+): void {
+  ctx.save();
+
+  // Clipped to everything *outside* the island, so a cloud passing the coast is
+  // cut off at the beach instead of drifting over the streets.
+  //
+  // The first attempt drew them under the ground layer instead, which is the
+  // obvious way to keep them off the land and does not work: the water tiles
+  // are opaque, so the only clouds anyone could see were the ones past the edge
+  // of the drawn ocean, in the corners of the screen. They were being painted
+  // and then covered by the sea.
+  ctx.beginPath();
+  ctx.rect(-100000, -100000, 200000, 200000);
+  ctx.moveTo(island[0]!.x, island[0]!.y);
+  for (const point of island.slice(1)) ctx.lineTo(point.x, point.y);
+  ctx.closePath();
+  ctx.clip("evenodd");
+
+  ctx.fillStyle = "#ffffff";
+  ctx.globalAlpha = 0.13;
+
+  for (const cloud of CLOUDS) {
+    // Wrapped rather than bounced, so no cloud ever reverses -- which would be
+    // the one thing on this map that reads as a mistake rather than as weather.
+    const shifted =
+      cloud.x + (((time / 1000) * cloud.drift) % CLOUD_SPAN) - CLOUD_SPAN / 2;
+
+    // Two overlapping ellipses. One is a lozenge; two read as a cloud without
+    // needing an outline, which nothing else on this map has either.
+    ctx.beginPath();
+    ctx.ellipse(shifted, cloud.y, cloud.w / 2, cloud.h / 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.beginPath();
+    ctx.ellipse(
+      shifted + cloud.w * 0.28,
+      cloud.y + cloud.h * 0.22,
+      cloud.w / 3,
+      cloud.h / 2.6,
+      0,
+      0,
+      Math.PI * 2,
+    );
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   drawDiamond(ctx, u, v, 0.06, COAST.pier, 0.96);
   const c = toScreen(u, v, 0);

@@ -524,7 +524,7 @@ export function facilityProps(time: number): FacilityProp[] {
   at("port", 35, 31, 3, (ctx) => drawCrane(ctx, 35, 31));
 
   // Timber jetty jutting out into sea
-  at("port", 33.5, 32.5, 1, (ctx) => drawPier(ctx, 33.5, 32.5), "over");
+  at("port", 33, 32, 1, (ctx) => drawPier(ctx, 33, 32));
 
   // Moored cargo vessel with red boot-topping and multi-tier superstructure
   at("port", 30.5, 33.2, 4, (ctx) => drawShip(ctx, 30.5, 33.2, "u", "cargo"), "water");

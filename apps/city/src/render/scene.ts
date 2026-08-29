@@ -510,7 +510,7 @@ export function facilityProps(time: number): FacilityProp[] {
   // Bollards along the quay edge with hazard stripes and tire fenders
   for (let u = 28; u <= 37; u += 1) {
     if (u % ROAD_EVERY === 0) continue;
-    at("port", u, 32, 0.4, (ctx) => drawBollards(ctx, u, 32, "+v"));
+    at("port", u, 34, 0.4, (ctx) => drawBollards(ctx, u, 34, "+v"));
   }
   // 3D ISO Container Stacks
   for (const [u, v, seed] of [
@@ -531,10 +531,13 @@ export function facilityProps(time: number): FacilityProp[] {
   at("port", 35, 31, 3, (ctx) => drawCrane(ctx, 35, 31));
 
   // Timber jetty jutting out into sea
-  at("port", 33, 32, 1, (ctx) => drawPier(ctx, 33, 32));
+  // Out over the water, which is what makes it a jetty rather than a deck.
+  at("port", 33, 35, 1, (ctx) => drawPier(ctx, 33, 35), "water");
 
   // Moored cargo vessel with red boot-topping and multi-tier superstructure
-  at("port", 30.5, 33.2, 4, (ctx) => drawShip(ctx, 30.5, 33.2, "u", "cargo"), "water");
+  // Afloat. It was at v=33.2, which is beach: the island carries two rows of
+  // sand past the old quay edge, so a ship "in the water" was sitting on it.
+  at("port", 30.5, 35.4, 4, (ctx) => drawShip(ctx, 30.5, 35.4, "u", "cargo"), "water");
 
   // Port master warehouse
   at("port", 35, 28, 3, (ctx) => drawQuayHut(ctx, 35, 28));

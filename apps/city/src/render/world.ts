@@ -133,7 +133,18 @@ function isLandmarkPlazaCell(u: number, v: number): boolean {
  */
 export const FACILITIES = {
   airport: { u0: 3, v0: 27, u1: 13, v1: 32 },
-  port: { u0: 27, v0: 27, u1: 38, v1: 32 },
+  /*
+   * Paved to the waterline, like the naval yard.
+   *
+   * It stopped at v=32, which is the last row of ordinary land -- and the
+   * island keeps two rows of sand beyond that before the water starts. So the
+   * quay ended two cells inland and the cargo ship moored on the beach.
+   *
+   * The naval yard never had this problem because its rectangle already runs to
+   * u=39, which is sand, and `isApron` counts sand inside a facility. This is
+   * the same shape of fix: extend to the shore and let the last row be quay.
+   */
+  port: { u0: 27, v0: 27, u1: 38, v1: 34 },
   naval: { u0: 35, v0: 17, u1: 39, v1: 25 },
 } as const;
 

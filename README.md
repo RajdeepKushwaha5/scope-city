@@ -575,21 +575,21 @@ for, and the thread stays silent next to a finding that was in fact resolved.
 Every **High** finding on the pull requests cited in this section now carries a
 reply saying what was done and why. Start with these:
 
-- **[A component making the error it exists to expose](https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3859962811)**
+- **[A component making the error it exists to expose](https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3885951235)**
   — the scenario banner promised the clean job "finishes inside its scope" while
   the script it describes stops at the Gate.
-- **[Two findings that contradicted each other](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3880176392)**
+- **[Two findings that contradicted each other](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3885956166)**
   — one asked for non-ASCII letters to continue an identifier, the next for the
   opposite so 退款订单184 still parses. Both cannot hold, which was the signal
   the rule was aimed at the wrong question.
-- **[A security bug in the code written to prevent security bugs](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3870163299)**
+- **[A security bug in the code written to prevent security bugs](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3885954296)**
   — SMTP injection through a recipient, refused against a real Mailpit rather
   than by reading the code.
-- **[Safe against reuse, unsafe against re-asking](https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3877716017)**
+- **[Safe against reuse, unsafe against re-asking](https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3885957729)**
   — deleting a consumed countersign blinded the replay guard to exactly the
   gates that had been used, so a resumed session would have asked a human to
   authorise a refund that had already happened.
-- **[A finding declined, with the trade written down](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3861771004)**
+- **[A finding declined, with the trade written down](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3885957801)**
   — two findings on the same line pulling opposite ways; forty pixels of dead
   strip between panels is a better price than a scrollbar Firefox cannot drag.
 

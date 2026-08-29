@@ -83,14 +83,21 @@ describe("the Qodo evidence section", () => {
     // because each is a different kind of answer -- a fix, a contradiction
     // between two findings, a security bug in the security code, a design safe
     // against one attack and not another, and a decline with its trade written
-    // down. The URLs are the point either way: a count of things that look like
-    // reply links would pass on the bot's own comments.
+    // down.
+    //
+    // Every one of these is the anchor of a *reply*, not of the finding it
+    // answers. The first attempt at this update used the finding anchors, which
+    // are the bot's own comments -- the test passed and the README linked
+    // readers at the questions rather than the answers, which is the precise
+    // substitution it exists to prevent. Checked by asking the API which
+    // comments have an `in_reply_to_id`; a `#discussion_r` in a URL says
+    // nothing about who wrote it.
     const REPLIES = [
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3859962811",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3880176392",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3870163299",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3877716017",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3861771004",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3885951235",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3885956166",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3885954296",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3885957729",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3885957801",
     ];
 
     for (const url of REPLIES) {

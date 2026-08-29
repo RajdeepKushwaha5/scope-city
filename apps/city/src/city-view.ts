@@ -26,7 +26,17 @@ export interface CityView {
   readonly refusedAt: LiveCityState["refusedAt"];
   readonly sandboxOpen: boolean;
   readonly yard: LiveCityState["yard"];
-  readonly treasury: number;
+  /**
+   * What the model has cost so far in ten-thousandths of a dollar, or null
+   * where nothing is measuring it.
+   *
+   * Null is the important value. This was `number`, and the live view returned
+   * a hard-coded `0` for it -- so a real mission displayed "Treasury $0.0000"
+   * for its whole run, next to figures that were genuinely live. A constant
+   * dressed as a reading is the exact thing this project spends its argument
+   * objecting to, and it was in the operator's own console.
+   */
+  readonly treasury: number | null;
   readonly expiresIn: number | null;
   readonly job: string;
   readonly granted: readonly string[];
@@ -72,7 +82,9 @@ export function cityViewFrom(params: {
     refusedAt: state.refusedAt,
     sandboxOpen: state.sandboxOpen,
     yard: state.yard,
-    treasury: 0,
+    // Nothing on the live path reports token cost. The scripted replay
+    // authors a figure because it is a script; this is a session.
+    treasury: null,
     expiresIn,
     job: scope?.job ?? params.idleJob,
     granted: effective ? ["records", "exchequer", "post-house"] : [],

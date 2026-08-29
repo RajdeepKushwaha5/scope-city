@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Meter, Stat, Window } from "./Window.js";
 import { soundEngine } from "./sound-engine.js";
 import type { GateRequest, LogLine } from "../useMission.js";
+import { effortLabel, effortSpriteUrl, type EffortLevel } from "./CrewModal.js";
 
 const PHASE_LABEL: Record<string, string> = {
   drafting: "DRAFTING",
@@ -15,7 +16,23 @@ const PHASE_LABEL: Record<string, string> = {
 export function CityConsole(props: {
   phase: string;
   job: string;
-  treasury: number;
+  /**
+   * What the model has cost, in integer ten-thousandths of a dollar, or null
+   * where nothing is measuring it. Integer, because every other monetary value
+   * in this codebase is, and because `toFixed` on an accumulating float is the
+   * pattern those rules exist to refuse.
+   */
+  treasury: number | null;
+  /**
+   * The crew this mission ran with, or null where that is not known.
+   *
+   * Null for a recorded or scripted replay: neither carries effort metadata,
+   * and the launch form's current selection is a fact about the form rather
+   * than about the run on screen.
+   */
+  crew: EffortLevel | null;
+  /** Whether that crew is out on a mission now, or merely the one selected. */
+  crewIsRunning: boolean;
   fieldSize: number;
   structureCount: number;
   sandboxOpen: boolean;
@@ -72,7 +89,7 @@ export function CityConsole(props: {
             */}
           <button
             type="button"
-            className="window__icon"
+            className={`window__icon${sound ? "" : " window__icon--off"}`}
             aria-label={sound ? "Mute" : "Unmute"}
             title={sound ? "Mute" : "Unmute"}
             onClick={() => {
@@ -81,7 +98,11 @@ export function CityConsole(props: {
               if (next) soundEngine.playClick();
             }}
           >
-            {sound ? "▶" : "✖"}
+            {/* One glyph in both states, struck through when muted. It was
+                a play triangle and a cross, and a cross in the corner of a
+                panel is the control that closes it -- so the first icon in the
+                title bar read as "close the console". */}
+            {"♪"}
           </button>
           {props.onOpenCommand ? (
             <button
@@ -120,14 +141,41 @@ export function CityConsole(props: {
       </div>
 
       <div className="console__crew">
-        <span className="console__portrait" aria-hidden="true">
-          <span className="crew-card__head" />
-          <span className="crew-card__body" />
+        {/*
+          * The same sprite the mission order shows, rather than two absolutely
+          * positioned boxes approximating a person.
+          *
+          * There has been artwork for the crew in `public/crew` all along and
+          * this panel did not use it: it drew a 10x9px tan rectangle for a head
+          * and a 14x15px blue one for a body, which is why the console appeared
+          * to be missing its portrait. It was not missing -- it was a
+          * placeholder that outlived the asset it was standing in for.
+          *
+          * Keyed off the same effort the operator picked, so the two panels
+          * cannot show different crews.
+          */}
+        {/* No sprite at all when the effort is unknown. Falling back to the
+            medium artwork put the fabricated cue straight back: the caption
+            said "not recorded" while the picture said Medium. */}
+        <span className={`console__portrait${props.crew === null ? " console__portrait--unknown" : ""}`}>
+          {props.crew === null ? (
+            <span className="console__portrait-unknown" aria-hidden="true">
+              ?
+            </span>
+          ) : (
+            <img className="console__portrait-img" src={effortSpriteUrl(props.crew)} alt="" />
+          )}
         </span>
         <div>
           <span className="hud-label">Crew on duty</span>
           <strong>Boundary agent</strong>
-          <small>{PHASE_LABEL[props.phase] ?? props.phase.toUpperCase()}</small>
+          <small>
+            {props.crew === null
+              ? "effort not recorded"
+              : `${effortLabel(props.crew)} effort${props.crewIsRunning ? "" : " selected"}`}
+            {" · "}
+            {PHASE_LABEL[props.phase] ?? props.phase.toUpperCase()}
+          </small>
         </div>
       </div>
 
@@ -135,7 +183,12 @@ export function CityConsole(props: {
 
       <Stat label="In the field">{props.fieldSize || "—"}</Stat>
       <Stat label="The Yard">{props.sandboxOpen ? "open" : "closed"}</Stat>
-      <Stat label="Treasury">${props.treasury.toFixed(4)}</Stat>
+      {/* Named for what it is. "Treasury" reads as a balance you draw down;
+          this is what the model has cost. And an em dash where nothing is
+          measuring it, rather than a zero that looks like a reading. */}
+      <Stat label="Model spend">
+        {props.treasury === null ? "not metered" : `$${(props.treasury / 10_000).toFixed(4)}`}
+      </Stat>
 
       {props.expiresIn === null ? null : (
         <div style={{ marginTop: 10 }}>

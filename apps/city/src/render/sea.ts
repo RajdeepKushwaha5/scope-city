@@ -131,6 +131,3 @@ export function hasWave(u: number, v: number): boolean {
 export function isOffshore(u: number, v: number): boolean {
   return distanceOffshore(u, v) > 0;
 }
-
-/** Exported for the tests that assert the bands do not drift. */
-export const SEA = { SHALLOW_BAND, ISLAND_W, ISLAND_H } as const;

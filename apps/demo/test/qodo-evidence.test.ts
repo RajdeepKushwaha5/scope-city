@@ -77,10 +77,27 @@ describe("the Qodo evidence section", () => {
     // malformed URL, or a link to the bot's own comment -- so the clickable
     // human replies could be swapped out while the test stayed green, which is
     // the failure this test exists to prevent, one level up.
+    //
+    // The list moved when the section did. It named three replies chosen
+    // because they were the only three that existed; it names five now, chosen
+    // because each is a different kind of answer -- a fix, a contradiction
+    // between two findings, a security bug in the security code, a design safe
+    // against one attack and not another, and a decline with its trade written
+    // down.
+    //
+    // Every one of these is the anchor of a *reply*, not of the finding it
+    // answers. The first attempt at this update used the finding anchors, which
+    // are the bot's own comments -- the test passed and the README linked
+    // readers at the questions rather than the answers, which is the precise
+    // substitution it exists to prevent. Checked by asking the API which
+    // comments have an `in_reply_to_id`; a `#discussion_r` in a URL says
+    // nothing about who wrote it.
     const REPLIES = [
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3885951235",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3885956166",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3885954296",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3885957729",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3885957801",
     ];
 
     for (const url of REPLIES) {

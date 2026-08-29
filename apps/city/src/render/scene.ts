@@ -408,12 +408,35 @@ function facilityItems(time: number): Drawable[] {
   return items;
 }
 
+/**
+ * Boats, and how slowly they go.
+ *
+ * There were five, on five straight lines at the very edge of the drawn ocean,
+ * each crossing the whole map in about nine seconds. Two things were wrong with
+ * that. Nine seconds for forty cells is roughly a hundred knots, so they read as
+ * skimming rather than sailing -- and because every route hugged the margin,
+ * the water between the margin and the island was always empty.
+ *
+ * Nine now, at four to six times slower, spread across four distances from the
+ * shore. A traverse takes between one and two minutes, which is slow enough
+ * that a boat looks becalmed in a screenshot and has plainly moved by the time
+ * you look again -- and that is the right speed for something whose only job is
+ * to keep the sea from looking painted on.
+ *
+ * `fixed` is the lane's distance out; the spread of them is what stops the
+ * boats forming a ring. `offset` is where in its lane a boat starts, so they do
+ * not set off in formation on the first frame.
+ */
 const BOAT_ROUTES = [
-  { axis: "u", fixed: -5, min: -7, max: 35, speed: 0.11, offset: 0.15, colour: TRAFFIC_COLOURS.amber, sail: true },
-  { axis: "v", fixed: 45, min: -4, max: 39, speed: 0.08, offset: 0.62, colour: TRAFFIC_COLOURS.red, sail: true },
-  { axis: "u", fixed: 40, min: 4, max: 47, speed: 0.13, offset: 0.41, colour: TRAFFIC_COLOURS.ivory, sail: false },
-  { axis: "v", fixed: -6, min: 0, max: 34, speed: 0.09, offset: 0.82, colour: TRAFFIC_COLOURS.gold, sail: true },
-  { axis: "u", fixed: 44, min: 8, max: 45, speed: 0.07, offset: 0.05, colour: TRAFFIC_COLOURS.sky, sail: false },
+  { axis: "u", fixed: -3, min: -8, max: 44, speed: 0.014, offset: 0.15, colour: TRAFFIC_COLOURS.amber, sail: true },
+  { axis: "u", fixed: -8, min: -8, max: 44, speed: 0.009, offset: 0.62, colour: TRAFFIC_COLOURS.cream, sail: true },
+  { axis: "u", fixed: 38, min: -6, max: 46, speed: 0.011, offset: 0.41, colour: TRAFFIC_COLOURS.ivory, sail: true },
+  { axis: "u", fixed: 43, min: -6, max: 46, speed: 0.008, offset: 0.88, colour: TRAFFIC_COLOURS.sky, sail: false },
+  { axis: "v", fixed: -4, min: -8, max: 40, speed: 0.013, offset: 0.32, colour: TRAFFIC_COLOURS.red, sail: true },
+  { axis: "v", fixed: -9, min: -8, max: 40, speed: 0.010, offset: 0.71, colour: TRAFFIC_COLOURS.gold, sail: true },
+  { axis: "v", fixed: 44, min: -6, max: 42, speed: 0.012, offset: 0.05, colour: TRAFFIC_COLOURS.pale, sail: true },
+  { axis: "v", fixed: 49, min: -6, max: 42, speed: 0.007, offset: 0.54, colour: TRAFFIC_COLOURS.leaf, sail: false },
+  { axis: "u", fixed: 48, min: -6, max: 46, speed: 0.009, offset: 0.24, colour: TRAFFIC_COLOURS.brick, sail: true },
 ] as const;
 
 function maritimeItems(time: number): Drawable[] {

@@ -242,7 +242,7 @@ export function drawScene(
   ]);
 
   const items: Drawable[] = [
-    ...facilityItems(time),
+    ...facilityItems(framed, time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...activityRouteItems(buildings, state, time),
@@ -358,11 +358,15 @@ function groundItems(state: SceneState): Drawable[] {
 
       const wave = kind === "water" && !isShoal(cu, cv) && hasWave(cu, cv);
       const faces = apron ? apronEdges(cu, cv) : [];
+      // The line follows the ground it is painted on. Bright yellow over fogged
+      // apron was the one marking on the map claiming "reachable" about
+      // somewhere that was not.
+      const apronFogged = apron && state.scopeState !== "none" && !inScope;
       items.push({
         z: depth(cu, cv, -1),
         draw: (ctx) => {
           drawDitheredTile(ctx, cu, cv, paint, blend, amount, variant);
-          if (faces.length > 0) drawApronMarking(ctx, cu, cv, faces);
+          if (faces.length > 0) drawApronMarking(ctx, cu, cv, faces, apronFogged);
           if (wave) {
             const p = toScreen(cu, cv, 0.01);
             ctx.fillStyle = COAST.wave;
@@ -388,7 +392,7 @@ function groundItems(state: SceneState): Drawable[] {
 }
 
 /** Airport, commercial port and naval quay: visible destinations, not decoration. */
-function facilityItems(time: number): Drawable[] {
+function facilityItems(state: SceneState, time: number): Drawable[] {
   const items: Drawable[] = [];
 
   for (let u = 3; u <= 13; u += 1) {
@@ -426,14 +430,14 @@ function facilityItems(time: number): Drawable[] {
   // laid on top of.
   for (let v = 18; v <= 25; v += 1) {
     const cv = v;
-    items.push({ z: depth(39, cv, 0.4), draw: (ctx) => drawBollards(ctx, 39, cv) });
+    items.push({ z: depth(39, cv, 0.4), draw: (ctx) => drawBollards(ctx, 39, cv, "+u") });
   }
   items.push(
     { z: depth(34.5, 34.5, 4), draw: (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo") },
     { z: depth(41.5, 22, 4), draw: (ctx) => drawShip(ctx, 41.5, 22, "v", "navy") },
   );
 
-  items.push(...navalYardItems(time));
+  items.push(...navalYardItems(state, time));
   return items;
 }
 
@@ -449,7 +453,13 @@ function facilityItems(time: number): Drawable[] {
  * the apron, the fence closing the landward side. The berth itself stays clear,
  * because that is where the ship is.
  */
-function navalYardItems(time: number): Drawable[] {
+function navalYardItems(state: SceneState, time: number): Drawable[] {
+  // Whether this corner of the coast is inside the granted scope. The props
+  // added with the apron ignored it, so a fence, a fuel farm and a guardroom
+  // stayed fully lit over fogged ground while every tree and building around
+  // them had gone grey.
+  const muted = (u: number, v: number) =>
+    state.scopeState !== "none" && !isInScope({ u, v }, state.granted);
   const items: Drawable[] = [];
   const yard = FACILITIES.naval;
 
@@ -460,12 +470,18 @@ function navalYardItems(time: number): Drawable[] {
     // with a way through rather than a box.
     if (v % ROAD_EVERY === 0) continue;
     const cv = v;
-    items.push({ z: depth(yard.u0, cv, 1), draw: (ctx) => drawFence(ctx, yard.u0, cv, "v") });
+    items.push({
+      z: depth(yard.u0, cv, 1),
+      draw: (ctx) => drawFence(ctx, yard.u0, cv, "-u", muted(yard.u0, cv)),
+    });
   }
   for (let u = yard.u0; u <= yard.u1; u += 1) {
     if (u % ROAD_EVERY === 0) continue;
     const cu = u;
-    items.push({ z: depth(cu, yard.v0, 1), draw: (ctx) => drawFence(ctx, cu, yard.v0, "u") });
+    items.push({
+      z: depth(cu, yard.v0, 1),
+      draw: (ctx) => drawFence(ctx, cu, yard.v0, "-v", muted(cu, yard.v0)),
+    });
   }
 
   // Every one of these is on a cell that is neither road nor water. The yard is
@@ -473,17 +489,40 @@ function navalYardItems(time: number): Drawable[] {
   // -- and the first placement put the guardroom and both fuel tanks in the
   // middle of them. A test asserts it now, because a coordinate in a literal is
   // exactly where that mistake lives.
+  /*
+   * Everything else on the yard, dimmed with the ground it stands on.
+   *
+   * One helper rather than a `muted` argument threaded through eight different
+   * shape functions. The props have nothing in common except that they are on
+   * this apron, so what they share is the fade and not a palette -- and a
+   * per-shape fog colour for each would be eight more constants to keep in step
+   * with the ground's.
+   */
+  const prop = (u: number, v: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) => ({
+    z: depth(u, v, h),
+    draw: (ctx: CanvasRenderingContext2D) => {
+      if (!muted(u, v)) {
+        draw(ctx);
+        return;
+      }
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      draw(ctx);
+      ctx.restore();
+    },
+  });
+
   items.push(
-    { z: depth(35, 19, 2), draw: (ctx) => drawQuayHut(ctx, 35, 19) },
-    { z: depth(35, 22, 3), draw: (ctx) => drawFuelTank(ctx, 35, 22) },
-    { z: depth(35, 23, 3), draw: (ctx) => drawFuelTank(ctx, 35, 23) },
+    prop(35, 19, 2, (ctx) => drawQuayHut(ctx, 35, 19)),
+    prop(35, 22, 3, (ctx) => drawFuelTank(ctx, 35, 22)),
+    prop(35, 23, 3, (ctx) => drawFuelTank(ctx, 35, 23)),
     // On the quay behind the berth, where a shore establishment's air search
     // set would be, and the one thing on this map that rotates.
-    { z: depth(37, 20, 4), draw: (ctx) => drawRadar(ctx, 37, 20, time) },
-    { z: depth(38, 19, 4), draw: (ctx) => drawFloodlight(ctx, 38, 19) },
-    { z: depth(38, 23, 4), draw: (ctx) => drawFloodlight(ctx, 38, 23) },
-    { z: depth(35, 17, 4), draw: (ctx) => drawFlag(ctx, 35, 17) },
-    { z: depth(37, 25, 4), draw: (ctx) => drawFlag(ctx, 37, 25) },
+    prop(37, 20, 4, (ctx) => drawRadar(ctx, 37, 20, time)),
+    prop(38, 19, 4, (ctx) => drawFloodlight(ctx, 38, 19)),
+    prop(38, 23, 4, (ctx) => drawFloodlight(ctx, 38, 23)),
+    prop(35, 17, 4, (ctx) => drawFlag(ctx, 35, 17)),
+    prop(37, 25, 4, (ctx) => drawFlag(ctx, 37, 25)),
   );
 
   return items;

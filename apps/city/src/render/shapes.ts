@@ -1999,6 +1999,165 @@ export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): 
   ctx.restore();
 }
 
+export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = COAST.lighthouse;
+  ctx.fillRect(c.x - 7, c.y - 46, 14, 46);
+  ctx.fillStyle = COAST.lighthouseStripe;
+  ctx.fillRect(c.x - 7, c.y - 13, 14, 8);
+  ctx.fillRect(c.x - 7, c.y - 31, 14, 8);
+  ctx.fillStyle = COAST.lighthouseRoof;
+  ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
+  ctx.fillStyle = COAST.lighthouseLamp;
+  ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
+  fadeBy(ctx, 0.12 + (Math.sin(time / 650) + 1) * 0.06);
+  ctx.fillStyle = COAST.lighthouseBeam;
+  ctx.beginPath();
+  ctx.moveTo(c.x, c.y - 54);
+  ctx.lineTo(c.x + 110, c.y - 72);
+  ctx.lineTo(c.x + 110, c.y - 44);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/**
+ * A boat under sail.
+ *
+ * The old one was a dark wedge with two wake strokes, and the whole thing --
+ * hull, mast and sail -- was rotated onto the water's axis. That is right for
+ * the hull and wrong for everything above it: a mast is vertical whichever way
+ * the boat is pointing, so rotating it laid the sail over at thirty degrees and
+ * the boat read as capsizing. It is also the reason the craft never looked like
+ * a boat at map scale -- the silhouette that identifies one is an upright
+ * triangle over a low hull, and there was no upright anything.
+ *
+ * So the hull turns and the rig does not. The hull is drawn in the rotated
+ * frame, in three wooden tones, because a boat is a solid like everything else
+ * on this map and was the one object painted a single flat colour. The mast,
+ * the sail and the pennant are drawn afterwards in screen space, standing up.
+ *
+ * `colour` is the cabin, which is what tells one boat from another at a
+ * distance -- the hulls are all the same wood.
+ */
+export function drawBoat(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  colour: string,
+  sail = false,
+): void {
+  const c = toScreen(u, v, 0);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+
+  ctx.save();
+  ctx.translate(c.x, c.y - 3);
+
+  ctx.save();
+  ctx.rotate(angle);
+
+  // Two thin streaks, not a wedge. The first attempt filled the whole quarter
+  // astern with translucent white, which at this size is a glow around the boat
+  // rather than a wake behind it -- and these move slowly enough now that the
+  // wake is not what says they are moving.
+  ctx.strokeStyle = COAST.wake;
+  ctx.globalAlpha = 0.45;
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-16, 1);
+  ctx.lineTo(-30, -2);
+  ctx.moveTo(-16, 4);
+  ctx.lineTo(-28, 7);
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  // Hull: a raked bow to starboard, a squared transom aft, and a keel strake
+  // below the waterline. Three tones in the same relationship as every other
+  // solid here -- the deck is the lit top, the side is the half-shadow.
+  ctx.fillStyle = COAST.boatKeel;
+  ctx.beginPath();
+  ctx.moveTo(-15, 2);
+  ctx.lineTo(21, -1);
+  ctx.lineTo(15, 9);
+  ctx.lineTo(-14, 8);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = COAST.boatHull;
+  ctx.beginPath();
+  ctx.moveTo(-15, -1);
+  ctx.lineTo(23, -3);
+  ctx.lineTo(19, 4);
+  ctx.lineTo(-15, 5);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = COAST.boatDeck;
+  ctx.beginPath();
+  ctx.moveTo(-14, -3);
+  ctx.lineTo(22, -4);
+  ctx.lineTo(17, 0);
+  ctx.lineTo(-14, 1);
+  ctx.closePath();
+  ctx.fill();
+
+  // The route's colour goes on the sheer strake of a sailing boat and on a
+  // cabin of one without. A cabin under a sail is hidden by it, which is where
+  // this started -- the only colour that told one boat from another was behind
+  // the largest thing on the boat.
+  ctx.fillStyle = colour;
+  if (sail) {
+    ctx.beginPath();
+    ctx.moveTo(-15, -1);
+    ctx.lineTo(23, -3);
+    ctx.lineTo(22, -1);
+    ctx.lineTo(-15, 1);
+    ctx.closePath();
+    ctx.fill();
+  } else {
+    ctx.fillRect(-9, -10, 14, 8);
+  }
+  ctx.restore();
+
+  if (sail) {
+    // Upright, in screen space. The mast steps a little forward of amidships
+    // and the sail hangs aft of it, which is the shape that reads as a sail
+    // from far enough away that nothing else about the boat is legible.
+    ctx.fillStyle = COAST.mast;
+    ctx.fillRect(1, -34, 2, 32);
+
+    ctx.fillStyle = COAST.sail;
+    ctx.beginPath();
+    ctx.moveTo(1, -33);
+    ctx.lineTo(-17, -6);
+    ctx.lineTo(1, -4);
+    ctx.closePath();
+    ctx.fill();
+
+    // A shaded panel along the foot, so the sail is a surface and not a
+    // cut-out. One tone, not a gradient -- everything here is flat.
+    ctx.fillStyle = COAST.sailShade;
+    ctx.beginPath();
+    ctx.moveTo(1, -13);
+    ctx.lineTo(-17, -6);
+    ctx.lineTo(1, -4);
+    ctx.closePath();
+    ctx.fill();
+
+    ctx.fillStyle = COAST.pennant;
+    ctx.beginPath();
+    ctx.moveTo(3, -34);
+    ctx.lineTo(11, -31);
+    ctx.lineTo(3, -28);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  ctx.restore();
+}
+
 export function drawShip(
   ctx: CanvasRenderingContext2D,
   u: number,
@@ -2199,165 +2358,6 @@ export function drawShip(
     ctx.moveTo(gun.x, gun.y);
     ctx.lineTo(gun.x + 8, gun.y + 4);
     ctx.stroke();
-  }
-
-  ctx.restore();
-}
-
-export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
-  const c = toScreen(u, v, 0);
-  ctx.save();
-  ctx.fillStyle = COAST.lighthouse;
-  ctx.fillRect(c.x - 7, c.y - 46, 14, 46);
-  ctx.fillStyle = COAST.lighthouseStripe;
-  ctx.fillRect(c.x - 7, c.y - 13, 14, 8);
-  ctx.fillRect(c.x - 7, c.y - 31, 14, 8);
-  ctx.fillStyle = COAST.lighthouseRoof;
-  ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
-  ctx.fillStyle = COAST.lighthouseLamp;
-  ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
-  fadeBy(ctx, 0.12 + (Math.sin(time / 650) + 1) * 0.06);
-  ctx.fillStyle = COAST.lighthouseBeam;
-  ctx.beginPath();
-  ctx.moveTo(c.x, c.y - 54);
-  ctx.lineTo(c.x + 110, c.y - 72);
-  ctx.lineTo(c.x + 110, c.y - 44);
-  ctx.closePath();
-  ctx.fill();
-  ctx.restore();
-}
-
-/**
- * A boat under sail.
- *
- * The old one was a dark wedge with two wake strokes, and the whole thing --
- * hull, mast and sail -- was rotated onto the water's axis. That is right for
- * the hull and wrong for everything above it: a mast is vertical whichever way
- * the boat is pointing, so rotating it laid the sail over at thirty degrees and
- * the boat read as capsizing. It is also the reason the craft never looked like
- * a boat at map scale -- the silhouette that identifies one is an upright
- * triangle over a low hull, and there was no upright anything.
- *
- * So the hull turns and the rig does not. The hull is drawn in the rotated
- * frame, in three wooden tones, because a boat is a solid like everything else
- * on this map and was the one object painted a single flat colour. The mast,
- * the sail and the pennant are drawn afterwards in screen space, standing up.
- *
- * `colour` is the cabin, which is what tells one boat from another at a
- * distance -- the hulls are all the same wood.
- */
-export function drawBoat(
-  ctx: CanvasRenderingContext2D,
-  u: number,
-  v: number,
-  axis: "u" | "v",
-  colour: string,
-  sail = false,
-): void {
-  const c = toScreen(u, v, 0);
-  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
-
-  ctx.save();
-  ctx.translate(c.x, c.y - 3);
-
-  ctx.save();
-  ctx.rotate(angle);
-
-  // Two thin streaks, not a wedge. The first attempt filled the whole quarter
-  // astern with translucent white, which at this size is a glow around the boat
-  // rather than a wake behind it -- and these move slowly enough now that the
-  // wake is not what says they are moving.
-  ctx.strokeStyle = COAST.wake;
-  ctx.globalAlpha = 0.45;
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(-16, 1);
-  ctx.lineTo(-30, -2);
-  ctx.moveTo(-16, 4);
-  ctx.lineTo(-28, 7);
-  ctx.stroke();
-  ctx.globalAlpha = 1;
-
-  // Hull: a raked bow to starboard, a squared transom aft, and a keel strake
-  // below the waterline. Three tones in the same relationship as every other
-  // solid here -- the deck is the lit top, the side is the half-shadow.
-  ctx.fillStyle = COAST.boatKeel;
-  ctx.beginPath();
-  ctx.moveTo(-15, 2);
-  ctx.lineTo(21, -1);
-  ctx.lineTo(15, 9);
-  ctx.lineTo(-14, 8);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = COAST.boatHull;
-  ctx.beginPath();
-  ctx.moveTo(-15, -1);
-  ctx.lineTo(23, -3);
-  ctx.lineTo(19, 4);
-  ctx.lineTo(-15, 5);
-  ctx.closePath();
-  ctx.fill();
-
-  ctx.fillStyle = COAST.boatDeck;
-  ctx.beginPath();
-  ctx.moveTo(-14, -3);
-  ctx.lineTo(22, -4);
-  ctx.lineTo(17, 0);
-  ctx.lineTo(-14, 1);
-  ctx.closePath();
-  ctx.fill();
-
-  // The route's colour goes on the sheer strake of a sailing boat and on a
-  // cabin of one without. A cabin under a sail is hidden by it, which is where
-  // this started -- the only colour that told one boat from another was behind
-  // the largest thing on the boat.
-  ctx.fillStyle = colour;
-  if (sail) {
-    ctx.beginPath();
-    ctx.moveTo(-15, -1);
-    ctx.lineTo(23, -3);
-    ctx.lineTo(22, -1);
-    ctx.lineTo(-15, 1);
-    ctx.closePath();
-    ctx.fill();
-  } else {
-    ctx.fillRect(-9, -10, 14, 8);
-  }
-  ctx.restore();
-
-  if (sail) {
-    // Upright, in screen space. The mast steps a little forward of amidships
-    // and the sail hangs aft of it, which is the shape that reads as a sail
-    // from far enough away that nothing else about the boat is legible.
-    ctx.fillStyle = COAST.mast;
-    ctx.fillRect(1, -34, 2, 32);
-
-    ctx.fillStyle = COAST.sail;
-    ctx.beginPath();
-    ctx.moveTo(1, -33);
-    ctx.lineTo(-17, -6);
-    ctx.lineTo(1, -4);
-    ctx.closePath();
-    ctx.fill();
-
-    // A shaded panel along the foot, so the sail is a surface and not a
-    // cut-out. One tone, not a gradient -- everything here is flat.
-    ctx.fillStyle = COAST.sailShade;
-    ctx.beginPath();
-    ctx.moveTo(1, -13);
-    ctx.lineTo(-17, -6);
-    ctx.lineTo(1, -4);
-    ctx.closePath();
-    ctx.fill();
-
-    ctx.fillStyle = COAST.pennant;
-    ctx.beginPath();
-    ctx.moveTo(3, -34);
-    ctx.lineTo(11, -31);
-    ctx.lineTo(3, -28);
-    ctx.closePath();
-    ctx.fill();
   }
 
   ctx.restore();

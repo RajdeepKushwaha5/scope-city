@@ -857,33 +857,56 @@ export type TileFace = "-u" | "+u" | "-v" | "+v";
  * lower left, so the +u face is the tile's east-south edge, -u is west-north,
  * -v is north-east and +v is south-west.
  */
-export function drawApronMarking(
-  ctx: CanvasRenderingContext2D,
-  u: number,
-  v: number,
-  faces: readonly TileFace[],
-): void {
-  if (faces.length === 0) return;
+/**
+ * The two screen points of one face of a tile.
+ *
+ * Shared, because three things now have to agree about where a tile's boundary
+ * is -- the painted line, the fence and the bollards -- and each of them
+ * working it out again is how they end up in three different places. The fence
+ * did: it was drawn symmetrically about the tile *centre*, which put the naval
+ * yard's perimeter half a tile inside its own apron, with a strip of hard
+ * standing outside the wire.
+ */
+export function faceOf(u: number, v: number, face: TileFace): readonly [Point, Point] {
   const c = toScreen(u, v, 0);
   const north = { x: c.x, y: c.y - TILE_H / 2 };
   const east = { x: c.x + TILE_W / 2, y: c.y };
   const south = { x: c.x, y: c.y + TILE_H / 2 };
   const west = { x: c.x - TILE_W / 2, y: c.y };
 
-  const edges: Record<TileFace, readonly [typeof north, typeof north]> = {
-    "+u": [east, south],
-    "-u": [west, north],
-    "-v": [north, east],
-    "+v": [south, west],
-  };
+  switch (face) {
+    case "+u":
+      return [east, south];
+    case "-u":
+      return [west, north];
+    case "-v":
+      return [north, east];
+    case "+v":
+      return [south, west];
+  }
+}
+
+export function drawApronMarking(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  faces: readonly TileFace[],
+  muted = false,
+): void {
+  if (faces.length === 0) return;
+  const c = toScreen(u, v, 0);
 
   ctx.save();
-  ctx.strokeStyle = COAST.apronLine;
+  // Fogged ground gets a fogged line. It was always the bright yellow, so an
+  // apron outside the granted scope kept a live-looking boundary painted round
+  // it while the tiles inside had gone grey -- the one marking on the map that
+  // said "reachable" about somewhere that was not.
+  ctx.strokeStyle = muted ? COAST.apronLineFogged : COAST.apronLine;
   ctx.lineWidth = 2;
-  ctx.globalAlpha = 0.8;
+  ctx.globalAlpha = muted ? 0.5 : 0.8;
 
   for (const face of faces) {
-    const [from, to] = edges[face];
+    const [from, to] = faceOf(u, v, face);
     // Pulled in toward the centre, so the line sits on the apron rather than
     // straddling the join with whatever is outside it.
     const inset = 0.12;
@@ -906,23 +929,26 @@ export function drawFence(
   ctx: CanvasRenderingContext2D,
   u: number,
   v: number,
-  axis: "u" | "v",
+  face: TileFace,
+  muted = false,
 ): void {
-  const c = toScreen(u, v, 0);
-  const dx = axis === "u" ? TILE_W / 2 : -TILE_W / 2;
-  const dy = TILE_H / 2;
+  // On the face, not through the middle. This was drawn symmetrically about the
+  // tile centre and spanning between neighbouring centres, which put the whole
+  // perimeter half a tile inside the yard: a strip of apron outside the wire,
+  // and the fence cutting through the very cells it was meant to enclose.
+  const [from, to] = faceOf(u, v, face);
 
   ctx.save();
-  ctx.strokeStyle = COAST.fence;
+  ctx.strokeStyle = muted ? COAST.fenceFogged : COAST.fence;
   ctx.lineWidth = 1;
-  ctx.globalAlpha = 0.85;
+  ctx.globalAlpha = muted ? 0.5 : 0.85;
 
   // Mesh: verticals along the run, and two rails. Drawn as strokes rather than
   // a texture so it stays legible when the camera is zoomed out and the whole
   // panel is four pixels tall.
   for (let t = 0; t <= 1; t += 0.125) {
-    const x = c.x - dx / 2 + dx * t;
-    const y = c.y - dy / 2 + dy * t;
+    const x = from.x + (to.x - from.x) * t;
+    const y = from.y + (to.y - from.y) * t;
     ctx.beginPath();
     ctx.moveTo(x, y);
     ctx.lineTo(x, y - 13);
@@ -931,17 +957,17 @@ export function drawFence(
 
   for (const lift of [4, 12]) {
     ctx.beginPath();
-    ctx.moveTo(c.x - dx / 2, c.y - dy / 2 - lift);
-    ctx.lineTo(c.x + dx / 2, c.y + dy / 2 - lift);
+    ctx.moveTo(from.x, from.y - lift);
+    ctx.lineTo(to.x, to.y - lift);
     ctx.stroke();
   }
 
-  ctx.globalAlpha = 1;
-  ctx.strokeStyle = COAST.fencePost;
+  ctx.globalAlpha = muted ? 0.6 : 1;
+  ctx.strokeStyle = muted ? COAST.fenceFogged : COAST.fencePost;
   ctx.lineWidth = 2;
   ctx.beginPath();
-  ctx.moveTo(c.x - dx / 2, c.y - dy / 2);
-  ctx.lineTo(c.x - dx / 2, c.y - dy / 2 - 15);
+  ctx.moveTo(from.x, from.y);
+  ctx.lineTo(from.x, from.y - 15);
   ctx.stroke();
   ctx.restore();
 }
@@ -953,12 +979,22 @@ export function drawFence(
  * so a run of tiles gives an evenly spaced line down the quay instead of pairs
  * clustered in the middle of each.
  */
-export function drawBollards(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
+export function drawBollards(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  face: TileFace,
+): void {
+  const [from, to] = faceOf(u, v, face);
   ctx.save();
-  for (const t of [-0.25, 0.25]) {
-    const x = c.x + (TILE_W / 2) * 0.5 + t * (TILE_W / 2) * 0.5;
-    const y = c.y + (TILE_H / 2) * 0.5 - t * (TILE_H / 2) * 0.5;
+  // A quarter and three quarters along the edge, so the gap between the last
+  // bollard on one tile and the first on the next matches the gap within a
+  // pair. They were at 37.5% and 62.5%, which makes the intra-tile gap a third
+  // of the inter-tile one -- so the run still read as separated pairs, which
+  // was the exact defect replacing the pier decks was meant to remove.
+  for (const t of [0.25, 0.75]) {
+    const x = from.x + (to.x - from.x) * t;
+    const y = from.y + (to.y - from.y) * t;
     ctx.fillStyle = COAST.shadow;
     ctx.beginPath();
     ctx.ellipse(x + 1, y + 1, 4, 2, 0, 0, Math.PI * 2);

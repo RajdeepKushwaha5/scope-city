@@ -116,7 +116,31 @@ describe("the facility rectangles", () => {
 
 describe("the naval yard", () => {
   const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
-  const yard = scene.slice(scene.indexOf("function navalYardItems"), scene.indexOf("function treeItems"));
+  /*
+   * From the call, not from the function.
+   *
+   * The slice used to start at `function navalYardItems`, one line past the
+   * `items.push(...navalYardItems(...))` that puts any of it on the screen --
+   * so deleting that call would have left every test below green while the
+   * fence and every prop vanished from the city. Same shape of hole as the
+   * command palette's, and worth the same fix.
+   */
+  const yard = scene.slice(
+    scene.indexOf("items.push(...navalYardItems"),
+    scene.indexOf("function treeItems"),
+  );
+
+  it("is actually put on the screen", () => {
+    expect(yard).toMatch(/items\.push\(\.\.\.navalYardItems\(state, time\)\)/);
+  });
+
+  it("dims with the ground it stands on", () => {
+    // The props ignored scope entirely, so a fence, a fuel farm and a guardroom
+    // stayed fully lit over fogged ground while every tree and building around
+    // them had gone grey.
+    expect(yard).toContain("state.scopeState");
+    expect(yard).toMatch(/globalAlpha = 0\.4/);
+  });
 
   it("is a place rather than a berth", () => {
     // It was a line of piers and a warship. Everything that says "shore
@@ -135,10 +159,15 @@ describe("the naval yard", () => {
 
   it("fences the land and not the water", () => {
     // Fencing the quay would wall the ship off from its own jetty.
-    const fenceRuns = [...yard.matchAll(/drawFence\(ctx, ([\w.]+), ([\w.]+), "(u|v)"\)/g)];
+    const fenceRuns = [...yard.matchAll(/drawFence\(ctx, ([\w.]+), ([\w.]+), "([-+][uv])"/g)];
     expect(fenceRuns.length).toBe(2);
     for (const run of fenceRuns) {
       expect(run[1] === "yard.u0" || run[2] === "yard.v0", "a fence on the seaward side").toBe(true);
+      // And on the outward face of that cell. The panels were drawn
+      // symmetrically about the tile centre, which put the whole perimeter half
+      // a tile inside the yard -- a strip of apron outside the wire, and the
+      // fence cutting through the cells it was meant to enclose.
+      expect(run[3], "a fence facing into the yard").toMatch(/^-[uv]$/);
     }
   });
 

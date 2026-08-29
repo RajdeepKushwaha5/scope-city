@@ -51,11 +51,20 @@ export function drawDitheredTile(
    *
    * Overlapping is the fix rather than nudging the coordinates, because the
    * seam is in the antialiasing and not in the arithmetic; the neighbour has to
-   * paint over it. Half a pixel is enough at every zoom this map uses and small
-   * enough that it cannot round to a whole one at any of them.
+   * paint over it.
+   *
+   * Half a *device* pixel, which means dividing by the transform. This was a
+   * flat 0.5 in world units, and world units are not what the seam is measured
+   * in: the canvas scales by the device pixel ratio and again by the camera, so
+   * the same constant was under a fifth of a pixel at the widest zoom -- too
+   * little to cover the seam it exists for -- and three pixels at the closest,
+   * where a shoreline tile would overpaint its neighbour by a visible margin.
+   * Read off the context rather than passed in, because the transform is the
+   * authority on its own scale and a parameter is one more thing to get wrong.
    */
-  const bleedW = TILE_W / 2 + 0.5;
-  const bleedH = TILE_H / 2 + 0.5;
+  const scale = ctx.getTransform();
+  const bleedW = TILE_W / 2 + 0.5 / (Math.abs(scale.a) || 1);
+  const bleedH = TILE_H / 2 + 0.5 / (Math.abs(scale.d) || 1);
 
   ctx.beginPath();
   ctx.moveTo(c.x, c.y - bleedH);

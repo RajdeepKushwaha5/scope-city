@@ -77,10 +77,20 @@ describe("the Qodo evidence section", () => {
     // malformed URL, or a link to the bot's own comment -- so the clickable
     // human replies could be swapped out while the test stayed green, which is
     // the failure this test exists to prevent, one level up.
+    //
+    // The list moved when the section did. It named three replies chosen
+    // because they were the only three that existed; it names five now, chosen
+    // because each is a different kind of answer -- a fix, a contradiction
+    // between two findings, a security bug in the security code, a design safe
+    // against one attack and not another, and a decline with its trade written
+    // down. The URLs are the point either way: a count of things that look like
+    // reply links would pass on the bot's own comments.
     const REPLIES = [
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873",
-      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3859962811",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3880176392",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3870163299",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3877716017",
+      "https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3861771004",
     ];
 
     for (const url of REPLIES) {

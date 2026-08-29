@@ -152,7 +152,20 @@ export const LANDMARKS: Record<string, BuildingStyleSet> = {
 
 /** HUD chrome. One accent colour; a second turns an instrument into a toy. */
 export const UI = {
-  sky: "#22597f",
+  /*
+   * What is painted where the drawn ocean runs out.
+   *
+   * This was a dark teal, three shades below the water, and it put a hard band
+   * of navy around the map: the ocean is only ten cells wider than the island,
+   * so at the zoom the city opens at the corners of the screen are this colour
+   * and not water. It read as a vignette nobody asked for, and made the sea
+   * look like a rug the island was sitting on.
+   *
+   * The same blue as deep water now, so the two are indistinguishable and the
+   * ocean has no edge. The tile texture still stops at the margin; matching the
+   * colour is what makes that invisible rather than what fixes it.
+   */
+  sky: "#3f7fbd",
   panel: "#0e1622",
   panelEdge: "#1d2a3d",
   ink: "#c8d4e3",

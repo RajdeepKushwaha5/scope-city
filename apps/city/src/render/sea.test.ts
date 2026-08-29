@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { fileURLToPath } from "node:url";
 import {
   distanceOffshore,
   hasWave,
@@ -146,5 +148,44 @@ describe("the water's own texture", () => {
 
   it("puts some there", () => {
     expect(cells.filter((c) => hasWave(c.u, c.v)).length).toBeGreaterThan(20);
+  });
+});
+
+describe("the clouds", () => {
+  const shapes = readFileSync(fileURLToPath(new URL("./shapes.ts", import.meta.url)), "utf8");
+  const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
+
+  const anchors = [...shapes.matchAll(/\{ u: (-?\d+), v: (-?\d+), w: \d+/g)].map((m) => ({
+    u: Number(m[1]),
+    v: Number(m[2]),
+  }));
+
+  it("were found in the table", () => {
+    expect(anchors.length).toBeGreaterThanOrEqual(6);
+  });
+
+  it("sit on water", () => {
+    // They are clipped to outside the island, so an anchor on land is not a
+    // cloud over the streets -- it is a cloud nobody will ever see. The first
+    // set was written in world pixels and two of them landed on the city.
+    for (const cloud of anchors) {
+      expect(distanceOffshore(cloud.u, cloud.v), `a cloud at ${cloud.u},${cloud.v}`).toBeGreaterThan(0);
+    }
+  });
+
+  it("are drawn after the sea rather than under it", () => {
+    // The mistake that cost the most time here, and it looked like the drawing
+    // being broken. Clouds went in before the ground layer -- the obvious way
+    // to keep them off the land -- and water tiles are opaque, so the only ones
+    // visible were past the edge of the drawn ocean, in the corners of the
+    // screen. They were painted correctly and then covered by the sea.
+    const ground = scene.indexOf("for (const item of ground) item.draw(ctx);");
+    const clouds = scene.indexOf("drawClouds(ctx");
+    expect(ground).toBeGreaterThan(-1);
+    expect(clouds, "clouds must be drawn after the ground layer").toBeGreaterThan(ground);
+  });
+
+  it("are clipped to outside the island", () => {
+    expect(shapes).toMatch(/ctx\.clip\("evenodd"\)/);
   });
 });

@@ -17,6 +17,7 @@ import {
   drawBuilding,
   drawBoat,
   drawBillboard,
+  drawClouds,
   drawCivicDome,
   drawContainerStack,
   drawControlTower,
@@ -215,6 +216,18 @@ export function drawScene(
   const ground = groundItems(framed);
   ground.sort((a, b) => a.z - b.z);
   for (const item of ground) item.draw(ctx);
+
+  // On the sea, after the sea. Drawing them before the ground -- the obvious
+  // way to keep clouds off the land -- put them under opaque water tiles, so
+  // the only ones visible were past the edge of the drawn ocean, in the corners
+  // of the screen. They are clipped to outside the island's own outline
+  // instead, and are inside the camera transform so they pan with the map.
+  drawClouds(ctx, time, [
+    toScreen(0, 0),
+    toScreen(ISLAND_W, 0),
+    toScreen(ISLAND_W, ISLAND_H),
+    toScreen(0, ISLAND_H),
+  ]);
 
   const items: Drawable[] = [
     ...facilityItems(time),

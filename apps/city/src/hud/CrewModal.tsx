@@ -194,6 +194,9 @@ export function CrewModal(props: {
           </button>
         </div>
 
+        {/* Header and footer sit outside this; everything between them scrolls
+            and carries the horizontal padding the box itself does not. */}
+        <div className="crew-modal-v2__body">
         <p className="crew-modal-v2__subtitle">
           Sent with the mission and passed to the model. Every run uses{" "}
           <code>gemini-2.5-flash</code> across four rotating keys; this changes how
@@ -262,11 +265,20 @@ export function CrewModal(props: {
                   width={72}
                   height={72}
                 />
-                <span className="crew-modal-v2__card-name">{effortLabel(level)}</span>
-                <span className="crew-modal-v2__card-desc">{effortDescription(level)}</span>
+                {/* One element in the text column, not two.
+                    The card is a two-column grid and had three children, so the
+                    description was placed by the grid rather than by anyone: it
+                    wrapped onto a second row in the *image* column, under the
+                    portrait and hard against the card's left edge. */}
+                <span className="crew-modal-v2__card-text">
+                  <span className="crew-modal-v2__card-name">{effortLabel(level)}</span>
+                  <span className="crew-modal-v2__card-desc">{effortDescription(level)}</span>
+                </span>
               </button>
             );
           })}
+        </div>
+
         </div>
 
         <div className="crew-modal-v2__footer">

@@ -2524,6 +2524,36 @@ canvas.world:active {
   padding: 0;
   display: flex;
   flex-direction: column;
+
+  /*
+   * Kept inside the viewport, with the middle allowed to scroll.
+   *
+   * Below 640px the options stack, and neither the overlay nor the box had a
+   * height limit while `.dialogue-box` clips its overflow -- so on a portrait
+   * phone the content ran past the bottom of the screen and took the
+   * Cancel/Confirm footer with it. The header and footer stay put and the
+   * options scroll between them, which is the arrangement where the two
+   * controls that close a dialogue are always reachable.
+   */
+  max-height: min(86vh, 640px);
+  overflow: hidden;
+}
+
+/*
+ * The middle of the modal, and the only part that scrolls.
+ *
+ * It also carries the horizontal padding. The box itself has `padding: 0` so
+ * that the header and footer can run their own rules to the border, and the
+ * subtitle and the options were siblings of those with no padding of their own
+ * -- so both sat hard against the amber frame on the left.
+ */
+.crew-modal-v2__body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 14px 20px 16px;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 194, 71, 0.35) transparent;
 }
 
 .crew-modal-v2__header {
@@ -2544,7 +2574,7 @@ canvas.world:active {
 }
 
 .crew-modal-v2__subtitle {
-  margin: 4px 0 0;
+  margin: 0 0 12px;
   font-size: 11px;
   color: #94a3b8;
   font-family: monospace;
@@ -2569,11 +2599,29 @@ canvas.world:active {
   grid-template-columns: 100px 1fr;
   background: #0b1320;
   border: 3px solid #1e293b;
+  align-items: center;
+  gap: 12px;
   text-align: left;
   cursor: pointer;
   transition: all 0.15s ease;
   overflow: hidden;
-  padding: 0;
+  padding: 10px 12px 10px 0;
+}
+
+/*
+ * The text column, as one child.
+ *
+ * The card is `grid-template-columns: 100px 1fr` and had three children --
+ * image, name, description. A grid places what it is given: the first two took
+ * the row, and the description wrapped onto a second row in the *image* column,
+ * under the portrait and against the card's left edge. It reads as a caption
+ * that has come adrift, which is what it was.
+ */
+.crew-modal-v2__card-text {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
 }
 
 .crew-modal-v2__card:hover {
@@ -2596,6 +2644,9 @@ canvas.world:active {
 
 .crew-modal-v2__card-name {
   margin: 0;
+  /* Left, with its description. It was centred over a column it did not share,
+     which is why the three names lined up with nothing underneath them. */
+  text-align: left;
   font-family: Silkscreen, monospace;
   font-size: 12px;
   color: #ffc247;
@@ -2617,8 +2668,19 @@ canvas.world:active {
  */
 .crew-modal-v2__thinking-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 5px;
+  /*
+   * 210, not 240. The box is 780px wide at most, less 8px of border and 40 of
+   * body padding, which leaves 732 -- and three 240px columns with two 8px gaps
+   * need 736. Four pixels short, so the row broke to two-up and left a third of
+   * the modal empty. The floor is what decides when it wraps, so it has to be
+   * arithmetic against the box rather than a round number.
+   */
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
+  /* Stretch, so three cards of different description lengths are the same
+     height. They were `start`-aligned, so each card ended where its own text
+     did and the row looked ragged. */
+  align-items: stretch;
 }
 
 /*

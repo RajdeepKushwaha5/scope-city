@@ -66,7 +66,7 @@ describe("whose run the console is describing", () => {
     // no effort metadata at all, and the console was handed the picker's
     // current value -- so it labelled somebody else's captured session "Medium
     // effort", and the operator could change that label while it played.
-    expect(app).toContain("crew={live.active ? dispatched : replaying ? null : effort}");
+    expect(app).toContain("crew={live.active ? dispatched : showingReplay ? null : effort}");
     expect(console_).toContain('"effort not recorded"');
   });
 
@@ -77,10 +77,24 @@ describe("whose run the console is describing", () => {
     expect(app).toMatch(/const \[dispatched, setDispatched\] = useState<EffortLevel \| null>/);
   });
 
-  it("locks the picker while a replay is on screen", () => {
+  it("locks the picker while a replay is playing", () => {
     // It was gated on `live.active` alone, so it stayed editable during a
     // recording -- and the console was reading it.
-    expect(app).toContain("locked={replaying}");
+    expect(app).toContain("locked={replayRunning}");
+  });
+
+  it("lets go of the lock when the replay ends", () => {
+    // The lock and the caption are two questions, and using one flag for both
+    // locked the city: a recording keeps its `record` after it finishes and a
+    // scripted run never returns to `drafting`, so the first replay disabled
+    // every button for choosing the next one. The comparison the whole demo
+    // turns on is two runs; that made it one.
+    expect(app, "the lock must follow live playback, not leftover state").toContain(
+      'recorded.playing || ["proposed", "running", "awaiting_countersign"]',
+    );
+    expect(app, "and the caption must follow what is on screen").toContain(
+      "recorded.playing || recorded.record !== null",
+    );
   });
 
   it("does not offer a Halt button that halts nothing", () => {
@@ -135,7 +149,11 @@ describe("what the console claims to know", () => {
     // here was floating-point dollars rounded back to four places on every
     // addition -- the pattern those rules exist to refuse.
     const mission = read("../useMission.ts");
-    expect(mission).toMatch(/spend: \(units\) => setTreasury\(\(t\) => t \+ Math\.max\(0, Math\.round\(units\)\)\)/);
+    // Rejected rather than clamped. Rounding a fraction to nothing and turning
+    // a negative into zero hides a caller's mistake inside a number the
+    // operator is reading.
+    expect(mission).toMatch(/if \(!Number\.isInteger\(units\) \|\| units <= 0\)/);
+    expect(mission).toMatch(/throw new RangeError/);
     expect(mission, "a fractional literal is how it drifted before").toMatch(
       /export const SPEND_PER_TURN = \d+;/,
     );

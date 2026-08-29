@@ -156,14 +156,24 @@ export function App(): React.JSX.Element {
   const recorded = useRecordedMission();
   const controlPlane = useControlPlane();
 
-  /**
-   * A past run is on screen: a captured session, or one of the scripted ones.
+  /*
+   * Two questions, and conflating them locked the city.
    *
-   * The console must not caption either with the launch form's setting, and the
-   * form itself must not stay editable underneath one.
+   * `showingReplay` is "the mission on screen is a past run" -- a captured
+   * session or a scripted one, finished or not. It governs the console, which
+   * must not caption somebody else's run with the launch form's setting.
+   *
+   * `replayRunning` is "one is playing right now", and it is the only thing
+   * that may close the form. The first version used the first flag for both,
+   * and a recording keeps its `record` after it ends while a scripted run never
+   * returns to `drafting` -- so the lock never released and the first replay
+   * disabled every button for choosing the next one. The comparison the demo
+   * turns on is two runs; that made it one.
    */
-  const replaying =
+  const showingReplay =
     recorded.playing || recorded.record !== null || replay.rawState.phase !== "drafting";
+  const replayRunning =
+    recorded.playing || ["proposed", "running", "awaiting_countersign"].includes(replay.rawState.phase);
 
   // Live wins, then a recorded run, then the scripted replays. Ordered by how
   // much each one proves: a live mission is happening, a recording happened,
@@ -737,7 +747,7 @@ export function App(): React.JSX.Element {
                  folded into `active`, which also decides whether a Halt button
                  appears: with no live mission that button calls `live.leave`
                  and stops nothing on screen. */
-              locked={replaying}
+              locked={replayRunning}
               connection={live.connection}
               error={live.error ?? recorded.error}
               /* Every path that starts a run goes through `runScenario`, or the
@@ -784,7 +794,7 @@ export function App(): React.JSX.Element {
             treasury={mission.treasury}
             // The mission's own crew, or nothing: a replay carries no effort
             // and must not borrow the launch form's.
-            crew={live.active ? dispatched : replaying ? null : effort}
+            crew={live.active ? dispatched : showingReplay ? null : effort}
             crewIsRunning={live.active}
             fieldSize={mission.figures.length}
             structureCount={structureCount}

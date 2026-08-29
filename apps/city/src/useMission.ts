@@ -332,7 +332,16 @@ export function useMission() {
      * Cents are too coarse: a turn costs on the order of $0.014, so a cent
      * would round most of them to nothing. The unit is 1/10000 of a dollar.
      */
-    spend: (units) => setTreasury((t) => t + Math.max(0, Math.round(units))),
+    spend: (units) => {
+      // Rejected, not clamped. Rounding a fraction to nothing and turning a
+      // negative into zero hides a caller's mistake inside a number the
+      // operator is reading; the rule this follows is that a monetary amount is
+      // a positive integer or it is an error.
+      if (!Number.isInteger(units) || units <= 0) {
+        throw new RangeError(`spend expects positive whole units, got ${units}`);
+      }
+      setTreasury((t) => t + units);
+    },
     grantScope: () => {
       setScope(NARROW_SCOPE);
       setScopeState("granted");

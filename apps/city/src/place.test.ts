@@ -29,7 +29,12 @@ describe("what a building says about itself", () => {
     // The assertion is over the real layout rather than a fixture, because the
     // bug was a property of the layout: the city draws far more than it
     // explains, and a test on three hand-made buildings would not have noticed.
-    expect(city.length).toBeGreaterThan(150);
+    //
+    // The floor is a floor, not a count. It was 150 when every block was built
+    // out to eight of its nine cells; the blocks have gardens now and the city
+    // is around 120. What has to hold is that this is checking a real city and
+    // not an empty list.
+    expect(city.length).toBeGreaterThan(100);
 
     for (const b of city) {
       const place = describePlace(b, b.cell);

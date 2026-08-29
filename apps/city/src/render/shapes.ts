@@ -763,6 +763,23 @@ const CLOUDS = CLOUD_CELLS.map((cloud) => {
  */
 const CLOUD_SPAN = 900;
 
+/**
+ * The puffs one cloud is made of: offset, scale and relative opacity.
+ *
+ * Hand-placed rather than hashed, because there are six of them and a cloud is
+ * a shape, not a scatter. Wide and faint at the edges, tighter and stronger
+ * through the middle, and deliberately not symmetric -- a symmetric cloud reads
+ * as a logo.
+ */
+const PUFFS: readonly (readonly [number, number, number, number, number])[] = [
+  [-0.06, 0.0, 1.0, 1.0, 1],
+  [0.22, 0.1, 0.72, 0.8, 1.2],
+  [-0.28, 0.08, 0.6, 0.66, 1.1],
+  [0.05, -0.14, 0.52, 0.62, 1.3],
+  [0.34, -0.02, 0.4, 0.5, 1],
+  [-0.1, 0.16, 0.66, 0.54, 1.4],
+];
+
 export function drawClouds(
   ctx: CanvasRenderingContext2D,
   time: number,
@@ -786,7 +803,6 @@ export function drawClouds(
   ctx.clip("evenodd");
 
   ctx.fillStyle = "#ffffff";
-  ctx.globalAlpha = 0.13;
 
   for (const cloud of CLOUDS) {
     // Wrapped rather than bounced, so no cloud ever reverses -- which would be
@@ -794,23 +810,31 @@ export function drawClouds(
     const shifted =
       cloud.x + (((time / 1000) * cloud.drift) % CLOUD_SPAN) - CLOUD_SPAN / 2;
 
-    // Two overlapping ellipses. One is a lozenge; two read as a cloud without
-    // needing an outline, which nothing else on this map has either.
-    ctx.beginPath();
-    ctx.ellipse(shifted, cloud.y, cloud.w / 2, cloud.h / 2, 0, 0, Math.PI * 2);
-    ctx.fill();
-
-    ctx.beginPath();
-    ctx.ellipse(
-      shifted + cloud.w * 0.28,
-      cloud.y + cloud.h * 0.22,
-      cloud.w / 3,
-      cloud.h / 2.6,
-      0,
-      0,
-      Math.PI * 2,
-    );
-    ctx.fill();
+    // Built up from several soft ellipses rather than drawn as two hard ones.
+    //
+    // Two solid ovals at a single alpha is not a cloud; it is a stain, and it
+    // was the only shape on this map with a crisp edge and no reason for one.
+    // Everything else here is a flat tile or a flat face, so a hard-edged blob
+    // sitting on the water read as a smudge on the canvas.
+    //
+    // Six puffs at decreasing opacity, largest and faintest first, so the
+    // overlaps accumulate toward the middle and the outline dissolves. The
+    // shape comes from the arrangement rather than from any one ellipse, which
+    // is why none of them has to be soft on its own.
+    for (const [dx, dy, sx, sy, alpha] of PUFFS) {
+      ctx.globalAlpha = 0.05 * alpha;
+      ctx.beginPath();
+      ctx.ellipse(
+        shifted + cloud.w * dx,
+        cloud.y + cloud.h * dy,
+        (cloud.w / 2) * sx,
+        (cloud.h / 2) * sy,
+        0,
+        0,
+        Math.PI * 2,
+      );
+      ctx.fill();
+    }
   }
 
   ctx.restore();

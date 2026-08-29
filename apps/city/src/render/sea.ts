@@ -76,14 +76,41 @@ export function isShoal(u: number, v: number): boolean {
 }
 
 /**
+ * How many cells across a patch of one shade runs.
+ *
+ * The number that decides whether this is a sea or a swimming pool.
+ */
+const PATCH = 7;
+
+/**
  * Which of the three water shades a cell takes.
  *
- * The same trick the lawn already uses. Three blues close enough to read as one
- * sea and far enough apart to give every tile an edge, which is what makes a
- * flat plane of diamonds look like water instead of paper.
+ * Keyed on a patch rather than on the cell, and that is the whole of the fix.
+ * Hashing each cell independently gave every tile its own shade, which is right
+ * for a lawn -- grass is the same colour everywhere and the variation is
+ * texture -- and wrong for water. It made the tessellation the most legible
+ * thing on the ocean, and a regular grid of alternating blue tiles is a
+ * swimming pool. Open water does the opposite: large areas of one tone with
+ * soft irregular boundaries, and no visible unit at all.
+ *
+ * The key is sheared as well as coarse. A plain `floor(u / 7)` would have
+ * produced bigger squares in exactly the same places, with edges along the same
+ * diamonds -- a pool with larger tiles. Mixing the axes turns the patch
+ * boundaries diagonal to the grid, so nothing lines up with a tile edge and the
+ * shapes read as current rather than as blocks.
  */
 export function waterVariant(u: number, v: number): number {
-  return hash(`sea:${u}:${v}`) % 3;
+  // A cell's worth of jitter on the lookup, which ragged the patch edges.
+  // Sheared patches were still bounded by straight lines, and a straight line
+  // in this projection is a run of tile diamonds -- so the edges themselves
+  // read as blocks even though the areas between them did not. Letting cells
+  // near a boundary fall on either side of it turns each edge into a dither a
+  // cell deep, and that is the difference between a shape and a seam.
+  const wobbleU = (hash(`ju:${u}:${v}`) % 3) - 1;
+  const wobbleV = (hash(`jv:${u}:${v}`) % 3) - 1;
+  const pu = Math.floor((u * 2 + v + wobbleU) / PATCH);
+  const pv = Math.floor((v * 2 - u + wobbleV) / PATCH);
+  return hash(`sea:${pu}:${pv}`) % 3;
 }
 
 /**
@@ -94,7 +121,10 @@ export function waterVariant(u: number, v: number): number {
  */
 export function hasWave(u: number, v: number): boolean {
   if (distanceOffshore(u, v) <= SHALLOW_BAND) return false;
-  return hash(`wave:${u}:${v}`) % 11 === 0;
+  // More of them than there were. With the shading now in large patches, the
+  // wave marks are what give the open sea its small-scale detail -- they are
+  // the only thing out there that is not a flat area of colour.
+  return hash(`wave:${u}:${v}`) % 7 === 0;
 }
 
 /** True when a cell is outside the island's rectangle altogether. */

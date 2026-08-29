@@ -21,6 +21,7 @@ import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { MapControls } from "./hud/MapControls.js";
 import { IntroDialogue } from "./hud/IntroDialogue.js";
 import { CommandPalette, type CommandItem } from "./hud/CommandPalette.js";
+import type { EffortLevel } from "./hud/CrewModal.js";
 import { ShutterFlash } from "./hud/ShutterFlash.js";
 import { readSetting, writeSetting } from "./safe-storage.js";
 import { useMission } from "./useMission.js";
@@ -86,6 +87,15 @@ export function App(): React.JSX.Element {
   const [selected, setSelected] = useState<Place | null>(null);
   const selectedOffice = selected?.office ?? null;
   const [commandOpen, setCommandOpen] = useState(false);
+  /*
+   * Who is on duty.
+   *
+   * Held here because two panels show it -- the mission order picks it and the
+   * console draws the portrait -- and state that two views read cannot live
+   * inside one of them. Medium rather than high: it is what most runs will use,
+   * and high effort is the first thing to exhaust a free-tier key mid-mission.
+   */
+  const [effort, setEffort] = useState<EffortLevel>("medium");
 
   /*
    * Ctrl/Cmd+K, and it has to live here.
@@ -707,9 +717,11 @@ export function App(): React.JSX.Element {
                  not one of the scripted scenarios, so it clears the billing
                  rather than inheriting it -- a banner promising a refusal over
                  a real run is worse than no banner. */
-              onLaunch={async (order, effort) => {
+              effort={effort}
+              onEffort={setEffort}
+              onLaunch={async (order, level) => {
                 setActiveScenario(null);
-                await live.launch(order, effort);
+                await live.launch(order, level);
               }}
               onStop={live.leave}
               onPoisonedReplay={() => runScenario("poisoned")}
@@ -741,6 +753,7 @@ export function App(): React.JSX.Element {
             phase={mission.phase}
             job={mission.job}
             treasury={mission.treasury}
+            effort={effort}
             fieldSize={mission.figures.length}
             structureCount={structureCount}
             sandboxOpen={mission.sandboxOpen}

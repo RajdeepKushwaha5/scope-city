@@ -15,6 +15,9 @@ export function MissionOrder(props: {
   connection: "offline" | "connecting" | "live" | "reconnecting";
   error: string | null;
   onLaunch: (order: string, effort: EffortLevel) => Promise<void>;
+  /** Which crew is on duty, and how to change it. Owned by `App`. */
+  effort: EffortLevel;
+  onEffort: (effort: EffortLevel) => void;
   onStop: () => Promise<void>;
   onPoisonedReplay: () => void;
   onCleanReplay: () => void;
@@ -27,9 +30,18 @@ export function MissionOrder(props: {
 }): React.JSX.Element {
   const [order, setOrder] = useState(DEFAULT_ORDER);
   const [crewOpen, setCrewOpen] = useState(false);
-  // Medium rather than high. The default is what most runs will use, and high
-  // effort is the first thing to exhaust a free-tier key mid-mission.
-  const [thinkingEffort, setThinkingEffort] = useState<EffortLevel>("medium");
+
+  /*
+   * The crew is `App`'s now, not this panel's.
+   *
+   * It was local state here, and the console on the other side of the screen
+   * drew its own portrait from a placeholder -- so the two panels could not
+   * have agreed even in principle about who was on duty. Lifting it is the
+   * smallest change that makes one answer, and the effort is a property of the
+   * mission rather than of the form that starts it.
+   */
+  const thinkingEffort = props.effort;
+  const setThinkingEffort = props.onEffort;
 
   const canDispatch = props.canDispatch ?? true;
 

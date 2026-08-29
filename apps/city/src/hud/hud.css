@@ -366,6 +366,30 @@
   cursor: pointer;
 }
 
+/*
+ * Muted, said with a line through the note rather than with a different glyph.
+ *
+ * The two states were a play triangle and a cross. A cross in the corner of a
+ * panel is the control that closes it, so the first icon in the console's title
+ * bar read as "close the console" -- and the state it was reporting was the
+ * opposite of the one people assumed.
+ */
+.window__icon--off {
+  position: relative;
+  color: var(--ink-dim);
+}
+
+.window__icon--off::after {
+  content: "";
+  position: absolute;
+  left: 2px;
+  right: 2px;
+  top: 50%;
+  height: 1px;
+  background: currentColor;
+  transform: rotate(-32deg);
+}
+
 .window__icon:hover {
   color: var(--accent);
   border-color: var(--accent-dim);
@@ -989,8 +1013,16 @@
   padding: 10px 0;
 }
 
-.console__portrait .crew-card__head { transform: scale(1.3); transform-origin: top left; left: 18px; top: 10px; }
-.console__portrait .crew-card__body { transform: scale(1.55); transform-origin: bottom left; left: 16px; bottom: 5px; }
+/*
+ * The portrait is an image now, not two absolutely positioned boxes scaled to
+ * approximate a person. The rules that did the scaling are gone with them.
+ */
+.console__portrait-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  image-rendering: pixelated;
+}
 .console__job { color: var(--ink-dim); padding-bottom: 8px; }
 
 .console__permit {

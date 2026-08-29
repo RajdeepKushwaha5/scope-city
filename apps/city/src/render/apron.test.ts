@@ -239,8 +239,19 @@ describe("the naval yard", () => {
     // The board is a fixed size and the type is not fitted to it. A name that
     // does not fit gets cut rather than shrunk, so the limit has to be checked
     // here instead of discovered on screen.
+    //
+    // Asserting the count first, because the regex can match nothing: a name
+    // passed as a variable rather than a literal would empty the loop and let
+    // an overlong one through while the test stayed green. A loop that runs
+    // zero times is not a check.
     const scene_ = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
-    for (const sign of scene_.matchAll(/drawFacilitySign\(ctx, [\d.]+, [\d.]+, "([^"]+)"\)/g)) {
+    const signs = [...scene_.matchAll(/drawFacilitySign\(ctx, [\d.]+, [\d.]+, "([^"]+)"\)/g)];
+
+    const calls = (scene_.match(/drawFacilitySign\(/g) ?? []).length;
+    expect(signs.length, "a nameplate is named by something other than a literal").toBe(calls);
+    expect(signs.length, "no nameplates found at all").toBeGreaterThanOrEqual(2);
+
+    for (const sign of signs) {
       expect(sign[1]!.length, `${sign[1]} does not fit a nameplate`).toBeLessThanOrEqual(SIGN_MAX);
     }
   });

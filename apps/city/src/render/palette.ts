@@ -22,7 +22,13 @@ export const GROUND: Record<string, Material> = {
   // texture. A single flat green is the clearest sign a map was generated.
   grass: { top: "#63ad52", left: "#579b48", right: "#4c8b3f", edge: "#3a6b30" },
   sand: { top: "#ddc99a", left: "#c9b485", right: "#b3a074", edge: "#8f8059" },
-  water: { top: "#3f7fbd", left: "#356ba2", right: "#2c5a89", edge: "#22496f" },
+  // Water comes in two depths and three shades each, and the three are much
+  // closer together than a material's usual top/left/right. Those exist to
+  // shade the faces of a solid; these are all the *top* of a flat tile, picked
+  // per cell so a plane of identical diamonds gets edges. Spread them as far as
+  // the greens and the sea reads as choppy static.
+  water: { top: "#3f7fbd", left: "#3b7ab6", right: "#3775af", edge: "#22496f" },
+  waterShallow: { top: "#59a2d4", left: "#549cce", right: "#4f96c8", edge: "#3c7fae" },
   road: { top: "#9298a1", left: "#82878f", right: "#71767d", edge: "#565b61" },
   pavement: { top: "#b6bcc4", left: "#a3a9b0", right: "#91969d", edge: "#70757b" },
   fogged: { top: "#39434f", left: "#323b46", right: "#2b333c", edge: "#232a32" },

@@ -236,14 +236,21 @@ describe("the naval yard", () => {
       }
 
       if (prop.ground === "water") {
-        // Declaring a prop afloat exempts it from the apron check, so the
-        // declaration itself has to be checked -- otherwise wrong metadata is a
-        // way out of the test. The lighthouse was declared `water` and stands
-        // on the port's own ground; it is `apron` now and passes on its merits.
+        /*
+         * Afloat means on water, not merely off the apron.
+         *
+         * Declaring a prop `water` exempts it from the apron check, so the
+         * declaration has to be checked or wrong metadata becomes a way out of
+         * the test. Asserting only "not apron" is not enough: this island
+         * carries two rows of sand past the quay, and a cargo ship moored at
+         * v=33.2 is on the beach while satisfying every weaker form of this.
+         * It did, and both earlier versions of this check passed it.
+         */
         expect(
-          isApron(Math.floor(prop.u), Math.floor(prop.v)),
-          `a ${prop.facility} prop at ${prop.u},${prop.v} is declared afloat but is on apron`,
-        ).toBe(false);
+          tileKindAt(Math.round(prop.u), Math.round(prop.v)),
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is declared afloat and is aground`,
+        ).toBe("water");
+        continue;
       }
 
       if (prop.ground !== "apron") continue;
@@ -285,8 +292,36 @@ describe("the naval yard", () => {
     const afloat = props.filter((prop) => prop.ground === "water");
     const over = props.filter((prop) => prop.ground === "over");
 
-    expect(afloat.length, "the two ships").toBe(2);
-    expect(over.length, "the runway and the aircraft on it").toBe(12);
+    /*
+     * By identity, not by count.
+     *
+     * A lower bound lets one of these be reclassified without failing, and
+     * reclassifying is the whole risk: changing the aircraft from `over` to
+     * `apron` satisfies the general apron check further up, so the exception
+     * this test exists to record would disappear silently. I loosened these to
+     * `>=` to stop them breaking when the list grew, which traded the property
+     * for the convenience.
+     *
+     * Naming them keeps both: the list may grow, and nothing already declared
+     * can quietly change what it is.
+     */
+    const where = (kind: string) =>
+      props
+        .filter((prop) => prop.ground === kind)
+        .map((prop) => `${prop.facility} ${prop.u},${prop.v}`)
+        .sort();
+
+    expect(where("water"), "the ships and the jetty").toEqual([
+      "naval 41.5,22",
+      "port 30.5,35.4",
+      "port 33,35",
+    ]);
+
+    // Eleven runway segments and the aircraft standing on them.
+    expect(where("over")).toHaveLength(12);
+    expect(where("over"), "the aircraft is on the runway, not on apron").toContain(
+      "airport 8,29.5",
+    );
     expect(
       props.filter((prop) => prop.ground === "apron").length,
       "most of a facility should be on its own hard standing",

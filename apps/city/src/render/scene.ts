@@ -17,15 +17,21 @@ import {
   drawBuilding,
   drawBoat,
   drawApronMarking,
+  drawBarracks,
   drawBillboard,
   drawBollards,
+  drawCommandBuilding,
   drawFacilitySign,
   drawFence,
   drawFlag,
   drawFloodlight,
   drawFuelTank,
+  drawHelicopter,
+  drawHelipad,
   drawQuayHut,
   drawTerminal,
+  drawTank,
+  drawTurret,
   drawWindsock,
   drawClouds,
   drawCivicDome,
@@ -422,12 +428,10 @@ function hoardingItems(state: SceneState): Drawable[] {
     return {
       z: depth(board.cell.u, board.cell.v, 3),
       draw: (ctx: CanvasRenderingContext2D) => {
-        if (muted) {
-          ctx.save();
-          ctx.globalAlpha = 0.4;
-        }
-        drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
-        if (muted) ctx.restore();
+        const paint = (target: CanvasRenderingContext2D) =>
+          drawBillboard(target, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
+        if (muted) drawFogged(ctx, paint);
+        else paint(ctx);
       },
     };
   });
@@ -485,50 +489,69 @@ export function facilityProps(time: number): FacilityProp[] {
     // Laid across the street grid, which is what a runway is.
     at("airport", u, 31, -0.4, (ctx) => drawRunway(ctx, u, 31, "u", u === 3 || u === 13), "over");
   }
-  at("airport", 5, 28, 2, (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport));
-  at("airport", 10, 28, 3, (ctx) => drawControlTower(ctx, 10, 28));
-  // Between two runway cells, so it belongs to neither of them.
-  at("airport", 8.5, 31, 2, (ctx) => drawPlane(ctx, 8.5, 31), "over");
-  // A hangar, a tower and an aeroplane is a maintenance base: there was nowhere
-  // for anybody to get on. The terminal is the building that makes it an
-  // airport, and the windsock is what makes the strip a runway rather than a
-  // black rectangle with stripes on it.
+  // Authentic Claude City CCX 3D barrel-vaulted terminal
   at("airport", 7, 28, 3, (ctx) => drawTerminal(ctx, 7, 28));
-  at("airport", 13, 29, 4, (ctx) => drawWindsock(ctx, 13, 29));
-  at("airport", 4, 29, 3, (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield"));
-  at("airport", 11, 31, 4, (ctx) => drawFloodlight(ctx, 11, 31));
+  // Hexagonal ATC tower at the right apron edge
+  at("airport", 10, 28, 4, (ctx) => drawControlTower(ctx, 10, 28));
+  // Twin-turboprop plane parked on apron stand facing diagonal
+  at("airport", 8, 29.5, 2, (ctx) => drawPlane(ctx, 8, 29.5), "over");
+  // Windsock near threshold
+  at("airport", 13, 29, 3, (ctx) => drawWindsock(ctx, 13, 29));
+  // Airport nameplate
+  at("airport", 4, 28, 3, (ctx) => drawFacilitySign(ctx, 4, 28, "Airport"));
+  // Apron floodlights
+  at("airport", 4, 29, 4, (ctx) => drawFloodlight(ctx, 4, 29));
+  at("airport", 5, 29, 4, (ctx) => drawFloodlight(ctx, 5, 29));
+  at("airport", 11, 29, 4, (ctx) => drawFloodlight(ctx, 11, 29));
 
   // --- the container port ----------------------------------------------
-  // Not on the two cells where a street meets the quay. The row crosses the
-  // road grid at u=30 and u=36, and the test caught a bollard standing in the
-  // middle of each of them -- the same gate the naval yard's fence leaves.
+  // Bollards along the quay edge with hazard stripes and tire fenders
   for (let u = 28; u <= 37; u += 1) {
     if (u % ROAD_EVERY === 0) continue;
-    at("port", u, 32, 0.4, (ctx) => drawBollards(ctx, u, 32, "+v"));
+    at("port", u, 34, 0.4, (ctx) => drawBollards(ctx, u, 34, "+v"));
   }
+  // 3D ISO Container Stacks
   for (const [u, v, seed] of [
-    [29, 29, 1],
-    [31, 29, 2],
-    [33, 29, 3],
-    [35, 29, 4],
-    [28, 31, 5],
-    [32, 28, 6],
+    [28, 28, 1],
+    [29, 28, 2],
+    [28, 29, 3],
+    [29, 29, 4],
+    [27, 31, 5],
+    [28, 31, 6],
+    [31, 28, 7],
+    [32, 28, 8],
   ] as const) {
     at("port", u, v, 1, (ctx) => drawContainerStack(ctx, u, v, seed));
   }
+  // 3 Rail-mounted portal gantry cranes
   at("port", 29, 31, 3, (ctx) => drawCrane(ctx, 29, 31));
-  at("port", 34, 31, 3, (ctx) => drawCrane(ctx, 34, 31));
-  // On the point at the end of the quay -- which is the port's own ground, so
-  // it is checked like everything else standing on it. It was declared `water`
-  // and the review pointed out that made it exempt from a check it passes.
+  at("port", 32, 31, 3, (ctx) => drawCrane(ctx, 32, 31));
+  at("port", 35, 31, 3, (ctx) => drawCrane(ctx, 35, 31));
+
+  // Timber jetty jutting out into sea
+  // Out over the water, which is what makes it a jetty rather than a deck.
+  at("port", 33, 35, 1, (ctx) => drawPier(ctx, 33, 35), "water");
+
+  // Moored cargo vessel with red boot-topping and multi-tier superstructure
+  // Afloat. It was at v=33.2, which is beach: the island carries two rows of
+  // sand past the old quay edge, so a ship "in the water" was sitting on it.
+  at("port", 30.5, 35.4, 4, (ctx) => drawShip(ctx, 30.5, 35.4, "u", "cargo"), "water");
+
+  // Port master warehouse
+  at("port", 35, 28, 3, (ctx) => drawQuayHut(ctx, 35, 28));
+
+  // Bold black and gold PORT signboard
+  at("port", 37, 28, 3, (ctx) => drawFacilitySign(ctx, 37, 28, "Port"));
+
+  // Lighthouse on the point
   at("port", 37.5, 31, 4, (ctx) => drawLighthouse(ctx, 37.5, 31, time));
-  // The things that make a quay a port rather than a building site: somewhere
-  // to work from, something to work by, and a name on the gate.
-  at("port", 27, 28, 2, (ctx) => drawQuayHut(ctx, 27, 28));
-  at("port", 34, 28, 3, (ctx) => drawFacilitySign(ctx, 34, 28, "Port"));
+
+  // Perimeter floodlights
+  // Not (28,28): a container stack is anchored there, and with the larger
+  // height the mast sorted above the stack and was painted straight through it.
+  // Not (30,28) either -- u=30 is on the road grid, which the test caught.
   at("port", 31, 31, 4, (ctx) => drawFloodlight(ctx, 31, 31));
-  at("port", 35, 31, 4, (ctx) => drawFloodlight(ctx, 35, 31));
-  at("port", 34.5, 34.5, 4, (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo"), "water");
+  at("port", 34, 28, 4, (ctx) => drawFloodlight(ctx, 34, 28));
 
   // --- the naval yard ---------------------------------------------------
   const yard = FACILITIES.naval;
@@ -551,21 +574,75 @@ export function facilityProps(time: number): FacilityProp[] {
   }
 
   // The yard is crossed by three streets -- u=36, v=18 and v=24 are all on the
-  // road grid -- and the first placement put the guardroom and both fuel tanks
-  // in the middle of them.
-  at("naval", 35, 19, 2, (ctx) => drawQuayHut(ctx, 35, 19));
+  // road grid -- and props are placed on valid apron hard standing.
+
+  // 1. Aircraft / Vehicle Hangar with N47 marking
+  at("naval", 35, 17, 3, (ctx) => drawHangar(ctx, 35, 17, COAST.hangarRoof));
+
+  // 2. Helipad and Military Twin-Blade Helicopter
+  at("naval", 37, 17, 1, (ctx) => drawHelipad(ctx, 37, 17));
+  at("naval", 37, 17, 2, (ctx) => drawHelicopter(ctx, 37, 17));
+
+  // 3. Military Barracks / Guardroom Command Post with Red Gabled Roof & Chimney
+  at("naval", 35, 19, 2.5, (ctx) => drawBarracks(ctx, 35, 19) /* drawQuayHut */);
+
+  // 4. Armored Tanks / APCs in depot
+  at("naval", 37, 19, 2, (ctx) => drawTank(ctx, 37, 19));
+  at("naval", 37, 21, 2, (ctx) => drawTank(ctx, 37, 21));
+
+  // 5. Dual Cylindrical Fuel Storage Tanks with Safety Railings
+  at("naval", 35, 21, 3, (ctx) => drawFuelTank(ctx, 35, 21));
   at("naval", 35, 22, 3, (ctx) => drawFuelTank(ctx, 35, 22));
-  at("naval", 35, 23, 3, (ctx) => drawFuelTank(ctx, 35, 23));
-  // Where a shore establishment's air search set would be, and the one thing on
-  // this map that rotates.
+
+  // 6. Rotating Air-Search Radar Set on fortified mount
   at("naval", 37, 20, 4, (ctx) => drawRadar(ctx, 37, 20, time));
+
+  // 7. 3-Story Fortified Command Headquarters
+  at("naval", 35, 25, 4, (ctx) => drawCommandBuilding(ctx, 35, 25));
+
+  // 8. Missile Defense Launcher Turrets
+  at("naval", 38, 22, 2.5, (ctx) => drawTurret(ctx, 38, 22));
+  at("naval", 38, 25, 2.5, (ctx) => drawTurret(ctx, 38, 25));
+
+  // 9. Perimeter Floodlights
   at("naval", 38, 19, 4, (ctx) => drawFloodlight(ctx, 38, 19));
   at("naval", 38, 23, 4, (ctx) => drawFloodlight(ctx, 38, 23));
-  at("naval", 35, 17, 4, (ctx) => drawFlag(ctx, 35, 17));
+
+  // 10. Command Pennants / Red Flags
+  at("naval", 35, 23, 4, (ctx) => drawFlag(ctx, 35, 23));
   at("naval", 37, 25, 4, (ctx) => drawFlag(ctx, 37, 25));
+
+  // 11. Moored Naval Warship / Destroyer
   at("naval", 41.5, 22, 4, (ctx) => drawShip(ctx, 41.5, 22, "v", "navy"), "water");
 
   return props;
+}
+
+/**
+ * Draw something dimmed, in a way a shape cannot undo from the inside.
+ *
+ * `globalAlpha` was the obvious mechanism and it does not hold. It is one
+ * number on the context, so any shape that sets its own -- and the isometric
+ * facilities set theirs constantly, for glass, shadows, beams and water --
+ * replaces the fog with its own value, and everything drawn after that renders
+ * fully lit. `fadeBy` exists for exactly this and works only where it is
+ * remembered; across eighteen hundred lines of new geometry it was not.
+ *
+ * `filter` composes rather than being replaced. It applies to every operation
+ * that follows regardless of what a shape does to `globalAlpha`, so a facility
+ * outside the granted scope cannot paint itself bright again halfway through.
+ * Where the browser has no `filter` the alpha is used, which is what this did
+ * before and is no worse than it was.
+ */
+function drawFogged(
+  ctx: CanvasRenderingContext2D,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+): void {
+  ctx.save();
+  if (typeof ctx.filter === "string") ctx.filter = "opacity(40%)";
+  else ctx.globalAlpha = 0.4;
+  draw(ctx);
+  ctx.restore();
 }
 
 function facilityItems(state: SceneState, time: number): Drawable[] {
@@ -585,10 +662,7 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
         prop.draw(ctx);
         return;
       }
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      prop.draw(ctx);
-      ctx.restore();
+      drawFogged(ctx, prop.draw);
     },
   }));
 

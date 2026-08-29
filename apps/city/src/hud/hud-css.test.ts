@@ -24,19 +24,22 @@ const NL = String.fromCharCode(10);
  * uniqueness check entirely, which is the one thing that check exists to catch.
  */
 /**
- * Selectors that legitimately appear twice.
+ * Selectors that legitimately appear more than once, and how many times.
  *
  * A block declaring `.a, .b` counts once for each, so a selector that is both
  * grouped with a sibling and styled on its own is two entries and one design.
- * Listed by name rather than inferred, so adding one is a decision.
+ *
+ * The count is the point. This was a Set, which exempted any number: a third
+ * declaration of an allowed selector -- the exact bug the test exists to find --
+ * stayed green because the name was on the list. Now the number has to be
+ * right, so a new duplicate fails even on a selector that is allowed two.
  */
-const GROUPED = new Set([
-  ".console__footer",
-  ".console__permit-title",
-  ".console__portrait",
-  ".console__section-title",
-  ".proof__script",
-  ".review__clean",
+const GROUPED = new Map<string, number>([
+  [".console__footer", 2],
+  [".console__permit-title", 2],
+  [".console__section-title", 2],
+  [".proof__script", 2],
+  [".review__clean", 2],
 ]);
 
 function topLevelSelectors(): string[] {
@@ -134,10 +137,10 @@ describe("the HUD stylesheet", () => {
     }
 
     const repeated = [...dupes]
-      .filter(([selector, count]) => count > 1 && !GROUPED.has(selector))
-      .map(([selector, count]) => `${selector} (${count})`);
+      .filter(([selector, count]) => count !== (GROUPED.get(selector) ?? 1))
+      .map(([selector, count]) => `${selector} (${count}, expected ${GROUPED.get(selector) ?? 1})`);
 
-    expect(repeated, "declared more than once").toEqual([]);
+    expect(repeated, "declared the wrong number of times").toEqual([]);
   });
 
   it("keeps the full-viewport containers transparent to the pointer", () => {

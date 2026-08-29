@@ -187,8 +187,26 @@ export function drawScene(
 
   const { buildings, trees, fountains } = cityFor(framed.offices);
 
+  /*
+   * The ground is its own layer, drawn before anything that stands on it.
+   *
+   * It used to be one list. Depth is `(u + v) * 1000 + height`, so height only
+   * separates things sharing a diagonal -- and a car is at a fractional
+   * position between two of them. A car at (14.37, 24.16) sorts at 38530; the
+   * road tile at (15, 24) sorts at 38999 and is therefore painted afterwards,
+   * over the half of the car that had crossed into it. Cars vanished from the
+   * front as they drove, which is what this looked like.
+   *
+   * A tile could not have been in front of a car standing on it, so the fix is
+   * not a bigger number: flat ground never occludes what is on top of it. The
+   * tiles still sort among themselves, because a recessed road's kerb does
+   * overlap its neighbour.
+   */
+  const ground = groundItems(framed);
+  ground.sort((a, b) => a.z - b.z);
+  for (const item of ground) item.draw(ctx);
+
   const items: Drawable[] = [
-    ...groundItems(framed),
     ...facilityItems(time),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),

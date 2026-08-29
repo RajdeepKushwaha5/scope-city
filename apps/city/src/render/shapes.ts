@@ -594,6 +594,74 @@ export function drawControlTower(ctx: CanvasRenderingContext2D, u: number, v: nu
   ctx.restore();
 }
 
+/** One full turn of the radar, in milliseconds. */
+export const RADAR_PERIOD = 5200;
+
+/**
+ * The air-search radar on the naval quay, turning.
+ *
+ * Every other moving thing on this map travels: cars, boats, the aircraft, the
+ * figures. Nothing rotated, and a naval base whose radar is welded in place
+ * reads as a diagram of a naval base. It is also the cheapest possible motion
+ * -- one number, no path, no routing -- for a facility that otherwise sits
+ * completely still between missions.
+ *
+ * Rotation in an isometric projection with no 3D is done by foreshortening: a
+ * dish turning about a vertical axis keeps its height and loses its width as it
+ * comes side-on, so the width is scaled by the cosine of the bearing and the
+ * dish is drawn edge-on twice a turn. The sign of that cosine says which face
+ * is toward the viewer, which is why the dish has a back as well as a front --
+ * without the darker reverse it does not read as turning, it reads as
+ * squashing and unsquashing in place.
+ *
+ * `time` is the frame clock, so the sweep is continuous rather than stepped,
+ * and two radars on the same map would turn together, which is what a shore
+ * establishment's would do.
+ */
+export function drawRadar(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
+  const c = toScreen(u, v, 0);
+  const bearing = ((time % RADAR_PERIOD) / RADAR_PERIOD) * Math.PI * 2;
+  const facing = Math.cos(bearing);
+
+  ctx.save();
+
+  // Lattice mast: two legs and three cross-braces, which is enough to read as
+  // a tower rather than a post at this size.
+  ctx.fillStyle = COAST.radarStrut;
+  ctx.fillRect(c.x - 7, c.y - 34, 3, 34);
+  ctx.fillRect(c.x + 4, c.y - 34, 3, 34);
+  for (let i = 0; i < 3; i += 1) {
+    ctx.fillRect(c.x - 7, c.y - 10 - i * 11, 14, 2);
+  }
+
+  ctx.fillStyle = COAST.radarMast;
+  ctx.fillRect(c.x - 9, c.y - 40, 18, 6);
+
+  // The dish. Height is fixed; width is the cosine, so it narrows to a line
+  // twice a turn as it passes through side-on.
+  const halfWidth = Math.abs(facing) * 15;
+  ctx.fillStyle = facing >= 0 ? COAST.radarDish : COAST.radarDishBack;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 50, Math.max(halfWidth, 0.8), 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // A rib across the dish, foreshortened with it, so the face has some
+  // structure when it is broadside and nothing when it is edge-on.
+  ctx.fillStyle = facing >= 0 ? COAST.radarDishBack : COAST.radarHub;
+  ctx.fillRect(c.x - halfWidth, c.y - 51, halfWidth * 2, 2);
+
+  // The hub sits on the axis and does not change with the bearing, which is
+  // what stops the dish reading as sliding from side to side.
+  ctx.fillStyle = COAST.radarHub;
+  ctx.fillRect(c.x - 2, c.y - 52, 4, 14);
+
+  // Obstruction light, on the mast rather than the dish.
+  ctx.fillStyle = COAST.radarLamp;
+  ctx.fillRect(c.x - 1, c.y - 43, 2, 2);
+
+  ctx.restore();
+}
+
 export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   const c = toScreen(u, v, 0);
   const angle = Math.atan2(TILE_H / 2, TILE_W / 2);

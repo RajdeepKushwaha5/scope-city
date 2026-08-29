@@ -38,15 +38,19 @@ pnpm --filter @scope-city/city dev
   one when the agent actually attempts the overreach. A run with nothing
   refused, no Gate and an empty Field panel demonstrates nothing.
 
-  So before recording:
+  So before recording, edit `.env` and **restart the control plane** -- the
+  pool is read once at startup, so changing it under a running server does
+  nothing:
 
   ```bash
-  # Development, saving the hosted quota:
+  # .env, for development -- saves the hosted quota
   SCOPE_MODELS=local/qwen
 
-  # Recording. Empty means discover the hosted keys; the local slot is
-  # deliberately invisible to discovery, so this is enough.
+  # .env, for recording. Empty means discover the hosted keys; the local slot
+  # is deliberately invisible to discovery, so emptying it is enough.
   SCOPE_MODELS=
+
+  pnpm --filter @scope-city/demo dev    # restart, or the change has not landed
   ```
 
   The mission order panel names the pool it is actually on -- `local/qwen - one

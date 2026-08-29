@@ -57,10 +57,12 @@ import {
   ISLAND_W,
   OCEAN_MARGIN,
   fountainCells,
+  HOARDINGS,
   hash,
   FACILITIES,
   ROAD_EVERY,
   isApron,
+  isHoardingCell,
   apronEdges,
   isInScope,
   layOutCity,
@@ -243,6 +245,7 @@ export function drawScene(
 
   const items: Drawable[] = [
     ...facilityItems(framed, time),
+    ...hoardingItems(framed),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...activityRouteItems(buildings, state, time),
@@ -381,6 +384,12 @@ function groundItems(state: SceneState): Drawable[] {
   for (let u = 2; u <= ISLAND_W - 2; u += 1) {
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "pavement") continue;
+      // Buildings, trees and fountains all consult this; the lamps did not.
+      // `hash("lamp:4:23") % 11` is zero, so a streetlamp stood on the Scope
+      // City board's cell -- drawn first, painted over, and reported by
+      // nothing. A reservation that three of four generators honour is not a
+      // reservation.
+      if (isHoardingCell(u, v)) continue;
       if (hash(`lamp:${u}:${v}`) % 11 !== 0) continue;
       const cu = u;
       const cv = v;
@@ -389,6 +398,35 @@ function groundItems(state: SceneState): Drawable[] {
   }
 
   return items;
+}
+
+/**
+ * The hoardings, drawn from the same table that reserves their ground.
+ *
+ * They were two literals inside the airport and the port, which is why nothing
+ * stopped a street tree growing through one: the drawing knew where they stood
+ * and the layout did not.
+ */
+function hoardingItems(state: SceneState): Drawable[] {
+  return HOARDINGS.map((board) => {
+    // Dimmed with the ground it stands on, like the trees and the fountains.
+    // A lit, readable board over fogged terrain is a piece of the map claiming
+    // to be reachable when it is not -- which is a small thing here and the
+    // whole argument everywhere else in this project.
+    const muted =
+      state.scopeState !== "none" && !isInScope(board.cell, state.granted);
+    return {
+      z: depth(board.cell.u, board.cell.v, 3),
+      draw: (ctx: CanvasRenderingContext2D) => {
+        if (muted) {
+          ctx.save();
+          ctx.globalAlpha = 0.4;
+        }
+        drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
+        if (muted) ctx.restore();
+      },
+    };
+  });
 }
 
 /** Airport, commercial port and naval quay: visible destinations, not decoration. */
@@ -406,7 +444,6 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport) },
     { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
     { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
-    { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
   );
 
   for (let u = 28; u <= 37; u += 1) {
@@ -420,7 +457,6 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(29, 31, 3), draw: (ctx) => drawCrane(ctx, 29, 31) },
     { z: depth(34, 31, 3), draw: (ctx) => drawCrane(ctx, 34, 31) },
     { z: depth(37.5, 31, 4), draw: (ctx) => drawLighthouse(ctx, 37.5, 31, time) },
-    { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
   );
 
   // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid

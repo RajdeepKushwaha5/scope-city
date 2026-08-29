@@ -28,6 +28,7 @@ import {
   drawLighthouse,
   drawPerimeter,
   drawPlane,
+  drawRadar,
   drawPier,
   drawRunway,
   drawShadow,
@@ -404,6 +405,9 @@ function facilityItems(time: number): Drawable[] {
   items.push(
     { z: depth(34.5, 34.5, 4), draw: (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo") },
     { z: depth(41.5, 22, 4), draw: (ctx) => drawShip(ctx, 41.5, 22, "v", "navy") },
+    // On the quay behind the naval berth, where a shore establishment's air
+    // search set would be, and the one thing on this map that rotates.
+    { z: depth(37, 20, 4), draw: (ctx) => drawRadar(ctx, 37, 20, time) },
   );
   return items;
 }

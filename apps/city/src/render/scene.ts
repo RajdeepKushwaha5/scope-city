@@ -16,7 +16,14 @@ import {
 import {
   drawBuilding,
   drawBoat,
+  drawApronMarking,
   drawBillboard,
+  drawBollards,
+  drawFence,
+  drawFlag,
+  drawFloodlight,
+  drawFuelTank,
+  drawQuayHut,
   drawClouds,
   drawCivicDome,
   drawContainerStack,
@@ -51,6 +58,10 @@ import {
   OCEAN_MARGIN,
   fountainCells,
   hash,
+  FACILITIES,
+  ROAD_EVERY,
+  isApron,
+  apronEdges,
   isInScope,
   layOutCity,
   perimeterOf,
@@ -319,7 +330,15 @@ function groundItems(state: SceneState): Drawable[] {
       let paint = material;
       let variant = 0;
 
-      if (kind === "grass") {
+      // Hardstanding first, because it overrides what the tile would otherwise
+      // be. A hangar with grass running up to its doors is a model sitting on a
+      // map; the same hangar on asphalt is an airfield, and that one change
+      // does more for all three facilities than any prop standing on them.
+      const apron = isApron(cu, cv);
+      if (apron) {
+        paint = state.scopeState === "none" || inScope ? GROUND.apron! : GROUND.fogged!;
+        variant = hash(`apron:${cu}:${cv}`) % 3;
+      } else if (kind === "grass") {
         amount = blendAmount(cu, cv, isGrass, isSand);
         blend = state.scopeState === "none" || inScope ? GROUND.sand! : GROUND.fogged!;
         variant = hash(`${cu}:${cv}`) % 3;
@@ -338,10 +357,12 @@ function groundItems(state: SceneState): Drawable[] {
       }
 
       const wave = kind === "water" && !isShoal(cu, cv) && hasWave(cu, cv);
+      const faces = apron ? apronEdges(cu, cv) : [];
       items.push({
         z: depth(cu, cv, -1),
         draw: (ctx) => {
           drawDitheredTile(ctx, cu, cv, paint, blend, amount, variant);
+          if (faces.length > 0) drawApronMarking(ctx, cu, cv, faces);
           if (wave) {
             const p = toScreen(cu, cv, 0.01);
             ctx.fillStyle = COAST.wave;
@@ -398,19 +419,76 @@ function facilityItems(time: number): Drawable[] {
     { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
   );
 
+  // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid
+  // along the shore, each a dark diamond with its own pair of bollards, and a
+  // row of them reads as eight jetties rather than as one wall -- especially
+  // now the apron is paved to the water and there is nothing for a deck to be
+  // laid on top of.
   for (let v = 18; v <= 25; v += 1) {
     const cv = v;
-    items.push({ z: depth(39, cv, -0.2), draw: (ctx) => drawPier(ctx, 39, cv) });
+    items.push({ z: depth(39, cv, 0.4), draw: (ctx) => drawBollards(ctx, 39, cv) });
   }
   items.push(
     { z: depth(34.5, 34.5, 4), draw: (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo") },
     { z: depth(41.5, 22, 4), draw: (ctx) => drawShip(ctx, 41.5, 22, "v", "navy") },
-    // On the quay behind the naval berth, where a shore establishment's air
-    // search set would be, and the one thing on this map that rotates.
-    { z: depth(37, 20, 4), draw: (ctx) => drawRadar(ctx, 37, 20, time) },
   );
+
+  items.push(...navalYardItems(time));
   return items;
 }
+
+/**
+ * The naval yard, as an establishment rather than a berth.
+ *
+ * It was two things: a line of piers and a warship. Everything that says
+ * "shore establishment" -- the fence, the fuel farm, the floodlights, the
+ * guardroom -- was missing, so the most distinctive corner of the island read
+ * as a grey rectangle with a boat parked at it.
+ *
+ * Laid out along the quay: stores and fuel inboard, the radar and the lights on
+ * the apron, the fence closing the landward side. The berth itself stays clear,
+ * because that is where the ship is.
+ */
+function navalYardItems(time: number): Drawable[] {
+  const items: Drawable[] = [];
+  const yard = FACILITIES.naval;
+
+  // The fence runs the landward edge only. A base is a fence with a gate in it;
+  // fencing the quay as well would wall the ship off from its own jetty.
+  for (let v = yard.v0; v <= yard.v1; v += 1) {
+    // A gate where the service road meets the yard, so the fence is a boundary
+    // with a way through rather than a box.
+    if (v % ROAD_EVERY === 0) continue;
+    const cv = v;
+    items.push({ z: depth(yard.u0, cv, 1), draw: (ctx) => drawFence(ctx, yard.u0, cv, "v") });
+  }
+  for (let u = yard.u0; u <= yard.u1; u += 1) {
+    if (u % ROAD_EVERY === 0) continue;
+    const cu = u;
+    items.push({ z: depth(cu, yard.v0, 1), draw: (ctx) => drawFence(ctx, cu, yard.v0, "u") });
+  }
+
+  // Every one of these is on a cell that is neither road nor water. The yard is
+  // crossed by two streets -- u=36 and v=18 and v=24 all fall on the road grid
+  // -- and the first placement put the guardroom and both fuel tanks in the
+  // middle of them. A test asserts it now, because a coordinate in a literal is
+  // exactly where that mistake lives.
+  items.push(
+    { z: depth(35, 19, 2), draw: (ctx) => drawQuayHut(ctx, 35, 19) },
+    { z: depth(35, 22, 3), draw: (ctx) => drawFuelTank(ctx, 35, 22) },
+    { z: depth(35, 23, 3), draw: (ctx) => drawFuelTank(ctx, 35, 23) },
+    // On the quay behind the berth, where a shore establishment's air search
+    // set would be, and the one thing on this map that rotates.
+    { z: depth(37, 20, 4), draw: (ctx) => drawRadar(ctx, 37, 20, time) },
+    { z: depth(38, 19, 4), draw: (ctx) => drawFloodlight(ctx, 38, 19) },
+    { z: depth(38, 23, 4), draw: (ctx) => drawFloodlight(ctx, 38, 23) },
+    { z: depth(35, 17, 4), draw: (ctx) => drawFlag(ctx, 35, 17) },
+    { z: depth(37, 25, 4), draw: (ctx) => drawFlag(ctx, 37, 25) },
+  );
+
+  return items;
+}
+
 
 /**
  * Boats, and how slowly they go.

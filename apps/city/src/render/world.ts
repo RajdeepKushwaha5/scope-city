@@ -123,12 +123,71 @@ function isLandmarkPlazaCell(u: number, v: number): boolean {
   );
 }
 
+/**
+ * The three coastal facilities, as rectangles.
+ *
+ * Named rather than folded into one predicate, because the boundary of each is
+ * now something that gets drawn -- the apron stops here and the fence stands on
+ * that line -- and a facility whose edge the renderer has to guess at ends up
+ * with its fence in the wrong place.
+ */
+export const FACILITIES = {
+  airport: { u0: 3, v0: 27, u1: 13, v1: 32 },
+  port: { u0: 27, v0: 28, u1: 37, v1: 32 },
+  naval: { u0: 35, v0: 17, u1: 39, v1: 25 },
+} as const;
+
+export type FacilityName = keyof typeof FACILITIES;
+
+/** Which facility a cell belongs to, if any. */
+export function facilityAt(u: number, v: number): FacilityName | null {
+  for (const [name, box] of Object.entries(FACILITIES)) {
+    if (u >= box.u0 && u <= box.u1 && v >= box.v0 && v <= box.v1) return name as FacilityName;
+  }
+  return null;
+}
+
 /** Coastal destinations reserve these cells from procedural buildings and trees. */
 export function isFacilityCell(u: number, v: number): boolean {
-  const airport = u >= 3 && u <= 13 && v >= 27 && v <= 32;
-  const containerPort = u >= 27 && u <= 37 && v >= 28 && v <= 32;
-  const navalYard = u >= 35 && u <= 39 && v >= 17 && v <= 25;
-  return airport || containerPort || navalYard;
+  return facilityAt(u, v) !== null;
+}
+
+/**
+ * Whether a cell is hardstanding: inside a facility, and on ground that would
+ * otherwise be lawn or pavement.
+ *
+ * Streets are left alone. A service road running along the back of the naval
+ * yard is a real thing, the traffic already drives it, and paving over it would
+ * put cars on the apron with no lane to be in.
+ */
+export function isApron(u: number, v: number): boolean {
+  if (!isFacilityCell(u, v)) return false;
+  const kind = tileKindAt(u, v);
+  // Sand counts. A quay is paved to the water's edge -- that is what makes it a
+  // quay rather than a beach with bollards on it -- and the naval yard reaches
+  // the shore, so leaving the last row as sand left the berth standing on a
+  // beach with a warship alongside.
+  return kind === "grass" || kind === "pavement" || kind === "sand";
+}
+
+/**
+ * Which faces of a cell front onto the outside of its facility.
+ *
+ * Computed from the rectangle rather than by looking at neighbours, so a
+ * facility cut by a street does not get a painted line down the middle of
+ * itself -- and empty for anything that is not apron, so the caller can ask
+ * every tile without checking first.
+ */
+export function apronEdges(u: number, v: number): ("-u" | "+u" | "-v" | "+v")[] {
+  const name = facilityAt(u, v);
+  if (name === null || !isApron(u, v)) return [];
+  const box = FACILITIES[name];
+  const faces: ("-u" | "+u" | "-v" | "+v")[] = [];
+  if (u === box.u0) faces.push("-u");
+  if (u === box.u1) faces.push("+u");
+  if (v === box.v0) faces.push("-v");
+  if (v === box.v1) faces.push("+v");
+  return faces;
 }
 
 /**

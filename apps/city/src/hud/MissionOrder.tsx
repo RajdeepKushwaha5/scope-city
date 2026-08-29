@@ -169,11 +169,17 @@ export function MissionOrder(props: {
           ) : (
             <button
               className="btn btn--primary order__dispatch"
-              disabled={!order.trim() || !canDispatch}
+              /* `frozen` too. Every other control on this panel had it and
+                 Dispatch did not, so with a control plane available an operator
+                 could launch a live mission on top of a playing replay -- the
+                 recording hidden, its timers still running underneath. */
+              disabled={frozen || !order.trim() || !canDispatch}
               title={
-                canDispatch
-                  ? undefined
-                  : "Needs a local control plane, a TrueForge instance and a model key"
+                frozen
+                  ? "A replay is playing"
+                  : canDispatch
+                    ? undefined
+                    : "Needs a local control plane, a TrueForge instance and a model key"
               }
               onClick={() => {
                 soundEngine.playClick();

@@ -112,6 +112,15 @@ describe("whose run the console is describing", () => {
     );
   });
 
+  it("does not let a live mission start on top of a replay", () => {
+    // Every other control on the order panel took the lock and Dispatch did
+    // not, so with a control plane available an operator could launch a live
+    // mission over a playing recording -- the replay hidden, its timers still
+    // running underneath.
+    const order = read("./MissionOrder.tsx");
+    expect(order).toContain("disabled={frozen || !order.trim() || !canDispatch}");
+  });
+
   it("shows no crew at all when the effort is unknown", () => {
     // Falling back to the medium sprite put the fabricated cue straight back:
     // the caption read "not recorded" while the picture said Medium.

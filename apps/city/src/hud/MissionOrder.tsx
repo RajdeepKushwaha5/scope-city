@@ -15,6 +15,19 @@ export function MissionOrder(props: {
   connection: "offline" | "connecting" | "live" | "reconnecting";
   error: string | null;
   onLaunch: (order: string, effort: EffortLevel) => Promise<void>;
+  /** Which crew is on duty, and how to change it. Owned by `App`. */
+  effort: EffortLevel;
+  onEffort: (effort: EffortLevel) => void;
+  /**
+   * The form cannot be edited, but there may be no live mission to halt.
+   *
+   * Separate from `active`, and the separation is the point. Folding a replay
+   * into `active` locked the form correctly and also swapped Dispatch for a
+   * Halt button that calls `live.leave` -- with no live mission, an emergency
+   * control that looks like it works and stops nothing. `active` still means
+   * "a live mission is running"; this means "do not let anyone type".
+   */
+  locked?: boolean;
   onStop: () => Promise<void>;
   onPoisonedReplay: () => void;
   onCleanReplay: () => void;
@@ -27,11 +40,23 @@ export function MissionOrder(props: {
 }): React.JSX.Element {
   const [order, setOrder] = useState(DEFAULT_ORDER);
   const [crewOpen, setCrewOpen] = useState(false);
-  // Medium rather than high. The default is what most runs will use, and high
-  // effort is the first thing to exhaust a free-tier key mid-mission.
-  const [thinkingEffort, setThinkingEffort] = useState<EffortLevel>("medium");
+
+  /*
+   * The crew is `App`'s now, not this panel's.
+   *
+   * It was local state here, and the console on the other side of the screen
+   * drew its own portrait from a placeholder -- so the two panels could not
+   * have agreed even in principle about who was on duty. Lifting it is the
+   * smallest change that makes one answer, and the effort is a property of the
+   * mission rather than of the form that starts it.
+   */
+  const thinkingEffort = props.effort;
+  const setThinkingEffort = props.onEffort;
 
   const canDispatch = props.canDispatch ?? true;
+  // Everything that edits the order is closed while either is true; only
+  // `active` decides whether there is something to halt.
+  const frozen = props.active || (props.locked ?? false);
 
   return (
     <>
@@ -70,8 +95,8 @@ export function MissionOrder(props: {
               hidden, so the operator can still read what was used. */}
           <button
             type="button"
-            className={`crew-card${props.active ? " crew-card--locked" : " crew-card--clickable"}`}
-            disabled={props.active}
+            className={`crew-card${frozen ? " crew-card--locked" : " crew-card--clickable"}`}
+            disabled={frozen}
             onClick={() => {
               soundEngine.playClick();
               setCrewOpen(true);
@@ -127,7 +152,7 @@ export function MissionOrder(props: {
               value={order}
               onChange={(event) => setOrder(event.target.value)}
               aria-label="Mission order"
-              disabled={props.active}
+              disabled={frozen}
               placeholder="What should the crew build?"
             />
           </label>
@@ -144,11 +169,17 @@ export function MissionOrder(props: {
           ) : (
             <button
               className="btn btn--primary order__dispatch"
-              disabled={!order.trim() || !canDispatch}
+              /* `frozen` too. Every other control on this panel had it and
+                 Dispatch did not, so with a control plane available an operator
+                 could launch a live mission on top of a playing replay -- the
+                 recording hidden, its timers still running underneath. */
+              disabled={frozen || !order.trim() || !canDispatch}
               title={
-                canDispatch
-                  ? undefined
-                  : "Needs a local control plane, a TrueForge instance and a model key"
+                frozen
+                  ? "A replay is playing"
+                  : canDispatch
+                    ? undefined
+                    : "Needs a local control plane, a TrueForge instance and a model key"
               }
               onClick={() => {
                 soundEngine.playClick();
@@ -174,7 +205,7 @@ export function MissionOrder(props: {
           <div>
             <button
               className="btn btn--primary"
-              disabled={props.active}
+              disabled={frozen}
               onClick={() => {
                 soundEngine.playClick();
                 props.onRecordedReplay();
@@ -205,7 +236,7 @@ export function MissionOrder(props: {
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
             <button
               className="btn btn--danger"
-              disabled={props.active}
+              disabled={frozen}
               onClick={() => {
                 soundEngine.playClick();
                 props.onNoScopeReplay();
@@ -215,7 +246,7 @@ export function MissionOrder(props: {
             </button>
             <button
               className="btn"
-              disabled={props.active}
+              disabled={frozen}
               onClick={() => {
                 soundEngine.playClick();
                 props.onPoisonedReplay();
@@ -225,7 +256,7 @@ export function MissionOrder(props: {
             </button>
             <button
               className="btn"
-              disabled={props.active}
+              disabled={frozen}
               onClick={() => {
                 soundEngine.playClick();
                 props.onCleanReplay();

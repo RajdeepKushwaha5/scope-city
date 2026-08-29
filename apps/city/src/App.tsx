@@ -21,6 +21,7 @@ import { CitySnapshot } from "./hud/CitySnapshot.js";
 import { MapControls } from "./hud/MapControls.js";
 import { IntroDialogue } from "./hud/IntroDialogue.js";
 import { CommandPalette, type CommandItem } from "./hud/CommandPalette.js";
+import type { EffortLevel } from "./hud/CrewModal.js";
 import { ShutterFlash } from "./hud/ShutterFlash.js";
 import { readSetting, writeSetting } from "./safe-storage.js";
 import { useMission } from "./useMission.js";
@@ -86,6 +87,28 @@ export function App(): React.JSX.Element {
   const [selected, setSelected] = useState<Place | null>(null);
   const selectedOffice = selected?.office ?? null;
   const [commandOpen, setCommandOpen] = useState(false);
+  /*
+   * Who is on duty.
+   *
+   * Held here because two panels show it -- the mission order picks it and the
+   * console draws the portrait -- and state that two views read cannot live
+   * inside one of them. Medium rather than high: it is what most runs will use,
+   * and high effort is the first thing to exhaust a free-tier key mid-mission.
+   */
+  const [effort, setEffort] = useState<EffortLevel>("medium");
+
+  /*
+   * The effort the running mission was actually dispatched with.
+   *
+   * Separate from the picker, because the picker is a form and this is a fact.
+   * Handing the console the picker's current value let it label a recorded
+   * replay -- which carries no effort metadata at all -- with whatever the
+   * operator happened to have selected, and let them change that label
+   * mid-playback. A console captioning someone else's run with a setting from
+   * a form is the same fabrication this project spends its argument on.
+   */
+  const [dispatched, setDispatched] = useState<EffortLevel | null>(null);
+
 
   /*
    * Ctrl/Cmd+K, and it has to live here.
@@ -132,6 +155,25 @@ export function App(): React.JSX.Element {
   const live = useLiveMission();
   const recorded = useRecordedMission();
   const controlPlane = useControlPlane();
+
+  /*
+   * Two questions, and conflating them locked the city.
+   *
+   * `showingReplay` is "the mission on screen is a past run" -- a captured
+   * session or a scripted one, finished or not. It governs the console, which
+   * must not caption somebody else's run with the launch form's setting.
+   *
+   * `replayRunning` is "one is playing right now", and it is the only thing
+   * that may close the form. The first version used the first flag for both,
+   * and a recording keeps its `record` after it ends while a scripted run never
+   * returns to `drafting` -- so the lock never released and the first replay
+   * disabled every button for choosing the next one. The comparison the demo
+   * turns on is two runs; that made it one.
+   */
+  const showingReplay =
+    recorded.playing || recorded.record !== null || replay.rawState.phase !== "drafting";
+  const replayRunning =
+    recorded.playing || ["proposed", "running", "awaiting_countersign"].includes(replay.rawState.phase);
 
   // Live wins, then a recorded run, then the scripted replays. Ordered by how
   // much each one proves: a live mission is happening, a recording happened,
@@ -700,6 +742,12 @@ export function App(): React.JSX.Element {
           <div className="hud__order">
             <MissionOrder
               active={live.active}
+              /* The form is frozen during a replay too -- it stayed editable
+                 while a recording played, and the console was reading it. Not
+                 folded into `active`, which also decides whether a Halt button
+                 appears: with no live mission that button calls `live.leave`
+                 and stops nothing on screen. */
+              locked={replayRunning}
               connection={live.connection}
               error={live.error ?? recorded.error}
               /* Every path that starts a run goes through `runScenario`, or the
@@ -707,9 +755,12 @@ export function App(): React.JSX.Element {
                  not one of the scripted scenarios, so it clears the billing
                  rather than inheriting it -- a banner promising a refusal over
                  a real run is worse than no banner. */
-              onLaunch={async (order, effort) => {
+              effort={effort}
+              onEffort={setEffort}
+              onLaunch={async (order, level) => {
                 setActiveScenario(null);
-                await live.launch(order, effort);
+                setDispatched(level);
+                await live.launch(order, level);
               }}
               onStop={live.leave}
               onPoisonedReplay={() => runScenario("poisoned")}
@@ -741,6 +792,10 @@ export function App(): React.JSX.Element {
             phase={mission.phase}
             job={mission.job}
             treasury={mission.treasury}
+            // The mission's own crew, or nothing: a replay carries no effort
+            // and must not borrow the launch form's.
+            crew={live.active ? dispatched : showingReplay ? null : effort}
+            crewIsRunning={live.active}
             fieldSize={mission.figures.length}
             structureCount={structureCount}
             sandboxOpen={mission.sandboxOpen}

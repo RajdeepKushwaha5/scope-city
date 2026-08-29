@@ -37,8 +37,8 @@ unknown-builtin-module trace. Finding that out with the recorder running is a
 bad minute.
 
 If `node --version` puts you in that window, export the flag once and every
-pnpm command in this document works, including the one above. Prefixing only
-the version check proves the flag works and starts nothing:
+pnpm command in this document works. **The second line below starts the demo**,
+so run it when you mean to:
 
 ```bash
 export NODE_OPTIONS=--experimental-sqlite

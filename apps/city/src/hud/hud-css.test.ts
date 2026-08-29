@@ -151,6 +151,35 @@ describe("the HUD stylesheet", () => {
     expect(wrong, "declared the wrong number of times").toEqual([]);
   });
 
+  it("lets the console shrink when it is collapsed", () => {
+    /*
+     * `.window--collapsed` hides the body, and the console is the one panel
+     * stretched to the full height of its column -- so collapsing it left a
+     * title bar sitting on a tall empty box. That is not what the control
+     * promises, and it reads as a panel that failed to redraw.
+     *
+     * Measured in the browser: 720px before, 53px after.
+     */
+    expect(propertiesOf(".hud__console > .window--collapsed")).toContain("height: auto");
+  });
+
+  it("takes the collapsed console's lid off the map", () => {
+    /*
+     * The half that is easy to miss. `.hud__console` is a flex child of
+     * `.hud`, which hands out `pointer-events: auto`, so a container left
+     * stretched keeps swallowing drags over the right-hand third of the city
+     * long after there is nothing in it to click.
+     *
+     * Collapsing the console is something an operator does *to see the map*.
+     * Leaving an invisible lid over it would defeat the reason for pressing
+     * the button. Checked in the browser too: `elementFromPoint` under the
+     * collapsed console returns `canvas.world`.
+     */
+    expect(propertiesOf('.hud__console:has(> .window--collapsed)')).toContain(
+      "align-self: flex-start",
+    );
+  });
+
   it("keeps the full-viewport containers transparent to the pointer", () => {
     // `.hud` and `.hud__main` both span areas of the map that hold nothing.
     // Either one left with `pointer-events: auto` becomes a lid over the

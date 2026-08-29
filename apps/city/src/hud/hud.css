@@ -194,6 +194,30 @@
   height: 100%;
 }
 
+/*
+ * Collapsed means smaller, not emptier.
+ *
+ * `.window--collapsed` hides the body, and this console is the one panel
+ * stretched to the full height of the column -- so collapsing it left a
+ * title bar on top of a tall empty box, which is not what the control
+ * promises and looks like the panel failed to redraw.
+ *
+ * The container shrinks with it, and that half matters more than it looks.
+ * `.hud__console` is a flex child of `.hud`, which hands out
+ * `pointer-events: auto`, so a stretched container keeps swallowing drags
+ * over the map long after there is nothing in it to click. Collapsing the
+ * console is something an operator does *to see the city* -- leaving an
+ * invisible lid over the right-hand third would defeat the reason for
+ * pressing it.
+ */
+.hud__console > .window--collapsed {
+  height: auto;
+}
+
+.hud__console:has(> .window--collapsed) {
+  align-self: flex-start;
+}
+
 .hud__console .window__body {
   flex: 1;
   display: flex;

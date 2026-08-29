@@ -145,7 +145,13 @@ function localSlots(): readonly Slot[] {
       keyOptional: true,
       contextLength: 32_768,
       baseUrl: `${host.replace(/\/+$/, "")}/v1`,
-      modelId: process.env.OLLAMA_MODEL ?? "qwen2.5:7b",
+      // 3b, not 7b. The default has to be the one that runs on the machine
+      // most likely to be running it: 7b is 4.7 GB of weights, which does not
+      // fit a 4 GB laptop GPU, and the failure is an out-of-memory from
+      // llama-server relayed as a 500 -- a mission that dies at once with
+      // nothing on the map to say why. Anyone with the memory for 7b can name
+      // it; nobody without it should have to diagnose the default.
+      modelId: process.env.OLLAMA_MODEL ?? "qwen2.5:3b",
       reasoningEfforts: [],
     },
   ];

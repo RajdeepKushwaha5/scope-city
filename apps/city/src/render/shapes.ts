@@ -1571,30 +1571,92 @@ export function drawFlag(ctx: CanvasRenderingContext2D, u: number, v: number): v
   ctx.restore();
 }
 
-/** A small quayside hut: office, guardroom, stores. */
+/** A small quayside hut: office, guardroom, stores, and port master warehouse. */
 export function drawQuayHut(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = COAST.shadow;
-  ctx.beginPath();
-  ctx.ellipse(c.x + 3, c.y + 3, 22, 8, 0, 0, Math.PI * 2);
-  ctx.fill();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
 
-  ctx.fillStyle = COAST.quayHut;
-  ctx.fillRect(c.x - 20, c.y - 20, 40, 20);
-  ctx.fillStyle = COAST.quayHutRoof;
-  ctx.beginPath();
-  ctx.moveTo(c.x - 23, c.y - 20);
-  ctx.lineTo(c.x, c.y - 31);
-  ctx.lineTo(c.x + 23, c.y - 20);
-  ctx.closePath();
-  ctx.fill();
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
 
-  ctx.fillStyle = COAST.quayHutDoor;
-  ctx.fillRect(c.x - 4, c.y - 13, 9, 13);
-  ctx.fillStyle = COAST.towerGlass;
-  ctx.fillRect(c.x - 16, c.y - 15, 8, 6);
-  ctx.fillRect(c.x + 9, c.y - 15, 8, 6);
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.3)", [
+    pt(-0.9, -0.7, 0),
+    pt(0.9, -0.7, 0),
+    pt(0.9, 0.8, 0),
+    pt(-0.9, 0.8, 0),
+  ]);
+
+  // 2. Cream/Beige Warehouse Walls (u: -0.75..0.75, v: -0.5..0.5, z: 0 -> 0.8)
+  poly("#efe8d3", [
+    pt(-0.75, 0.5, 0.8),
+    pt(0.75, 0.5, 0.8),
+    pt(0.75, 0.5, 0),
+    pt(-0.75, 0.5, 0),
+  ]);
+  poly("#d4caa8", [
+    pt(0.75, 0.5, 0.8),
+    pt(0.75, -0.5, 0.8),
+    pt(0.75, -0.5, 0),
+    pt(0.75, 0.5, 0),
+  ]);
+
+  // 3. Dark Gabled Roof (Gable along u, ridge at z = 1.35)
+  // Gable Triangular End on +u side
+  poly("#263339", [
+    pt(0.75, 0.5, 0.8),
+    pt(0.75, 0, 1.35),
+    pt(0.75, -0.5, 0.8),
+  ]);
+  // Front Pitched Roof Face
+  poly("#33444c", [
+    pt(-0.85, 0.55, 0.8),
+    pt(0.85, 0.55, 0.8),
+    pt(0.85, 0, 1.35),
+    pt(-0.85, 0, 1.35),
+  ]);
+  // Rear Pitched Roof Face
+  poly("#1e292e", [
+    pt(-0.85, 0, 1.35),
+    pt(0.85, 0, 1.35),
+    pt(0.85, -0.55, 0.8),
+    pt(-0.85, -0.55, 0.8),
+  ]);
+
+  // 4. Warehouse Windows and Large Open Bay Door
+  // Bay Door
+  poly("#16232c", [
+    pt(-0.2, 0.51, 0.65),
+    pt(0.3, 0.51, 0.65),
+    pt(0.3, 0.51, 0),
+    pt(-0.2, 0.51, 0),
+  ]);
+  // Windows with gold frames
+  poly("#68c9df", [
+    pt(-0.6, 0.51, 0.6),
+    pt(-0.35, 0.51, 0.6),
+    pt(-0.35, 0.51, 0.3),
+    pt(-0.6, 0.51, 0.3),
+  ]);
+  poly("#68c9df", [
+    pt(0.45, 0.51, 0.6),
+    pt(0.65, 0.51, 0.6),
+    pt(0.65, 0.51, 0.3),
+    pt(0.45, 0.51, 0.3),
+  ]);
+
   ctx.restore();
 }
 
@@ -1613,42 +1675,532 @@ function fittedSize(
   return min;
 }
 
+/** Timber Jetty / Pier extending out over the water with wooden planks, support pilings, and green navigation buoy. */
 export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  drawDiamond(ctx, u, v, 0.06, COAST.pier, 0.96);
-  const c = toScreen(u, v, 0);
-  ctx.fillStyle = COAST.bollard;
-  ctx.fillRect(c.x - 20, c.y - 2, 5, 6);
-  ctx.fillRect(c.x + 15, c.y - 2, 5, 6);
-}
-
-export function drawContainerStack(ctx: CanvasRenderingContext2D, u: number, v: number, seed: number): void {
-  const c = toScreen(u, v, 0);
-  const colours = COAST.containers;
   ctx.save();
-  for (let level = 0; level < 2; level += 1) {
-    ctx.fillStyle = colours[(seed + level) % colours.length] ?? colours[0];
-    ctx.fillRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
-    ctx.strokeStyle = COAST.containerEdge;
-    ctx.strokeRect(c.x - 17 + level * 3, c.y - 10 - level * 8, 34, 8);
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Water Reflection Shadow
+  poly("rgba(7, 17, 22, 0.35)", [
+    pt(-0.6, -0.6, 0),
+    pt(0.6, -0.6, 0),
+    pt(0.6, 0.7, 0),
+    pt(-0.6, 0.7, 0),
+  ]);
+
+  // 2. Dark Wooden Pilings in water (z: -0.2 -> 0.15)
+  for (const [du, dv] of [
+    [-0.5, -0.5],
+    [0.5, -0.5],
+    [-0.5, 0.5],
+    [0.5, 0.5],
+  ] as const) {
+    const p0 = pt(du, dv, -0.2);
+    const p1 = pt(du, dv, 0.15);
+    ctx.strokeStyle = "#4a3319";
+    ctx.lineWidth = 3;
+    ctx.beginPath();
+    ctx.moveTo(p0.x, p0.y);
+    ctx.lineTo(p1.x, p1.y);
+    ctx.stroke();
   }
+
+  // 3. Wooden Pier Deck Planks (z = 0.15)
+  poly("#8d5b2d", [
+    pt(-0.6, 0.6, 0.15),
+    pt(0.6, 0.6, 0.15),
+    pt(0.6, 0.6, 0.05),
+    pt(-0.6, 0.6, 0.05),
+  ]);
+  poly("#5c3a1b", [
+    pt(0.6, 0.6, 0.15),
+    pt(0.6, -0.6, 0.15),
+    pt(0.6, -0.6, 0.05),
+    pt(0.6, 0.6, 0.05),
+  ]);
+  poly("#b6804d", [
+    pt(-0.6, -0.6, 0.15),
+    pt(0.6, -0.6, 0.15),
+    pt(0.6, 0.6, 0.15),
+    pt(-0.6, 0.6, 0.15),
+  ]);
+
+  // Individual Plank Lines
+  ctx.strokeStyle = "rgba(74, 51, 25, 0.5)";
+  ctx.lineWidth = 1;
+  for (let du = -0.45; du <= 0.45; du += 0.22) {
+    const p1 = pt(du, -0.55, 0.15);
+    const p2 = pt(du, 0.55, 0.15);
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  }
+
+  // 4. Green Navigation Buoy / Cone on Corner Post
+  const post0 = pt(0.45, 0.45, 0.15);
+  const post1 = pt(0.45, 0.45, 0.55);
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(post0.x, post0.y);
+  ctx.lineTo(post1.x, post1.y);
+  ctx.stroke();
+
+  // Green Conical Topmark
+  ctx.fillStyle = "#2ecc71";
+  ctx.beginPath();
+  ctx.moveTo(post1.x, post1.y - 7);
+  ctx.lineTo(post1.x - 4, post1.y);
+  ctx.lineTo(post1.x + 4, post1.y);
+  ctx.closePath();
+  ctx.fill();
+
   ctx.restore();
 }
 
-export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
+/** 3D isometric ISO container stacks with corrugated sides and vibrant color palette. */
+export function drawContainerStack(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  seed: number,
+): void {
   ctx.save();
-  ctx.strokeStyle = COAST.crane;
-  ctx.lineWidth = 3;
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const palette = [
+    { front: "#e74c3c", side: "#c0392b", top: "#f1948a" }, // Red
+    { front: "#2980b9", side: "#1f618d", top: "#7fb3d5" }, // Blue
+    { front: "#1abc9c", side: "#148f77", top: "#76d7c4" }, // Teal
+    { front: "#f39c12", side: "#b9770e", top: "#f8c471" }, // Orange/Gold
+    { front: "#7f8c8d", side: "#566573", top: "#bdc3c7" }, // Grey
+    { front: "#2c3e50", side: "#1a252f", top: "#566573" }, // Navy
+    { front: "#f5f7f2", side: "#d4e3e3", top: "#ffffff" }, // White
+  ];
+
+  // Draw 2 levels of 3D isometric ISO containers
+  for (let lvl = 0; lvl < 2; lvl += 1) {
+    const col = palette[(seed + lvl * 3) % palette.length]!;
+    const z0 = lvl * 0.42;
+    const z1 = z0 + 0.38;
+
+    // ISO container dimensions: u: -0.45..0.45, v: -0.22..0.22
+    poly(col.front, [
+      pt(-0.45, 0.22, z1),
+      pt(0.45, 0.22, z1),
+      pt(0.45, 0.22, z0),
+      pt(-0.45, 0.22, z0),
+    ]);
+    poly(col.side, [
+      pt(0.45, 0.22, z1),
+      pt(0.45, -0.22, z1),
+      pt(0.45, -0.22, z0),
+      pt(0.45, 0.22, z0),
+    ]);
+    poly(col.top, [
+      pt(-0.45, -0.22, z1),
+      pt(0.45, -0.22, z1),
+      pt(0.45, 0.22, z1),
+      pt(-0.45, 0.22, z1),
+    ]);
+
+    // Corrugation vertical lines on front face
+    ctx.strokeStyle = "rgba(0, 0, 0, 0.2)";
+    ctx.lineWidth = 1;
+    for (let du = -0.35; du <= 0.35; du += 0.15) {
+      const pTop = pt(du, 0.23, z1);
+      const pBot = pt(du, 0.23, z0);
+      ctx.beginPath();
+      ctx.moveTo(pTop.x, pTop.y);
+      ctx.lineTo(pBot.x, pBot.y);
+      ctx.stroke();
+    }
+  }
+
+  ctx.restore();
+}
+
+/** Rail-mounted portal container crane with 4-leg yellow lattice gantry, white machinery house, cyan glass cab, black rear counterweight, and boom. */
+export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const line = (color: string, p1: Point, p2: Point, width = 1.5) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  };
+
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.3)", [
+    pt(-0.6, -0.6, 0),
+    pt(0.6, -0.6, 0),
+    pt(0.6, 1.4, 0),
+    pt(-0.6, 1.4, 0),
+  ]);
+
+  // 2. 4 Yellow Portal Truss Legs (u: -0.45..0.45, v: -0.45..0.45, z: 0 -> 1.5)
+  const yellowTruss = "#f6bd60";
+  const yellowDark = "#d49a37";
+
+  // Base wheel bogies
+  for (const [du, dv] of [
+    [-0.45, -0.45],
+    [0.45, -0.45],
+    [-0.45, 0.45],
+    [0.45, 0.45],
+  ] as const) {
+    ctx.fillStyle = "#10232e";
+    const b = pt(du, dv, 0);
+    ctx.fillRect(b.x - 3, b.y - 2, 6, 3);
+  }
+
+  // Four Main Diagonal Columns
+  line(yellowTruss, pt(-0.45, -0.45, 0), pt(-0.35, -0.35, 1.5), 2.5);
+  line(yellowTruss, pt(0.45, -0.45, 0), pt(0.35, -0.35, 1.5), 2.5);
+  line(yellowTruss, pt(-0.45, 0.45, 0), pt(-0.35, 0.35, 1.5), 2.5);
+  line(yellowTruss, pt(0.45, 0.45, 0), pt(0.35, 0.35, 1.5), 2.5);
+
+  // Cross-bracing lattice
+  line(yellowDark, pt(-0.45, -0.45, 0.4), pt(-0.35, 0.35, 1.1), 1.2);
+  line(yellowDark, pt(-0.45, 0.45, 0.4), pt(-0.35, -0.35, 1.1), 1.2);
+  line(yellowDark, pt(0.45, -0.45, 0.4), pt(0.35, 0.35, 1.1), 1.2);
+  line(yellowDark, pt(0.45, 0.45, 0.4), pt(0.35, -0.35, 1.1), 1.2);
+  line(yellowDark, pt(-0.45, 0.45, 0.4), pt(0.35, 0.45, 1.1), 1.2);
+  line(yellowDark, pt(0.45, 0.45, 0.4), pt(-0.35, 0.45, 1.1), 1.2);
+
+  // Gantry Collar / Top Frame
+  poly(yellowTruss, [
+    pt(-0.38, -0.38, 1.5),
+    pt(0.38, -0.38, 1.5),
+    pt(0.38, 0.38, 1.5),
+    pt(-0.38, 0.38, 1.5),
+  ]);
+
+  // 3. White Machinery Housing (z: 1.5 -> 2.0)
+  poly("#f5f7f2", [
+    pt(-0.35, 0.35, 2.0),
+    pt(0.35, 0.35, 2.0),
+    pt(0.35, 0.35, 1.5),
+    pt(-0.35, 0.35, 1.5),
+  ]);
+  poly("#d4e3e3", [
+    pt(0.35, 0.35, 2.0),
+    pt(0.35, -0.35, 2.0),
+    pt(0.35, -0.35, 1.5),
+    pt(0.35, 0.35, 1.5),
+  ]);
+  poly("#ffffff", [
+    pt(-0.35, -0.35, 2.0),
+    pt(0.35, -0.35, 2.0),
+    pt(0.35, 0.35, 2.0),
+    pt(-0.35, 0.35, 2.0),
+  ]);
+
+  // Cyan Glass Cab Window on Machinery Deck
+  poly("#68c9df", [
+    pt(-0.25, 0.36, 1.9),
+    pt(0.1, 0.36, 1.9),
+    pt(0.1, 0.36, 1.6),
+    pt(-0.25, 0.36, 1.6),
+  ]);
+
+  // 4. Black Rear Counterweight Block (u: -0.4..-0.1, v: -0.6..-0.35, z: 1.6 -> 2.1)
+  poly("#10232e", [
+    pt(-0.4, -0.35, 2.1),
+    pt(-0.1, -0.35, 2.1),
+    pt(-0.1, -0.35, 1.6),
+    pt(-0.4, -0.35, 1.6),
+  ]);
+  poly("#22333b", [
+    pt(-0.4, -0.6, 2.1),
+    pt(-0.4, -0.35, 2.1),
+    pt(-0.4, -0.35, 1.6),
+    pt(-0.4, -0.6, 1.6),
+  ]);
+  poly("#2c3e50", [
+    pt(-0.4, -0.6, 2.1),
+    pt(-0.1, -0.6, 2.1),
+    pt(-0.1, -0.35, 2.1),
+    pt(-0.4, -0.35, 2.1),
+  ]);
+
+  // 5. Long Yellow Cantilevered Boom Arm (Extends out along +v over water: v = -0.4 -> 1.5, z: 1.8 -> 2.1)
+  line("#f6bd60", pt(0, -0.4, 2.05), pt(0, 1.5, 2.05), 3.5);
+  line("#d49a37", pt(0, -0.4, 2.05), pt(0, 1.5, 2.05), 1.5);
+  // Diagonal Stay Cables / Guy Wires
+  line("rgba(245, 247, 242, 0.8)", pt(0, 0, 2.6), pt(0, 1.4, 2.05), 1);
+  line("rgba(245, 247, 242, 0.8)", pt(0, 0, 2.6), pt(0, -0.4, 2.05), 1);
+
+  // Suspended Hoist Cable & Hook Spreader
+  line("rgba(16, 35, 46, 0.85)", pt(0, 1.0, 2.05), pt(0, 1.0, 0.8), 1);
+  ctx.fillStyle = "#f6bd60";
+  const hook = pt(0, 1.0, 0.8);
+  ctx.fillRect(hook.x - 4, hook.y - 1, 8, 3);
+
+  // 6. Mast with Flashing Red Warning Beacon
+  line("#f5f7f2", pt(0, 0, 2.0), pt(0, 0, 2.6), 1.5);
+  ctx.fillStyle = "#f05d68";
+  const beacon = pt(0, 0, 2.6);
   ctx.beginPath();
-  ctx.moveTo(c.x - 13, c.y);
-  ctx.lineTo(c.x - 13, c.y - 45);
-  ctx.lineTo(c.x + 25, c.y - 45);
-  ctx.stroke();
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(c.x + 12, c.y - 45);
-  ctx.lineTo(c.x + 12, c.y - 18);
-  ctx.stroke();
+  ctx.arc(beacon.x, beacon.y, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+export function drawShip(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  kind: "cargo" | "navy",
+): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Water Displacement Foam / Wake
+  poly("rgba(245, 247, 242, 0.35)", [
+    pt(-1.8, -0.5, 0),
+    pt(1.8, -0.5, 0),
+    pt(2.0, 0.5, 0),
+    pt(-1.9, 0.5, 0),
+  ]);
+
+  if (kind === "cargo") {
+    // 2. Red Boot-Topping (keel water line)
+    poly("#c0392b", [
+      pt(-1.6, 0.35, 0.08),
+      pt(1.4, 0.35, 0.08),
+      pt(1.7, 0, 0.08),
+      pt(1.7, 0, -0.05),
+      pt(1.4, 0.35, -0.05),
+      pt(-1.6, 0.35, -0.05),
+    ]);
+
+    // 3. Navy/Black Cargo Hull
+    poly("#14232c", [
+      pt(-1.6, 0.35, 0.35),
+      pt(1.4, 0.35, 0.35),
+      pt(1.75, 0, 0.35),
+      pt(1.75, 0, 0.08),
+      pt(1.4, 0.35, 0.08),
+      pt(-1.6, 0.35, 0.08),
+    ]);
+    poly("#0d171e", [
+      pt(-1.6, 0.35, 0.35),
+      pt(-1.6, -0.35, 0.35),
+      pt(-1.6, -0.35, 0.08),
+      pt(-1.6, 0.35, 0.08),
+    ]);
+
+    // 4. Dark Cargo Hold / Hatch Deck
+    poly("#2c3e50", [
+      pt(-1.5, -0.3, 0.35),
+      pt(1.3, -0.3, 0.35),
+      pt(1.6, 0, 0.35),
+      pt(1.3, 0.3, 0.35),
+      pt(-1.5, 0.3, 0.35),
+    ]);
+
+    // Cargo Hold Hatch Covers
+    poly("#10232e", [
+      pt(-0.6, -0.22, 0.42),
+      pt(0.9, -0.22, 0.42),
+      pt(0.9, 0.22, 0.42),
+      pt(-0.6, 0.22, 0.42),
+    ]);
+
+    // 5. White Multi-Tier Superstructure / Bridge (at stern u: -1.5..-0.8)
+    // Tier 1 (z: 0.35 -> 0.75)
+    poly("#f5f7f2", [
+      pt(-1.4, 0.28, 0.75),
+      pt(-0.8, 0.28, 0.75),
+      pt(-0.8, 0.28, 0.35),
+      pt(-1.4, 0.28, 0.35),
+    ]);
+    poly("#d4e3e3", [
+      pt(-0.8, 0.28, 0.75),
+      pt(-0.8, -0.28, 0.75),
+      pt(-0.8, -0.28, 0.35),
+      pt(-0.8, 0.28, 0.35),
+    ]);
+    poly("#ffffff", [
+      pt(-1.4, -0.28, 0.75),
+      pt(-0.8, -0.28, 0.75),
+      pt(-0.8, 0.28, 0.75),
+      pt(-1.4, 0.28, 0.75),
+    ]);
+
+    // Tier 2 (Bridge Deck, z: 0.75 -> 1.1)
+    poly("#f5f7f2", [
+      pt(-1.3, 0.24, 1.1),
+      pt(-0.9, 0.24, 1.1),
+      pt(-0.9, 0.24, 0.75),
+      pt(-1.3, 0.24, 0.75),
+    ]);
+    poly("#d4e3e3", [
+      pt(-0.9, 0.24, 1.1),
+      pt(-0.9, -0.24, 1.1),
+      pt(-0.9, -0.24, 0.75),
+      pt(-0.9, 0.24, 0.75),
+    ]);
+    poly("#ffffff", [
+      pt(-1.3, -0.24, 1.1),
+      pt(-0.9, -0.24, 1.1),
+      pt(-0.9, 0.24, 1.1),
+      pt(-1.3, 0.24, 1.1),
+    ]);
+
+    // Cyan Bridge Windows
+    poly("#68c9df", [
+      pt(-1.25, 0.25, 1.02),
+      pt(-0.95, 0.25, 1.02),
+      pt(-0.95, 0.25, 0.85),
+      pt(-1.25, 0.25, 0.85),
+    ]);
+
+    // Black Funnel / Smokestack with Gold Band
+    poly("#10232e", [
+      pt(-1.35, 0.1, 1.35),
+      pt(-1.15, 0.1, 1.35),
+      pt(-1.15, 0.1, 1.1),
+      pt(-1.35, 0.1, 1.1),
+    ]);
+    poly("#f6bd60", [
+      pt(-1.35, 0.11, 1.3),
+      pt(-1.15, 0.11, 1.3),
+      pt(-1.15, 0.11, 1.22),
+      pt(-1.35, 0.11, 1.22),
+    ]);
+
+    // 6. Forward Mast on Foredeck
+    const mast0 = pt(1.1, 0, 0.35);
+    const mast1 = pt(1.1, 0, 0.95);
+    ctx.strokeStyle = "#f5f7f2";
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(mast0.x, mast0.y);
+    ctx.lineTo(mast1.x, mast1.y);
+    ctx.stroke();
+
+  } else {
+    // Warship
+    poly("#2c3e50", [
+      pt(-1.7, 0.35, 0.35),
+      pt(1.5, 0.35, 0.35),
+      pt(1.85, 0, 0.35),
+      pt(1.85, 0, 0),
+      pt(1.5, 0.35, 0),
+      pt(-1.7, 0.35, 0),
+    ]);
+    poly("#1a252f", [
+      pt(-1.7, 0.35, 0.35),
+      pt(-1.7, -0.35, 0.35),
+      pt(-1.7, -0.35, 0),
+      pt(-1.7, 0.35, 0),
+    ]);
+    poly("#34495e", [
+      pt(-1.6, -0.3, 0.35),
+      pt(1.4, -0.3, 0.35),
+      pt(1.7, 0, 0.35),
+      pt(1.4, 0.3, 0.35),
+      pt(-1.6, 0.3, 0.35),
+    ]);
+
+    // Superstructure & Gun Turrets
+    poly("#4a6572", [
+      pt(-0.8, 0.2, 0.75),
+      pt(0.4, 0.2, 0.75),
+      pt(0.4, 0.2, 0.35),
+      pt(-0.8, 0.2, 0.35),
+    ]);
+    poly("#34495e", [
+      pt(0.4, 0.2, 0.75),
+      pt(0.4, -0.2, 0.75),
+      pt(0.4, -0.2, 0.35),
+      pt(0.4, 0.2, 0.35),
+    ]);
+
+    // Forward Gun Turret (u = 0.9)
+    const gun = pt(0.9, 0, 0.42);
+    ctx.fillStyle = "#10232e";
+    ctx.beginPath();
+    ctx.arc(gun.x, gun.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.strokeStyle = "#10232e";
+    ctx.lineWidth = 2;
+    ctx.beginPath();
+    ctx.moveTo(gun.x, gun.y);
+    ctx.lineTo(gun.x + 8, gun.y + 4);
+    ctx.stroke();
+  }
+
   ctx.restore();
 }
 
@@ -1664,10 +2216,6 @@ export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: numb
   ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
   ctx.fillStyle = COAST.lighthouseLamp;
   ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
-  // Multiplied, not assigned. This overwrote the fog the scene had set around
-  // an out-of-scope lighthouse, so the tower went grey and its beam stayed
-  // bright -- a fully lit hole punched through the fog, which reads worse than
-  // not dimming it at all.
   fadeBy(ctx, 0.12 + (Math.sin(time / 650) + 1) * 0.06);
   ctx.fillStyle = COAST.lighthouseBeam;
   ctx.beginPath();
@@ -1812,47 +2360,6 @@ export function drawBoat(
     ctx.fill();
   }
 
-  ctx.restore();
-}
-
-export function drawShip(
-  ctx: CanvasRenderingContext2D,
-  u: number,
-  v: number,
-  axis: "u" | "v",
-  kind: "cargo" | "navy",
-): void {
-  const c = toScreen(u, v, 0);
-  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
-  ctx.save();
-  ctx.translate(c.x, c.y - 8);
-  ctx.rotate(angle);
-  ctx.fillStyle = COAST.shipWake;
-  ctx.fillRect(-73, 10, 54, 3);
-  ctx.fillStyle = kind === "cargo" ? COAST.cargoHull : COAST.navyHull;
-  ctx.beginPath();
-  ctx.moveTo(-62, -13);
-  ctx.lineTo(68, -13);
-  ctx.lineTo(79, 0);
-  ctx.lineTo(62, 13);
-  ctx.lineTo(-62, 13);
-  ctx.closePath();
-  ctx.fill();
-  ctx.fillStyle = kind === "cargo" ? COAST.cargoCab : COAST.navyCab;
-  ctx.fillRect(-50, -19, 25, 14);
-  if (kind === "cargo") {
-    const colours = COAST.cargoContainers;
-    for (let i = 0; i < 5; i += 1) {
-      ctx.fillStyle = colours[i % colours.length] ?? colours[0];
-      ctx.fillRect(-16 + i * 15, -10, 13, 17);
-    }
-  } else {
-    ctx.fillStyle = COAST.navyDeck;
-    ctx.fillRect(-4, -25, 35, 17);
-    ctx.fillRect(12, -34, 5, 12);
-    ctx.fillStyle = COAST.navyMark;
-    ctx.fillRect(45, -17, 18, 4);
-  }
   ctx.restore();
 }
 

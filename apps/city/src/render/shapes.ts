@@ -685,31 +685,55 @@ export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): 
   ctx.restore();
 }
 
+/**
+ * A roadside hoarding.
+ *
+ * `accent` colours the title and a hairline under it. It is how one board is
+ * told from another at a glance -- four identical dark rectangles read as
+ * street furniture rather than as four different names -- and it is doing the
+ * work a logo would, because a logo cannot do it at this size: the face is
+ * eighty-four pixels wide, so a scaled mark is a smudge and the wordmark is the
+ * only part anyone can read.
+ *
+ * The title is fitted rather than assumed. `TRUEFOUNDRY` at the size the two
+ * original boards used overran the face by both margins, and text that runs off
+ * a billboard looks like a bug in the renderer rather than a long name.
+ */
 export function drawBillboard(
   ctx: CanvasRenderingContext2D,
   u: number,
   v: number,
   title: string,
   subtitle: string,
+  accent: string = COAST.safety,
 ): void {
   const c = toScreen(u, v, 0);
+  const width = 84;
   ctx.save();
   ctx.fillStyle = COAST.billboardPost;
   ctx.fillRect(c.x - 27, c.y - 2, 4, 33);
   ctx.fillRect(c.x + 23, c.y - 2, 4, 33);
   ctx.fillStyle = COAST.billboardFace;
-  ctx.fillRect(c.x - 42, c.y - 48, 84, 48);
+  ctx.fillRect(c.x - 42, c.y - 48, width, 48);
   ctx.strokeStyle = COAST.bollard;
   ctx.lineWidth = 2;
-  ctx.strokeRect(c.x - 42, c.y - 48, 84, 48);
+  ctx.strokeRect(c.x - 42, c.y - 48, width, 48);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "700 9px monospace";
-  ctx.fillStyle = COAST.safety;
-  ctx.fillText(title.toUpperCase(), c.x, c.y - 26);
-  ctx.font = "7px monospace";
+
+  const upper = title.toUpperCase();
+  ctx.font = "700 " + fittedSize(ctx, upper, width - 10, 9, 6) + "px monospace";
+  ctx.fillStyle = accent;
+  ctx.fillText(upper, c.x, c.y - 30);
+
+  // A hairline in the same colour, so the board is identifiable even where the
+  // title is too small to read -- which is most of the time, at map zoom.
+  ctx.fillRect(c.x - 26, c.y - 22, 52, 1);
+
+  const sub = subtitle.toUpperCase();
+  ctx.font = fittedSize(ctx, sub, width - 8, 7, 5) + "px monospace";
   ctx.fillStyle = COAST.billboardText;
-  ctx.fillText(subtitle.toUpperCase(), c.x, c.y - 13);
+  ctx.fillText(sub, c.x, c.y - 14);
   ctx.restore();
 }
 
@@ -1118,6 +1142,21 @@ export function drawQuayHut(ctx: CanvasRenderingContext2D, u: number, v: number)
   ctx.fillRect(c.x - 16, c.y - 15, 8, 6);
   ctx.fillRect(c.x + 9, c.y - 15, 8, 6);
   ctx.restore();
+}
+
+/** The largest of the offered sizes whose text fits, down to `min`. */
+function fittedSize(
+  ctx: CanvasRenderingContext2D,
+  text: string,
+  max: number,
+  from: number,
+  min: number,
+): number {
+  for (let size = from; size > min; size -= 1) {
+    ctx.font = (from >= 9 ? "700 " : "") + size + "px monospace";
+    if (ctx.measureText(text).width <= max) return size;
+  }
+  return min;
 }
 
 export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {

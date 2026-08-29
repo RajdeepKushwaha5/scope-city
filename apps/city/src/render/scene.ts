@@ -57,6 +57,7 @@ import {
   ISLAND_W,
   OCEAN_MARGIN,
   fountainCells,
+  HOARDINGS,
   hash,
   FACILITIES,
   ROAD_EVERY,
@@ -243,6 +244,7 @@ export function drawScene(
 
   const items: Drawable[] = [
     ...facilityItems(framed, time),
+    ...hoardingItems(),
     ...fountainItems(fountains, state),
     ...treeItems(trees, state),
     ...activityRouteItems(buildings, state, time),
@@ -391,6 +393,21 @@ function groundItems(state: SceneState): Drawable[] {
   return items;
 }
 
+/**
+ * The hoardings, drawn from the same table that reserves their ground.
+ *
+ * They were two literals inside the airport and the port, which is why nothing
+ * stopped a street tree growing through one: the drawing knew where they stood
+ * and the layout did not.
+ */
+function hoardingItems(): Drawable[] {
+  return HOARDINGS.map((board) => ({
+    z: depth(board.cell.u, board.cell.v, 3),
+    draw: (ctx: CanvasRenderingContext2D) =>
+      drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent),
+  }));
+}
+
 /** Airport, commercial port and naval quay: visible destinations, not decoration. */
 function facilityItems(state: SceneState, time: number): Drawable[] {
   const items: Drawable[] = [];
@@ -406,7 +423,6 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport) },
     { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
     { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
-    { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
   );
 
   for (let u = 28; u <= 37; u += 1) {
@@ -420,7 +436,6 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(29, 31, 3), draw: (ctx) => drawCrane(ctx, 29, 31) },
     { z: depth(34, 31, 3), draw: (ctx) => drawCrane(ctx, 34, 31) },
     { z: depth(37.5, 31, 4), draw: (ctx) => drawLighthouse(ctx, 37.5, 31, time) },
-    { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
   );
 
   // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid

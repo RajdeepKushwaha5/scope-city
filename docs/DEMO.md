@@ -22,8 +22,36 @@ happened**, then one surprise, then credit the harness.
 pnpm --filter @scope-city/city dev
 ```
 
-- **Unset `OLLAMA_HOST`** if you intend to run a live mission. A local model in
-  the pool is fine to talk about and slow to watch.
+- **Check which model the pool is on before you record.** Development runs on
+  the local model to save the hosted quota, and the two produce different
+  videos. Measured, not guessed -- the same poisoned ticket, both ways:
+
+  | | recorded on Gemini | qwen2.5:3b |
+  |---|---|---|
+  | entries | 71 | 12 |
+  | threads | 3, subagents ran | 1 |
+  | gates raised | 1 | 0 |
+  | countersigned | 1 | 0 |
+
+  The local model read the ticket, declined the injection, and stopped. That is
+  safe and it is not a demo: **the refusals are the product**, and you only get
+  one when the agent actually attempts the overreach. A run with nothing
+  refused, no Gate and an empty Field panel demonstrates nothing.
+
+  So before recording:
+
+  ```bash
+  # Development, saving the hosted quota:
+  SCOPE_MODELS=local/qwen
+
+  # Recording. Empty means discover the hosted keys; the local slot is
+  # deliberately invisible to discovery, so this is enough.
+  SCOPE_MODELS=
+  ```
+
+  The mission order panel names the pool it is actually on -- `local/qwen - one
+  model` against `4 models in rotation` -- so it is on screen while you record.
+  If it says the wrong one, stop and fix it before the first take.
 - Have a second terminal open at the repo root, already `cd`'d, for the verifier.
 - The whole comparison is offline. If the network dies mid-recording, keep going.
 

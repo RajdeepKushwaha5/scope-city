@@ -106,6 +106,9 @@ importers:
 
   mcp:
     dependencies:
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.30.0
+        version: 1.30.0(zod@4.4.3)
       '@scope-city/scope':
         specifier: workspace:*
         version: link:../packages/scope

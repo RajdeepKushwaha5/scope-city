@@ -32,3 +32,19 @@ export {
 } from "./systems/types.js";
 
 export { stripeSystem, StripeError, type StripeOptions } from "./systems/stripe.js";
+
+export {
+  FORGE_DISTRICT,
+  FORGE_OFFICES,
+  forgeSystem,
+  type ForgeOptions,
+} from "./systems/forge.js";
+export {
+  UpstreamMcpError,
+  flattenMcpResult,
+  mapArgs,
+  upstreamMcpSystem,
+  type UpstreamMcpOptions,
+  type UpstreamOffice,
+  type UpstreamSystem,
+} from "./systems/upstream-mcp.js";

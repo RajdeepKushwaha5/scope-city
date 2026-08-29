@@ -14,6 +14,49 @@ import { buildRegistry, type OfficeRegistry, type OfficeSpec } from "@scope-city
  * here, projection drops it. Silent omission beats silent disclosure.
  */
 export const OFFICE_SPECS: readonly OfficeSpec[] = [
+  /*
+   * The Forge, behind GitHub's own MCP server.
+   *
+   * `issue_number` is a resource, so the scope grants one issue and the
+   * evaluator refuses any other. `owner` and `repo` are not arguments at all --
+   * the office fixes them, so no scope, and no injected instruction, can point
+   * these offices at another repository.
+   *
+   * `responseFields` is the subset of GitHub's issue payload that may cross the
+   * boundary. GitHub returns far more than this; everything unlisted is dropped
+   * by projection, which is why the list is written out rather than discovered.
+   */
+  {
+    office: "issue.get",
+    district: "forge",
+    mutating: false,
+    args: { issue_number: { kind: "resource", resourceClass: "issue_numbers", required: true } },
+    responseFields: ["number", "title", "body", "state", "html_url", "labels"],
+    // Anyone on the internet can open an issue on a public repository, so both
+    // of these are attacker-controlled text in exactly the way a support
+    // ticket's body is. The resolver may not read them.
+    freeTextFields: ["title", "body"],
+  },
+  {
+    office: "issue.comment",
+    district: "forge",
+    mutating: true,
+    args: {
+      issue_number: { kind: "resource", resourceClass: "issue_numbers", required: true },
+      body: { kind: "opaque", required: true },
+    },
+    responseFields: ["id", "html_url", "body"],
+    freeTextFields: ["body"],
+  },
+  {
+    office: "issue.close",
+    district: "forge",
+    mutating: true,
+    args: { issue_number: { kind: "resource", resourceClass: "issue_numbers", required: true } },
+    responseFields: ["number", "state", "html_url"],
+    freeTextFields: [],
+  },
+
   {
     office: "ticket.get",
     district: "records",
@@ -134,4 +177,22 @@ export const MUTATING_OFFICES: readonly string[] = OFFICE_SPECS.filter((s) => s.
  * a distinct and smaller set than "mutating": closing a ticket is a mutation
  * you can reverse, sending mail is not.
  */
-export const IRREVERSIBLE_OFFICES: readonly string[] = ["charge.refund", "mail.send"];
+export const IRREVERSIBLE_OFFICES: readonly string[] = [
+  "charge.refund",
+  "mail.send",
+  /*
+   * `issue.comment`, and deliberately not `issue.close`.
+   *
+   * The rule above is "cannot be undone", and it is worth applying honestly
+   * even when the other answer would make a better demo. Closing an issue can
+   * be undone: GitHub reopens it and the timeline shows both events. Commenting
+   * cannot -- posting one emails every watcher immediately, and deleting the
+   * comment does not unsend the mail. It is `mail.send` wearing a different
+   * name, so it stops at The Gate for the same reason.
+   *
+   * Gating the close instead would have been the more dramatic choice and the
+   * wrong one: a gate on a reversible action teaches an operator that the gate
+   * is decoration.
+   */
+  "issue.comment",
+];

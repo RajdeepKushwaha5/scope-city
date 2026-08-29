@@ -62,7 +62,17 @@ describe("office free-text classification", () => {
     // that has quietly become mutating.
     const mutating = OFFICE_SPECS.filter((s) => s.mutating).map((s) => s.office).sort();
     expect(mutating).toEqual(
-      ["charge.refund", "mail.send", "ticket.close", "ticket.reply"].sort(),
+      [
+        "charge.refund",
+        "mail.send",
+        "ticket.close",
+        "ticket.reply",
+        // The Forge, behind GitHub's own MCP server. Listed here for the same
+        // reason as the rest: an office that quietly becomes mutating should
+        // fail this test rather than rely on the resolver noticing at run time.
+        "issue.comment",
+        "issue.close",
+      ].sort(),
     );
   });
 });

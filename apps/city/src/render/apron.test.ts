@@ -292,10 +292,36 @@ describe("the naval yard", () => {
     const afloat = props.filter((prop) => prop.ground === "water");
     const over = props.filter((prop) => prop.ground === "over");
 
-    // Counted loosely, because the list grows: what matters is that every one
-    // of them is declared and checked above, not how many there are.
-    expect(afloat.length, "the ships and the jetty").toBeGreaterThanOrEqual(2);
-    expect(over.length, "the runway and the aircraft on it").toBeGreaterThanOrEqual(11);
+    /*
+     * By identity, not by count.
+     *
+     * A lower bound lets one of these be reclassified without failing, and
+     * reclassifying is the whole risk: changing the aircraft from `over` to
+     * `apron` satisfies the general apron check further up, so the exception
+     * this test exists to record would disappear silently. I loosened these to
+     * `>=` to stop them breaking when the list grew, which traded the property
+     * for the convenience.
+     *
+     * Naming them keeps both: the list may grow, and nothing already declared
+     * can quietly change what it is.
+     */
+    const where = (kind: string) =>
+      props
+        .filter((prop) => prop.ground === kind)
+        .map((prop) => `${prop.facility} ${prop.u},${prop.v}`)
+        .sort();
+
+    expect(where("water"), "the ships and the jetty").toEqual([
+      "naval 41.5,22",
+      "port 30.5,35.4",
+      "port 33,35",
+    ]);
+
+    // Eleven runway segments and the aircraft standing on them.
+    expect(where("over")).toHaveLength(12);
+    expect(where("over"), "the aircraft is on the runway, not on apron").toContain(
+      "airport 8,29.5",
+    );
     expect(
       props.filter((prop) => prop.ground === "apron").length,
       "most of a facility should be on its own hard standing",

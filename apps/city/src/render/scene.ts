@@ -428,12 +428,10 @@ function hoardingItems(state: SceneState): Drawable[] {
     return {
       z: depth(board.cell.u, board.cell.v, 3),
       draw: (ctx: CanvasRenderingContext2D) => {
-        if (muted) {
-          ctx.save();
-          ctx.globalAlpha = 0.4;
-        }
-        drawBillboard(ctx, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
-        if (muted) ctx.restore();
+        const paint = (target: CanvasRenderingContext2D) =>
+          drawBillboard(target, board.cell.u, board.cell.v, board.title, board.subtitle, board.accent);
+        if (muted) drawFogged(ctx, paint);
+        else paint(ctx);
       },
     };
   });
@@ -549,7 +547,10 @@ export function facilityProps(time: number): FacilityProp[] {
   at("port", 37.5, 31, 4, (ctx) => drawLighthouse(ctx, 37.5, 31, time));
 
   // Perimeter floodlights
-  at("port", 28, 28, 4, (ctx) => drawFloodlight(ctx, 28, 28));
+  // Not (28,28): a container stack is anchored there, and with the larger
+  // height the mast sorted above the stack and was painted straight through it.
+  // Not (30,28) either -- u=30 is on the road grid, which the test caught.
+  at("port", 31, 31, 4, (ctx) => drawFloodlight(ctx, 31, 31));
   at("port", 34, 28, 4, (ctx) => drawFloodlight(ctx, 34, 28));
 
   // --- the naval yard ---------------------------------------------------
@@ -617,6 +618,33 @@ export function facilityProps(time: number): FacilityProp[] {
   return props;
 }
 
+/**
+ * Draw something dimmed, in a way a shape cannot undo from the inside.
+ *
+ * `globalAlpha` was the obvious mechanism and it does not hold. It is one
+ * number on the context, so any shape that sets its own -- and the isometric
+ * facilities set theirs constantly, for glass, shadows, beams and water --
+ * replaces the fog with its own value, and everything drawn after that renders
+ * fully lit. `fadeBy` exists for exactly this and works only where it is
+ * remembered; across eighteen hundred lines of new geometry it was not.
+ *
+ * `filter` composes rather than being replaced. It applies to every operation
+ * that follows regardless of what a shape does to `globalAlpha`, so a facility
+ * outside the granted scope cannot paint itself bright again halfway through.
+ * Where the browser has no `filter` the alpha is used, which is what this did
+ * before and is no worse than it was.
+ */
+function drawFogged(
+  ctx: CanvasRenderingContext2D,
+  draw: (ctx: CanvasRenderingContext2D) => void,
+): void {
+  ctx.save();
+  if (typeof ctx.filter === "string") ctx.filter = "opacity(40%)";
+  else ctx.globalAlpha = 0.4;
+  draw(ctx);
+  ctx.restore();
+}
+
 function facilityItems(state: SceneState, time: number): Drawable[] {
   /*
    * Props dim with the ground they stand on, as the naval yard's do.
@@ -634,10 +662,7 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
         prop.draw(ctx);
         return;
       }
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      prop.draw(ctx);
-      ctx.restore();
+      drawFogged(ctx, prop.draw);
     },
   }));
 

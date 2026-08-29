@@ -133,7 +133,7 @@ function isLandmarkPlazaCell(u: number, v: number): boolean {
  */
 export const FACILITIES = {
   airport: { u0: 3, v0: 27, u1: 13, v1: 32 },
-  port: { u0: 27, v0: 28, u1: 37, v1: 32 },
+  port: { u0: 27, v0: 27, u1: 38, v1: 32 },
   naval: { u0: 35, v0: 17, u1: 39, v1: 25 },
 } as const;
 

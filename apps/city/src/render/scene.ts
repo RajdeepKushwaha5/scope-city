@@ -514,13 +514,14 @@ export function facilityProps(time: number): FacilityProp[] {
   }
   // 3D ISO Container Stacks
   for (const [u, v, seed] of [
-    [27, 29, 1],
-    [28, 29, 2],
-    [29, 29, 3],
-    [27, 31, 4],
-    [28, 31, 5],
-    [31, 28, 6],
-    [32, 28, 7],
+    [28, 28, 1],
+    [29, 28, 2],
+    [28, 29, 3],
+    [29, 29, 4],
+    [27, 31, 5],
+    [28, 31, 6],
+    [31, 28, 7],
+    [32, 28, 8],
   ] as const) {
     at("port", u, v, 1, (ctx) => drawContainerStack(ctx, u, v, seed));
   }
@@ -572,7 +573,7 @@ export function facilityProps(time: number): FacilityProp[] {
   // road grid -- and props are placed on valid apron hard standing.
 
   // 1. Aircraft / Vehicle Hangar with N47 marking
-  at("naval", 35, 17, 3, (ctx) => drawHangar(ctx, 35, 17, COAST.hangarRoofNaval));
+  at("naval", 35, 17, 3, (ctx) => drawHangar(ctx, 35, 17, COAST.hangarRoof));
 
   // 2. Helipad and Military Twin-Blade Helicopter
   at("naval", 37, 17, 1, (ctx) => drawHelipad(ctx, 37, 17));

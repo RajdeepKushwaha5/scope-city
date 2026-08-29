@@ -1017,6 +1017,27 @@
  * The portrait is an image now, not two absolutely positioned boxes scaled to
  * approximate a person. The rules that did the scaling are gone with them.
  */
+/*
+ * No crew to show. The caption says the effort was not recorded, and the
+ * picture has to agree with it -- the medium sprite as a fallback made the
+ * panel say two different things at once.
+ */
+.console__portrait--unknown {
+  background: rgba(255, 255, 255, 0.04);
+  border-color: var(--panel-edge);
+}
+
+.console__portrait-unknown {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100%;
+  color: var(--ink-dim);
+  font-family: var(--font-ui);
+  font-size: 20px;
+}
+
 .console__portrait-img {
   width: 100%;
   height: 100%;

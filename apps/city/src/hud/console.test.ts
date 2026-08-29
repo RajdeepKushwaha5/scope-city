@@ -22,7 +22,7 @@ describe("the crew portrait", () => {
     // placeholder that outlived the asset it stood in for, and the asset was
     // sitting in `public/crew` being used by the panel on the other side of the
     // screen.
-    expect(console_).toContain("effortSpriteUrl(props.crew ?? \"medium\")");
+    expect(console_).toContain("effortSpriteUrl(props.crew)");
     expect(console_, "the placeholder boxes are still being drawn").not.toContain(
       "crew-card__head",
     );
@@ -80,7 +80,31 @@ describe("whose run the console is describing", () => {
   it("locks the picker while a replay is on screen", () => {
     // It was gated on `live.active` alone, so it stayed editable during a
     // recording -- and the console was reading it.
-    expect(app).toContain("active={live.active || replaying}");
+    expect(app).toContain("locked={replaying}");
+  });
+
+  it("does not offer a Halt button that halts nothing", () => {
+    // The first version of the lock above folded the replay into `active`,
+    // which also decides whether Dispatch is swapped for Halt. With no live
+    // mission that button calls `live.leave` and stops nothing on screen: an
+    // emergency control that looks like it works.
+    expect(app).toContain("active={live.active}");
+    const order = read("./MissionOrder.tsx");
+    expect(order, "the form must freeze on either").toContain(
+      "const frozen = props.active || (props.locked ?? false);",
+    );
+    expect(order, "but Halt must depend on a live mission alone").toContain(
+      "{props.active ? (",
+    );
+  });
+
+  it("shows no crew at all when the effort is unknown", () => {
+    // Falling back to the medium sprite put the fabricated cue straight back:
+    // the caption read "not recorded" while the picture said Medium.
+    expect(console_).toContain('props.crew === null ? (');
+    expect(css, "the unknown state needs a rule, not just a class name").toContain(
+      ".console__portrait--unknown {",
+    );
   });
 
   it("says which of the two it is showing", () => {

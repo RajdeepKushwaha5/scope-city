@@ -154,12 +154,17 @@ export function CityConsole(props: {
           * Keyed off the same effort the operator picked, so the two panels
           * cannot show different crews.
           */}
+        {/* No sprite at all when the effort is unknown. Falling back to the
+            medium artwork put the fabricated cue straight back: the caption
+            said "not recorded" while the picture said Medium. */}
         <span className={`console__portrait${props.crew === null ? " console__portrait--unknown" : ""}`}>
-          <img
-            className="console__portrait-img"
-            src={effortSpriteUrl(props.crew ?? "medium")}
-            alt=""
-          />
+          {props.crew === null ? (
+            <span className="console__portrait-unknown" aria-hidden="true">
+              ?
+            </span>
+          ) : (
+            <img className="console__portrait-img" src={effortSpriteUrl(props.crew)} alt="" />
+          )}
         </span>
         <div>
           <span className="hud-label">Crew on duty</span>

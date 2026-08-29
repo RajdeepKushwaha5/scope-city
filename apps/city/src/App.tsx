@@ -731,10 +731,13 @@ export function App(): React.JSX.Element {
 
           <div className="hud__order">
             <MissionOrder
-              /* Locked during a replay as well as a live run. The picker was
-                 gated on `live.active` alone, so it stayed editable while a
-                 recording played -- and the console was reading it. */
-              active={live.active || replaying}
+              active={live.active}
+              /* The form is frozen during a replay too -- it stayed editable
+                 while a recording played, and the console was reading it. Not
+                 folded into `active`, which also decides whether a Halt button
+                 appears: with no live mission that button calls `live.leave`
+                 and stops nothing on screen. */
+              locked={replaying}
               connection={live.connection}
               error={live.error ?? recorded.error}
               /* Every path that starts a run goes through `runScenario`, or the

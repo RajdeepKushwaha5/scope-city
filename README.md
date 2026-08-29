@@ -637,12 +637,28 @@ took four rounds and all four are in the thread.
 
 ### The record
 
-**Every merged pull request carries a Qodo review.** Not most, and not the
-important ones — every one, and the
-[pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
-is how you check that rather than taking a number here on trust. A total printed
-here would be wrong again at the next merge, and this section has already carried
-one long after it stopped being true.
+**Every merged pull request goes through review, and 76 of the 85 carry a Qodo
+one.** The nine that do not are
+[#28](https://github.com/RajdeepKushwaha5/scope-city/pull/28),
+[#41](https://github.com/RajdeepKushwaha5/scope-city/pull/41),
+[#46](https://github.com/RajdeepKushwaha5/scope-city/pull/46),
+[#55](https://github.com/RajdeepKushwaha5/scope-city/pull/55),
+[#56](https://github.com/RajdeepKushwaha5/scope-city/pull/56),
+[#76](https://github.com/RajdeepKushwaha5/scope-city/pull/76),
+[#85](https://github.com/RajdeepKushwaha5/scope-city/pull/85),
+[#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92) and
+[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97). Every one of them
+was reviewed by Sourcery; what they lack is the Qodo pass.
+
+This section said "every one" until an audit counted them, which is the second
+time a claim here has outlived the fact behind it. Qodo posts about five minutes
+after a push, and most of those nine were merged inside that window -- #28 was
+open for one minute and #97 for three. Merging on a green CI check rather than on
+a completed review is the mistake, and it is mine.
+
+The [pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
+is how you check any of this rather than taking a number here on trust -- and a
+number here is exactly what went stale, twice.
 
 Reviews run automatically on each push, so a PR that is fixed and pushed again is
 re-reviewed against the new commit. Several of the findings quoted above are second

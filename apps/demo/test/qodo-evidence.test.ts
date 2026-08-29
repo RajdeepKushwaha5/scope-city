@@ -113,16 +113,31 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/predate the workflow/i);
   });
 
-  it("does not state a total that goes stale on the next merge", () => {
-    // It said "32 of 32" long after it had moved, and "60 of 60" would have
-    // been wrong the moment the PR writing it merged. The durable claim is the
-    // invariant -- every merged PR has a review -- with the PR list as the
-    // proof, which is what the hackathon asks for anyway.
+  it("does not claim a coverage it has not counted", () => {
+    /*
+     * This test used to require the sentence "every merged pull request carries
+     * a Qodo review", and that sentence was false: nine of the eighty-five did
+     * not, because they were merged inside the five minutes Qodo takes to post.
+     * So the test was holding an untrue claim in place, which is worse than not
+     * having tested it -- a reader would find the assertion and take it as
+     * evidence the claim had been checked.
+     *
+     * What is checkable from here is whether the section overstates. An
+     * unqualified "every ... carries a Qodo review" is the shape that went
+     * wrong, and naming the exceptions is what makes the rest believable. The
+     * count itself is verified against GitHub, not against this file, which is
+     * the whole reason the PR list is linked.
+     */
     const total = section.slice(section.indexOf("### The record"));
 
-    expect(total).not.toMatch(/\d+ of \d+/);
-    expect(total).toMatch(/every merged pull request carries a Qodo review/i);
-    expect(total).toContain("is%3Amerged");
+    expect(
+      total,
+      "an unqualified coverage claim is the thing that went stale",
+    ).not.toMatch(/every merged pull request carries a Qodo review/i);
+    expect(total, "the exceptions have to be named to be checkable").toMatch(
+      /pull\/28|pull\/97/,
+    );
+    expect(total, "and the list is how a reader checks the rest").toContain("is%3Amerged");
   });
 
   it("fails when the section is missing rather than reading the whole file", () => {

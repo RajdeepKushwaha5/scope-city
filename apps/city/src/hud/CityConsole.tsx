@@ -154,12 +154,26 @@ export function CityConsole(props: {
               * `column-reverse` instead leaves the container anchored at the
               * far end of the flex flow, which is the oldest.
               */}
-            {[...props.lines].reverse().map((line, index) => (
-              <div key={`${line.at}-${index}`} className={`log__line log__line--${line.kind}`}>
-                <span className="log__at">{line.at}</span>
-                <span className="log__what">{line.what}</span>
-              </div>
-            ))}
+            {/*
+              * Keyed by where the line sits in the source array, not by where
+              * it lands after the flip.
+              *
+              * The source is append-only, so an entry's original index never
+              * changes. Its reversed index changes on every append -- so keying
+              * on that gave every row a new key each time a line arrived, and
+              * React tore down and rebuilt the whole log instead of adding one
+              * node. The cost grew with the mission, and anything living in the
+              * DOM, a text selection included, went with it.
+              */}
+            {props.lines
+              .map((line, index) => [line, index] as const)
+              .reverse()
+              .map(([line, index]) => (
+                <div key={`${line.at}-${index}`} className={`log__line log__line--${line.kind}`}>
+                  <span className="log__at">{line.at}</span>
+                  <span className="log__what">{line.what}</span>
+                </div>
+              ))}
           </div>
         )}
       </div>

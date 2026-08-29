@@ -17,11 +17,30 @@ const intro = read("./IntroDialogue.tsx");
 const crew = read("./CrewModal.tsx");
 
 describe("the intro dialogue", () => {
-  it("closes on Escape", () => {
-    // Verified in a browser: the dialogue closes and `scope_city_welcomed` is
-    // set, so Escape dismisses it as fully as the button does.
-    expect(intro).toContain('event.key === "Escape"');
-    expect(intro).toContain("dismissRef.current()");
+  /*
+   * These check the *wiring*, and only the wiring.
+   *
+   * What the dialogue does with a keystroke -- Escape dismisses, Tab wraps at
+   * both ends, the container sends Tab inside, the middle is left to the
+   * browser -- is `dialogueKeydown`, and it is exercised in
+   * `focus-trap.test.ts` against stub controls that record being focused. Those
+   * are tests that fail when the behaviour breaks.
+   *
+   * What is left for this file is that the component registers that handler and
+   * hands it the right things, which a substring can establish and a unit test
+   * cannot without a DOM. There is no jsdom in this workspace and pnpm cannot
+   * install one here, so the remaining gap -- did anybody actually add the
+   * listener -- is closed in a browser instead, and the results are quoted in
+   * the pull request.
+   */
+  it("registers the shared handler rather than its own", () => {
+    expect(intro).toContain("dialogueKeydown({");
+    expect(intro).toContain('window.addEventListener("keydown", onKey)');
+    expect(intro).toContain('window.removeEventListener("keydown", onKey)');
+  });
+
+  it("dismisses through the prop it was given", () => {
+    expect(intro).toContain("dismiss: () => dismissRef.current()");
   });
 
   it("takes focus when it opens", () => {
@@ -29,6 +48,13 @@ describe("the intro dialogue", () => {
     // whatever was behind it.
     expect(intro).toContain("dialogRef.current?.focus()");
     expect(intro, "the box must be focusable to receive it").toContain("tabIndex={-1}");
+  });
+
+  it("counts its own controls, and not the container", () => {
+    // The container is `tabIndex={-1}` and deliberately outside this query,
+    // which is the case the first version of the trap fell through on.
+    expect(intro).toContain("controls: () => [");
+    expect(intro).toContain('button:not([tabindex="-1"])');
   });
 
   it("keeps Tab inside itself", () => {
@@ -40,10 +66,9 @@ describe("the intro dialogue", () => {
     // wrapped when focus was already on the first or last control -- and this
     // dialogue takes focus on its own container, which is neither, so the very
     // first Shift+Tab after opening left the modal.
-    expect(intro).toContain('event.key !== "Tab"');
-    expect(intro).toContain("trapTarget({");
-    expect(intro, "the container must count as outside the controls").toContain(
-      "onControl: [...focusable].some((candidate) => candidate === active)",
+    expect(intro).toContain("dialogueKeydown({");
+    expect(intro, "focus must be read from the document").toContain(
+      "active: () => document.activeElement",
     );
   });
 
@@ -57,9 +82,13 @@ describe("the intro dialogue", () => {
     // The crew dialogue has had all of this since it was written. The intro
     // being the exception is the whole finding -- one of two modals honouring
     // the contract they both declare.
-    for (const promise of ['event.key === "Escape"', 'event.key !== "Tab"', "opener instanceof HTMLElement"]) {
+    //
+    // The crew dialogue does not have the container hole, for an accidental
+    // reason: it focuses its close button on open, which *is* the first
+    // control, so it happened to land in the case the old rule covered.
+    for (const promise of ['event.key === "Escape"', "opener instanceof HTMLElement"]) {
       expect(crew, `the crew dialogue lost ${promise}`).toContain(promise);
-      expect(intro, `the intro is missing ${promise}`).toContain(promise);
     }
+    expect(intro).toContain("opener instanceof HTMLElement");
   });
 });

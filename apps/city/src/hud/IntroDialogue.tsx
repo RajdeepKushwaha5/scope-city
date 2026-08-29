@@ -1,6 +1,6 @@
 import { useEffect, useRef } from "react";
 import { soundEngine } from "./sound-engine.js";
-import { trapTarget } from "./focus-trap.js";
+import { dialogueKeydown } from "./focus-trap.js";
 
 export function IntroDialogue(props: {
   open: boolean;
@@ -31,38 +31,19 @@ export function IntroDialogue(props: {
     const opener = document.activeElement;
     dialogRef.current?.focus();
 
-    const onKey = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        dismissRef.current();
-        return;
-      }
-      if (event.key !== "Tab") return;
-
-      const focusable = dialogRef.current?.querySelectorAll<HTMLElement>(
-        'button:not([tabindex="-1"]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
-      );
-      if (!focusable || focusable.length === 0) return;
-
-      const first = focusable[0]!;
-      const last = focusable[focusable.length - 1]!;
-      const active = document.activeElement;
-
-      // The container counts as "not on a control", which is the case the
-      // previous version missed: this dialogue takes focus on itself, because
-      // the first thing inside it is prose rather than a button, and the
-      // container is deliberately not in the query above. So the very first
-      // Shift+Tab after opening fell through to the browser and left the modal.
-      const target = trapTarget({
-        shiftKey: event.shiftKey,
-        onControl: [...focusable].some((candidate) => candidate === active),
-        onFirst: active === first,
-        onLast: active === last,
-      });
-      if (target === null) return;
-
-      event.preventDefault();
-      (target === "first" ? first : last).focus();
-    };
+    // The behaviour is `dialogueKeydown`, which is exercised in
+    // `focus-trap.test.ts` against stub controls that record being focused.
+    // What is left here is the wiring: which elements count as this dialogue's
+    // controls, and what dismissing means.
+    const onKey = dialogueKeydown({
+      controls: () => [
+        ...(dialogRef.current?.querySelectorAll<HTMLElement>(
+          'button:not([tabindex="-1"]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ) ?? []),
+      ],
+      active: () => document.activeElement,
+      dismiss: () => dismissRef.current(),
+    });
 
     window.addEventListener("keydown", onKey);
     return () => {

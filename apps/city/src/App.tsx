@@ -282,6 +282,12 @@ export function App(): React.JSX.Element {
   useEffect(() => {
     const clear = (event: KeyboardEvent) => {
       if (event.key !== "Escape") return;
+      // Not while a dialogue is up. Both handlers are on `window`, so an
+      // Escape meant for a modal reached this one too and silently discarded
+      // the selection and the inspected district behind it -- state the
+      // operator could not see, cleared by a key they pressed at something
+      // else. The same guard the command shortcut uses, for the same reason.
+      if (aModalIsOpen()) return;
       setSelected(null);
       setHovered(null);
       mission.inspect(null);

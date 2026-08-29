@@ -38,3 +38,61 @@ export function trapTarget(query: TrapQuery): "first" | "last" | null {
   if (!query.shiftKey && query.onLast) return "first";
   return null;
 }
+
+/**
+ * The keydown behaviour of a modal dialogue, as a function of its own contents.
+ *
+ * Extracted so it can be exercised rather than read. The rule above says where
+ * Tab belongs; this says what actually happens to an event -- whether Escape
+ * dismisses, whether the default is prevented, and which element is focused --
+ * and those are the four promises `aria-modal` makes.
+ *
+ * It takes a description of the dialogue instead of the dialogue, so a test can
+ * supply three objects that count how often they were focused. What it cannot
+ * check is that anybody registered it as a listener; that is asserted against
+ * the component source, and confirmed in a browser.
+ */
+export interface DialogueKeys {
+  /** Focusable controls inside the dialogue, in tab order. */
+  readonly controls: () => readonly { focus: () => void }[];
+  /** Whatever currently has focus, which may be the container or nothing. */
+  readonly active: () => unknown;
+  /** Called when Escape is pressed. */
+  readonly dismiss: () => void;
+}
+
+export interface KeyEvent {
+  readonly key: string;
+  readonly shiftKey?: boolean;
+  preventDefault: () => void;
+}
+
+export function dialogueKeydown(dialogue: DialogueKeys): (event: KeyEvent) => void {
+  return (event) => {
+    if (event.key === "Escape") {
+      dialogue.dismiss();
+      return;
+    }
+    if (event.key !== "Tab") return;
+
+    const controls = dialogue.controls();
+    // Nothing to trap focus among. Preventing the default here would strand a
+    // keyboard user inside a dialogue with no way to move at all.
+    if (controls.length === 0) return;
+
+    const first = controls[0]!;
+    const last = controls[controls.length - 1]!;
+    const active = dialogue.active();
+
+    const target = trapTarget({
+      shiftKey: event.shiftKey === true,
+      onControl: controls.some((candidate) => candidate === active),
+      onFirst: active === first,
+      onLast: active === last,
+    });
+    if (target === null) return;
+
+    event.preventDefault();
+    (target === "first" ? first : last).focus();
+  };
+}

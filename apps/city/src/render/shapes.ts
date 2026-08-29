@@ -840,6 +840,250 @@ export function drawClouds(
   ctx.restore();
 }
 
+/** Which of a tile's four faces a marking is painted along. */
+export type TileFace = "-u" | "+u" | "-v" | "+v";
+
+/**
+ * The painted line along the outer edge of an apron.
+ *
+ * Only the faces that actually front onto something else, which is the whole
+ * point. The first version drew a diamond inset inside every edge tile, and a
+ * run of those is not a boundary line -- it is a chain of yellow lozenges, and
+ * on a five-cell quay it read as decoration rather than as the edge of
+ * anything. Painting one face means consecutive tiles join into a single
+ * continuous run.
+ *
+ * The faces map onto the projection: +u runs to the lower right and +v to the
+ * lower left, so the +u face is the tile's east-south edge, -u is west-north,
+ * -v is north-east and +v is south-west.
+ */
+export function drawApronMarking(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  faces: readonly TileFace[],
+): void {
+  if (faces.length === 0) return;
+  const c = toScreen(u, v, 0);
+  const north = { x: c.x, y: c.y - TILE_H / 2 };
+  const east = { x: c.x + TILE_W / 2, y: c.y };
+  const south = { x: c.x, y: c.y + TILE_H / 2 };
+  const west = { x: c.x - TILE_W / 2, y: c.y };
+
+  const edges: Record<TileFace, readonly [typeof north, typeof north]> = {
+    "+u": [east, south],
+    "-u": [west, north],
+    "-v": [north, east],
+    "+v": [south, west],
+  };
+
+  ctx.save();
+  ctx.strokeStyle = COAST.apronLine;
+  ctx.lineWidth = 2;
+  ctx.globalAlpha = 0.8;
+
+  for (const face of faces) {
+    const [from, to] = edges[face];
+    // Pulled in toward the centre, so the line sits on the apron rather than
+    // straddling the join with whatever is outside it.
+    const inset = 0.12;
+    ctx.beginPath();
+    ctx.moveTo(from.x + (c.x - from.x) * inset, from.y + (c.y - from.y) * inset);
+    ctx.lineTo(to.x + (c.x - to.x) * inset, to.y + (c.y - to.y) * inset);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/**
+ * A run of security fence along one tile edge.
+ *
+ * `axis` is which way the panel runs; a naval yard's landward side gets a line
+ * of these and its quay does not, which is the difference between a base and a
+ * car park with a warship next to it.
+ */
+export function drawFence(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+): void {
+  const c = toScreen(u, v, 0);
+  const dx = axis === "u" ? TILE_W / 2 : -TILE_W / 2;
+  const dy = TILE_H / 2;
+
+  ctx.save();
+  ctx.strokeStyle = COAST.fence;
+  ctx.lineWidth = 1;
+  ctx.globalAlpha = 0.85;
+
+  // Mesh: verticals along the run, and two rails. Drawn as strokes rather than
+  // a texture so it stays legible when the camera is zoomed out and the whole
+  // panel is four pixels tall.
+  for (let t = 0; t <= 1; t += 0.125) {
+    const x = c.x - dx / 2 + dx * t;
+    const y = c.y - dy / 2 + dy * t;
+    ctx.beginPath();
+    ctx.moveTo(x, y);
+    ctx.lineTo(x, y - 13);
+    ctx.stroke();
+  }
+
+  for (const lift of [4, 12]) {
+    ctx.beginPath();
+    ctx.moveTo(c.x - dx / 2, c.y - dy / 2 - lift);
+    ctx.lineTo(c.x + dx / 2, c.y + dy / 2 - lift);
+    ctx.stroke();
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = COAST.fencePost;
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(c.x - dx / 2, c.y - dy / 2);
+  ctx.lineTo(c.x - dx / 2, c.y - dy / 2 - 15);
+  ctx.stroke();
+  ctx.restore();
+}
+
+/**
+ * Mooring bollards along the seaward edge of a quay tile.
+ *
+ * Two of them, set on the tile's water-facing face rather than at its centre,
+ * so a run of tiles gives an evenly spaced line down the quay instead of pairs
+ * clustered in the middle of each.
+ */
+export function drawBollards(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  for (const t of [-0.25, 0.25]) {
+    const x = c.x + (TILE_W / 2) * 0.5 + t * (TILE_W / 2) * 0.5;
+    const y = c.y + (TILE_H / 2) * 0.5 - t * (TILE_H / 2) * 0.5;
+    ctx.fillStyle = COAST.shadow;
+    ctx.beginPath();
+    ctx.ellipse(x + 1, y + 1, 4, 2, 0, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.fillStyle = COAST.bollard;
+    ctx.fillRect(x - 2, y - 5, 4, 5);
+    ctx.fillRect(x - 3, y - 7, 6, 2);
+  }
+  ctx.restore();
+}
+
+/** A cylindrical fuel tank with a banded top and a walkway rail. */
+export function drawFuelTank(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+
+  ctx.fillStyle = COAST.shadow;
+  ctx.beginPath();
+  ctx.ellipse(c.x + 3, c.y + 3, 21, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  // Body, then the near half in shadow: a cylinder is the one solid on this map
+  // that cannot be three flat faces, so it is two.
+  ctx.fillStyle = COAST.tank;
+  ctx.fillRect(c.x - 19, c.y - 24, 38, 24);
+  ctx.fillStyle = COAST.tankShade;
+  ctx.fillRect(c.x + 4, c.y - 24, 15, 24);
+
+  ctx.fillStyle = COAST.tank;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y, 19, 7, 0, 0, Math.PI);
+  ctx.fill();
+
+  ctx.fillStyle = COAST.tankTop;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 24, 19, 7, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.strokeStyle = COAST.tankBand;
+  ctx.lineWidth = 1;
+  for (const lift of [8, 16]) {
+    ctx.beginPath();
+    ctx.moveTo(c.x - 19, c.y - lift);
+    ctx.lineTo(c.x + 19, c.y - lift);
+    ctx.stroke();
+  }
+
+  // Handrail round the top, which is what makes it read as a tank rather than
+  // as a drum.
+  ctx.strokeStyle = COAST.fence;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y - 30, 19, 7, 0, 0, Math.PI * 2);
+  ctx.stroke();
+  for (const at of [-19, -9, 1, 11, 19]) {
+    ctx.beginPath();
+    ctx.moveTo(c.x + at, c.y - 24);
+    ctx.lineTo(c.x + at, c.y - 30);
+    ctx.stroke();
+  }
+  ctx.restore();
+}
+
+/** A floodlight mast: a pole and a head of lamps, lit. */
+export function drawFloodlight(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = COAST.floodMast;
+  ctx.fillRect(c.x - 2, c.y - 42, 4, 42);
+  ctx.fillRect(c.x - 11, c.y - 46, 22, 5);
+  ctx.fillStyle = COAST.floodLamp;
+  for (const at of [-8, -1, 6]) ctx.fillRect(c.x + at, c.y - 45, 5, 3);
+
+  // A pool of light on the apron under it. Low alpha, because this is a lamp
+  // on a bright map and not a lamp at night.
+  ctx.globalAlpha = 0.12;
+  ctx.fillStyle = COAST.floodLamp;
+  ctx.beginPath();
+  ctx.ellipse(c.x, c.y + 2, 28, 11, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A flag on a pole, with the cloth held out as if there is a breeze. */
+export function drawFlag(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = COAST.flagPole;
+  ctx.fillRect(c.x - 1, c.y - 34, 2, 34);
+  ctx.fillStyle = COAST.flagCloth;
+  ctx.beginPath();
+  ctx.moveTo(c.x + 1, c.y - 34);
+  ctx.lineTo(c.x + 16, c.y - 30);
+  ctx.lineTo(c.x + 1, c.y - 25);
+  ctx.closePath();
+  ctx.fill();
+  ctx.restore();
+}
+
+/** A small quayside hut: office, guardroom, stores. */
+export function drawQuayHut(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  const c = toScreen(u, v, 0);
+  ctx.save();
+  ctx.fillStyle = COAST.shadow;
+  ctx.beginPath();
+  ctx.ellipse(c.x + 3, c.y + 3, 22, 8, 0, 0, Math.PI * 2);
+  ctx.fill();
+
+  ctx.fillStyle = COAST.quayHut;
+  ctx.fillRect(c.x - 20, c.y - 20, 40, 20);
+  ctx.fillStyle = COAST.quayHutRoof;
+  ctx.beginPath();
+  ctx.moveTo(c.x - 23, c.y - 20);
+  ctx.lineTo(c.x, c.y - 31);
+  ctx.lineTo(c.x + 23, c.y - 20);
+  ctx.closePath();
+  ctx.fill();
+
+  ctx.fillStyle = COAST.quayHutDoor;
+  ctx.fillRect(c.x - 4, c.y - 13, 9, 13);
+  ctx.fillStyle = COAST.towerGlass;
+  ctx.fillRect(c.x - 16, c.y - 15, 8, 6);
+  ctx.fillRect(c.x + 9, c.y - 15, 8, 6);
+  ctx.restore();
+}
+
 export function drawPier(ctx: CanvasRenderingContext2D, u: number, v: number): void {
   drawDiamond(ctx, u, v, 0.06, COAST.pier, 0.96);
   const c = toScreen(u, v, 0);

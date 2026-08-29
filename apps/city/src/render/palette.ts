@@ -40,6 +40,17 @@ export const GROUND: Record<string, Material> = {
   water: { top: "#3f7fbd", left: "#3e7dbb", right: "#3c7bb8", edge: "#22496f" },
   waterShallow: { top: "#5199cd", left: "#5097cb", right: "#4e95c9", edge: "#3c7fae" },
   road: { top: "#9298a1", left: "#82878f", right: "#71767d", edge: "#565b61" },
+  /*
+   * Hardstanding: the apron a facility stands on.
+   *
+   * The airport, the port and the naval quay were built on lawn and pavement,
+   * which is what made them read as models placed on the map rather than as
+   * places. Nothing about a hangar says "airfield" if the grass runs up to its
+   * doors. Dark, so the yellow markings on it have something to be yellow
+   * against, and three shades so it has the same tile texture as everything
+   * else.
+   */
+  apron: { top: "#4a5057", left: "#454b52", right: "#40464c", edge: "#2b3035" },
   pavement: { top: "#b6bcc4", left: "#a3a9b0", right: "#91969d", edge: "#70757b" },
   fogged: { top: "#39434f", left: "#323b46", right: "#2b333c", edge: "#232a32" },
   fogGrass: { top: "#3f4a45", left: "#39423e", right: "#333b38", edge: "#28302c" },
@@ -236,6 +247,12 @@ export const COAST = {
   containerEdge: "rgba(8, 18, 25, 0.55)", crane: "#e0a33c",
   lighthouse: "#efe8d5", lighthouseStripe: "#c75045", lighthouseRoof: "#223745",
   lighthouseLamp: "#ffe58c", lighthouseBeam: "#fff3a8", wake: "rgba(220, 246, 255, 0.55)",
+  apronLine: "#e8b53a", apronLineDim: "rgba(232, 181, 58, 0.45)",
+  fence: "#8f9aa3", fencePost: "#6b757d",
+  tank: "#b9c2c8", tankShade: "#939ca3", tankTop: "#cfd7dc", tankBand: "#5d666d",
+  floodMast: "#5f686f", floodLamp: "#ffeab0",
+  flagPole: "#c8d0d6", flagCloth: "#c0392b",
+  quayHut: "#e2e6ea", quayHutRoof: "#3b5566", quayHutDoor: "#26333c",
   radarMast: "#5a636b", radarStrut: "#454d54", radarDish: "#aeb9c2",
   radarDishBack: "#6f7982", radarHub: "#2c333a", radarLamp: "#ff5a4d",
   shipWake: "rgba(224, 246, 255, 0.32)", sail: "#f6f0df",

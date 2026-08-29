@@ -485,18 +485,20 @@ export function facilityProps(time: number): FacilityProp[] {
     // Laid across the street grid, which is what a runway is.
     at("airport", u, 31, -0.4, (ctx) => drawRunway(ctx, u, 31, "u", u === 3 || u === 13), "over");
   }
-  at("airport", 5, 28, 2, (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport));
-  at("airport", 10, 28, 3, (ctx) => drawControlTower(ctx, 10, 28));
-  // Between two runway cells, so it belongs to neither of them.
-  at("airport", 8.5, 31, 2, (ctx) => drawPlane(ctx, 8.5, 31), "over");
-  // A hangar, a tower and an aeroplane is a maintenance base: there was nowhere
-  // for anybody to get on. The terminal is the building that makes it an
-  // airport, and the windsock is what makes the strip a runway rather than a
-  // black rectangle with stripes on it.
+  // Authentic Claude City CCX 3D barrel-vaulted terminal
   at("airport", 7, 28, 3, (ctx) => drawTerminal(ctx, 7, 28));
-  at("airport", 13, 29, 4, (ctx) => drawWindsock(ctx, 13, 29));
-  at("airport", 4, 29, 3, (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield"));
-  at("airport", 11, 31, 4, (ctx) => drawFloodlight(ctx, 11, 31));
+  // Hexagonal ATC tower at the right apron edge
+  at("airport", 10, 28, 4, (ctx) => drawControlTower(ctx, 10, 28));
+  // Twin-turboprop plane parked on apron stand facing diagonal
+  at("airport", 8, 29.5, 2, (ctx) => drawPlane(ctx, 8, 29.5), "over");
+  // Windsock near threshold
+  at("airport", 13, 29, 3, (ctx) => drawWindsock(ctx, 13, 29));
+  // Airport nameplate
+  at("airport", 4, 28, 3, (ctx) => drawFacilitySign(ctx, 4, 28, "Airport"));
+  // Apron floodlights
+  at("airport", 4, 29, 4, (ctx) => drawFloodlight(ctx, 4, 29));
+  at("airport", 5, 29, 4, (ctx) => drawFloodlight(ctx, 5, 29));
+  at("airport", 11, 29, 4, (ctx) => drawFloodlight(ctx, 11, 29));
 
   // --- the container port ----------------------------------------------
   // Not on the two cells where a street meets the quay. The row crosses the

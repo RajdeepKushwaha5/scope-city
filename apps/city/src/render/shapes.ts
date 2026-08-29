@@ -530,29 +530,6 @@ export function drawShadow(
 
 /* ------------------------------------------------------ coastal facilities */
 
-/** A painted runway segment that follows one projected grid axis. */
-export function drawRunway(
-  ctx: CanvasRenderingContext2D,
-  u: number,
-  v: number,
-  axis: "u" | "v",
-  end = false,
-): void {
-  drawDiamond(ctx, u, v, 0.035, COAST.runway, 0.94);
-  const c = toScreen(u, v, 0.04);
-  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
-  ctx.save();
-  ctx.translate(c.x, c.y);
-  ctx.rotate(angle);
-  ctx.fillStyle = COAST.runwayMark;
-  if (end) {
-    for (let x = -18; x <= 12; x += 6) ctx.fillRect(x, -5, 3, 10);
-  } else {
-    ctx.fillRect(-10, -1, 20, 2);
-  }
-  ctx.restore();
-}
-
 /** Terminal or dock warehouse, deliberately broader than a normal office. */
 export function drawHangar(
   ctx: CanvasRenderingContext2D,
@@ -564,33 +541,45 @@ export function drawHangar(
   ctx.save();
   ctx.fillStyle = COAST.shadow;
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y + 5, 31, 11, 0, 0, Math.PI * 2);
+  ctx.ellipse(c.x, c.y + 5, 34, 12, 0, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = COAST.hangarWall;
-  ctx.fillRect(c.x - 28, c.y - 24, 56, 28);
+
+  // Corrugated hangar walls
+  ctx.fillStyle = colour === COAST.hangarRoofAirport ? "#68889b" : "#324333";
+  ctx.fillRect(c.x - 30, c.y - 26, 60, 28);
+
+  // Arched curved roof
   ctx.fillStyle = colour;
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y - 23, 28, 14, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(c.x, c.y - 25, 30, 16, 0, Math.PI, Math.PI * 2);
   ctx.fill();
-  ctx.fillRect(c.x - 28, c.y - 23, 56, 25);
-  ctx.fillStyle = COAST.hangarDoor;
-  ctx.fillRect(c.x - 22, c.y - 17, 44, 19);
-  ctx.fillStyle = COAST.safety;
-  ctx.fillRect(c.x - 27, c.y - 6, 54, 3);
-  ctx.restore();
-}
+  ctx.fillRect(c.x - 30, c.y - 25, 60, 26);
 
-export function drawControlTower(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
-  ctx.save();
-  ctx.fillStyle = COAST.tower;
-  ctx.fillRect(c.x - 6, c.y - 48, 12, 48);
-  ctx.fillStyle = COAST.towerCab;
-  ctx.fillRect(c.x - 13, c.y - 55, 26, 11);
-  ctx.fillStyle = COAST.towerGlass;
-  ctx.fillRect(c.x - 9, c.y - 52, 18, 5);
-  ctx.fillStyle = COAST.towerTrim;
-  ctx.fillRect(c.x - 10, c.y - 43, 20, 4);
+  // Corrugation rib lines
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.15)";
+  ctx.lineWidth = 1;
+  for (let i = -24; i <= 24; i += 8) {
+    ctx.beginPath();
+    ctx.moveTo(c.x + i, c.y - 25);
+    ctx.lineTo(c.x + i, c.y);
+    ctx.stroke();
+  }
+
+  // Hangar entrance opening
+  ctx.fillStyle = "#1b2830";
+  ctx.fillRect(c.x - 22, c.y - 18, 44, 20);
+
+  // Yellow hazard stripe over threshold
+  ctx.fillStyle = COAST.safety;
+  ctx.fillRect(c.x - 28, c.y - 5, 56, 3);
+
+  // Military identifier N47 if naval hangar
+  if (colour !== COAST.hangarRoofAirport) {
+    ctx.fillStyle = "#f6bd60";
+    ctx.font = "bold 7px monospace";
+    ctx.fillText("N47", c.x - 7, c.y - 26);
+  }
+
   ctx.restore();
 }
 
@@ -663,25 +652,108 @@ export function drawRadar(ctx: CanvasRenderingContext2D, u: number, v: number, t
 }
 
 export function drawPlane(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
-  const angle = Math.atan2(TILE_H / 2, TILE_W / 2);
+  const c = toScreen(u, v, 0.05);
   ctx.save();
-  ctx.translate(c.x, c.y - 5);
-  ctx.rotate(angle);
-  ctx.fillStyle = UI.shadow;
-  ctx.fillRect(-18, 4, 36, 4);
-  ctx.fillStyle = COAST.plane;
+  ctx.translate(c.x, c.y);
+
+  const forwardX = 0.89;
+  const forwardY = 0.46;
+  const sideX = -0.46;
+  const sideY = 0.89;
+
+  const pt = (f: number, s: number, lift = 0): Point => ({
+    x: f * forwardX + s * sideX,
+    y: f * forwardY + s * sideY - lift,
+  });
+
+  const poly = (color: string, points: [number, number][], alpha = 1, lift = 0) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    const p0 = pt(first[0], first[1], lift);
+    ctx.moveTo(p0.x, p0.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = pt(points[i]![0], points[i]![1], lift);
+      ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Contact Shadow
+  poly(
+    "rgba(7, 17, 22, 0.3)",
+    [[38, 0], [27, -8], [-27, -10], [-38, -4], [-38, 4], [-27, 10], [27, 8]],
+  );
+
+  // 2. High Wing and Tailplane (z lift = 12)
+  poly("#c3d6da", [[10, -6], [-5, -10], [-18, -42], [-26, -43], [-16, -7], [-16, 7], [-26, 43], [-18, 42], [-5, 10], [10, 6]], 1, 12);
+  poly("#8faeb7", [[-4, -10], [-18, -42], [-26, -43], [-19, -28], [0, -7], [0, 7], [-19, 28], [-26, 43], [-18, 42], [-4, 10]], 1, 12);
+  poly("#b8cdd2", [[-28, -5], [-38, -22], [-44, -21], [-40, -4], [-40, 4], [-44, 21], [-38, 22], [-28, 5]], 1, 14);
+
+  // 3. Fuselage Main Body (z lift = 10)
+  poly("#f5f7f2", [[46, 0], [39, -6], [15, -7], [-34, -7], [-43, -3], [-43, 3], [-34, 7], [15, 7], [39, 6]], 1, 10);
+  poly("#d4e3e3", [[39, -6], [15, -7], [-34, -7], [-43, -3], [-34, 0], [15, 0]], 1, 10);
+
+  // 4. Navy Belly, Gold Cheatline and Tail Livery
+  poly("#163b52", [[29, -7], [8, -8], [-31, -7], [-38, -4], [-31, -2], [8, -3], [29, -2]], 1, 10);
+  poly("#f6bd60", [[18, -8], [8, -8], [-28, -7], [-33, -5], [-28, -4], [8, -5], [18, -5]], 1, 10);
+  poly("#173e56", [[-29, -5], [-40, -4], [-44, 0], [-40, 4], [-29, 5], [-23, 0]], 1, 14);
+
+  // 5. Cockpit & Passenger Windows
+  const cp = pt(38, 0, 11);
+  ctx.fillStyle = "#68c9df";
+  ctx.globalAlpha = 1;
   ctx.beginPath();
-  ctx.moveTo(24, 0);
-  ctx.lineTo(-20, -4);
-  ctx.lineTo(-25, 0);
-  ctx.lineTo(-20, 4);
-  ctx.closePath();
+  ctx.arc(cp.x, cp.y, 4, 0, Math.PI * 2);
   ctx.fill();
-  ctx.fillRect(-5, -15, 8, 30);
-  ctx.fillStyle = COAST.planeStripe;
-  ctx.fillRect(-24, -4, 8, 8);
-  ctx.fillRect(-3, -15, 4, 30);
+
+  for (let f = 20; f >= -17; f -= 10) {
+    const win = pt(f, -6.8, 11);
+    ctx.fillStyle = "#b7f1f7";
+    ctx.beginPath();
+    ctx.arc(win.x, win.y, 1.8, 0, Math.PI * 2);
+    ctx.fill();
+  }
+
+  // 6. Engine Nacelles & Spinning Propeller Discs
+  for (const s of [-23, 23]) {
+    const eng = pt(-2, s, 12);
+    ctx.fillStyle = "#10232e";
+    ctx.beginPath();
+    ctx.arc(eng.x, eng.y, 5, 0, Math.PI * 2);
+    ctx.fill();
+
+    const pr = pt(5, s, 12);
+    ctx.fillStyle = "rgba(183, 241, 247, 0.4)";
+    ctx.beginPath();
+    ctx.arc(pr.x, pr.y, 7.5, 0, Math.PI * 2);
+    ctx.fill();
+
+    ctx.strokeStyle = "rgba(245, 247, 242, 0.8)";
+    ctx.lineWidth = 1;
+    ctx.beginPath();
+    ctx.moveTo(pr.x - 7, pr.y);
+    ctx.lineTo(pr.x + 7, pr.y);
+    ctx.moveTo(pr.x, pr.y - 7);
+    ctx.lineTo(pr.x, pr.y + 7);
+    ctx.stroke();
+  }
+
+  // 7. Wingtip Navigation Lights: Red (Port / Left) & Green (Starboard / Right)
+  const port = pt(-19, -43, 14);
+  const stbd = pt(-19, 43, 14);
+  ctx.fillStyle = "#f05d68";
+  ctx.beginPath();
+  ctx.arc(port.x, port.y, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.fillStyle = "#6ee7b7";
+  ctx.beginPath();
+  ctx.arc(stbd.x, stbd.y, 2.5, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.restore();
 }
 
@@ -1131,68 +1203,283 @@ export function drawWindsock(ctx: CanvasRenderingContext2D, u: number, v: number
  * curved roof is doing the recognising here: at map scale nothing else on this
  * island is a cylinder lying on its side.
  */
+export function drawRunway(
+  ctx: CanvasRenderingContext2D,
+  u: number,
+  v: number,
+  axis: "u" | "v",
+  end = false,
+): void {
+  drawDiamond(ctx, u, v, 0.04, "#1b2830", 0.96);
+  const c = toScreen(u, v, 0.04);
+  const angle = axis === "u" ? Math.atan2(TILE_H / 2, TILE_W / 2) : Math.atan2(TILE_H / 2, -TILE_W / 2);
+  ctx.save();
+  ctx.translate(c.x, c.y);
+  ctx.rotate(angle);
+
+  // White edge boundary lines along both sides of the runway
+  ctx.strokeStyle = "rgba(245, 247, 242, 0.85)";
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(-18, -12);
+  ctx.lineTo(18, -12);
+  ctx.moveTo(-18, 12);
+  ctx.lineTo(18, 12);
+  ctx.stroke();
+
+  // Edge runway lights (blue/cyan)
+  ctx.fillStyle = "#8de7f7";
+  ctx.fillRect(-12, -13, 2, 2);
+  ctx.fillRect(12, -13, 2, 2);
+  ctx.fillRect(-12, 11, 2, 2);
+  ctx.fillRect(12, 11, 2, 2);
+
+  if (end) {
+    // Piano-key threshold bars at runway end
+    ctx.fillStyle = "#f5f7f2";
+    for (let x = -14; x <= 14; x += 5) {
+      ctx.fillRect(x, -8, 2.5, 16);
+    }
+    // Green/Red threshold end lamps
+    ctx.fillStyle = u <= 3 ? "#6ee7b7" : "#f05d68";
+    ctx.fillRect(-16, -11, 3, 3);
+    ctx.fillRect(-16, 8, 3, 3);
+  } else {
+    // Center dashed line
+    ctx.fillStyle = "#f5f7f2";
+    ctx.fillRect(-11, -1.2, 22, 2.4);
+    // Subtle wear mark
+    ctx.fillStyle = "rgba(51, 67, 75, 0.4)";
+    ctx.fillRect(-6, -4, 12, 8);
+  }
+  ctx.restore();
+}
+
+/**
+ * The terminal: two stone piers flanking a glazed hall under a gold-ribbed
+ * barrel vault, exactly matching the 3D isometric geometry of Claude City CCX.
+ */
 export function drawTerminal(ctx: CanvasRenderingContext2D, u: number, v: number): void {
-  const c = toScreen(u, v, 0);
   ctx.save();
 
-  // Shadow
-  ctx.fillStyle = COAST.shadow;
-  ctx.beginPath();
-  ctx.ellipse(c.x, c.y + 6, 46, 15, 0, 0, Math.PI * 2);
-  ctx.fill();
+  // Helper for isometric 3D projected vertices relative to terminal center (u, v)
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
 
-  // Side concrete annex with flat roof
-  ctx.fillStyle = "#9ba9ad";
-  ctx.fillRect(c.x + 22, c.y - 22, 24, 22);
-  ctx.fillStyle = "#c2ccce";
-  ctx.fillRect(c.x + 22, c.y - 24, 24, 3);
-  // HVAC box on annex
-  ctx.fillStyle = "#67777d";
-  ctx.fillRect(c.x + 28, c.y - 28, 12, 5);
-
-  // Main terminal walls
-  ctx.fillStyle = COAST.terminalWall;
-  ctx.fillRect(c.x - 38, c.y - 32, 60, 32);
-
-  // Barrel-vaulted glass roof canopy
-  ctx.fillStyle = COAST.terminalRoof;
-  ctx.beginPath();
-  ctx.ellipse(c.x - 8, c.y - 30, 32, 18, 0, Math.PI, Math.PI * 2);
-  ctx.fill();
-  ctx.fillStyle = "#68c9df";
-  ctx.beginPath();
-  ctx.ellipse(c.x - 8, c.y - 30, 27, 15, 0, Math.PI, Math.PI * 2);
-  ctx.fill();
-
-  // Glass vault structural ribbing
-  ctx.strokeStyle = "#26748d";
-  ctx.lineWidth = 1;
-  for (const at of [-20, -10, 0, 10, 20]) {
-    const ox = c.x - 8 + at;
-    const h = Math.sqrt(Math.max(0, 1 - (at / 27) ** 2)) * 15;
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
     ctx.beginPath();
-    ctx.moveTo(ox, c.y - 30);
-    ctx.lineTo(ox, c.y - 30 - h);
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  const line = (color: string, p1: Point, p2: Point, width = 1, alpha = 1) => {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  };
+
+  // 1. Contact Ground Shadow
+  poly(
+    "rgba(7, 17, 22, 0.28)",
+    [
+      pt(-1.8, -0.85, 0),
+      pt(2.2, -0.85, 0),
+      pt(2.2, 1.25, 0),
+      pt(-1.8, 1.25, 0),
+    ],
+  );
+
+  // 2. Concrete Base Plinth (z: 0 -> 0.2)
+  poly("#9ba9ad", [pt(-1.5, 0.75, 0.2), pt(1.5, 0.75, 0.2), pt(1.5, 0.75, 0), pt(-1.5, 0.75, 0)]);
+  poly("#67777d", [pt(1.5, 0.75, 0.2), pt(1.5, -0.75, 0.2), pt(1.5, -0.75, 0), pt(1.5, 0.75, 0)]);
+
+  // 3. Left Stone Pier (u: -1.7 -> -1.2, v: -0.75 -> 0.75, z: 0 -> 1.0)
+  poly("#9ba9ad", [pt(-1.7, 0.75, 1.0), pt(-1.2, 0.75, 1.0), pt(-1.2, 0.75, 0), pt(-1.7, 0.75, 0)]);
+  poly("#67777d", [pt(-1.2, 0.75, 1.0), pt(-1.2, -0.75, 1.0), pt(-1.2, -0.75, 0), pt(-1.2, 0.75, 0)]);
+  poly("#c2ccce", [pt(-1.7, -0.75, 1.0), pt(-1.2, -0.75, 1.0), pt(-1.2, 0.75, 1.0), pt(-1.7, 0.75, 1.0)]);
+
+  // 4. Right Side Annex with Flat Concrete Roof & HVAC (u: 1.2 -> 1.9, v: -0.75 -> 0.75, z: 0 -> 1.0)
+  poly("#9ba9ad", [pt(1.2, 0.75, 1.0), pt(1.9, 0.75, 1.0), pt(1.9, 0.75, 0), pt(1.2, 0.75, 0)]);
+  poly("#67777d", [pt(1.9, 0.75, 1.0), pt(1.9, -0.75, 1.0), pt(1.9, -0.75, 0), pt(1.9, 0.75, 0)]);
+  poly("#c2ccce", [pt(1.2, -0.75, 1.0), pt(1.9, -0.75, 1.0), pt(1.9, 0.75, 1.0), pt(1.2, 0.75, 1.0)]);
+  // HVAC Box on Annex Roof (z: 1.0 -> 1.25)
+  poly("#67777d", [pt(1.4, 0.4, 1.25), pt(1.75, 0.4, 1.25), pt(1.75, 0.4, 1.0), pt(1.4, 0.4, 1.0)]);
+  poly("#3a474d", [pt(1.75, 0.4, 1.25), pt(1.75, -0.2, 1.25), pt(1.75, -0.2, 1.0), pt(1.75, 0.4, 1.0)]);
+  poly("#8c9ba5", [pt(1.4, -0.2, 1.25), pt(1.75, -0.2, 1.25), pt(1.75, 0.4, 1.25), pt(1.4, 0.4, 1.25)]);
+
+  // 5. Front Curtain Wall Glazing (+v wall, u: -1.2 -> 1.2, z: 0.2 -> 1.4)
+  poly("#143f52", [pt(-1.2, 0.75, 1.4), pt(1.2, 0.75, 1.4), pt(1.2, 0.75, 0.2), pt(-1.2, 0.75, 0.2)]);
+  poly("#68c9df", [pt(-1.2, 0.75, 1.4), pt(1.2, 0.75, 1.4), pt(1.2, 0.75, 0.2), pt(-1.2, 0.75, 0.2)], 0.75);
+  // Vertical glass mullions
+  for (let du = -1.0; du <= 1.0; du += 0.25) {
+    line("rgba(183, 241, 247, 0.8)", pt(du, 0.76, 1.4), pt(du, 0.76, 0.2), 1);
+  }
+
+  // 6. Barrel-Vaulted Curved Glass Roof (Vault spans along u: -1.2 -> 1.2, arches across v: -0.75 -> 0.75, z: 1.4 -> 2.4)
+  const segments = 10;
+  const vaultV = (i: number) => 0.75 * Math.cos((i / segments) * Math.PI);
+  const vaultZ = (i: number) => 1.4 + 1.0 * Math.sin((i / segments) * Math.PI);
+
+  // Shaded Rear Gable (+u return)
+  const rearGable: Point[] = [pt(1.2, 0.75, 1.4)];
+  for (let i = 0; i <= segments; i += 1) {
+    rearGable.push(pt(1.2, vaultV(i), vaultZ(i)));
+  }
+  rearGable.push(pt(1.2, -0.75, 1.4));
+  poly("#26748d", rearGable);
+
+  // Barrel vault longitudinal glass strips
+  for (let i = 0; i < segments; i += 1) {
+    const v0 = vaultV(i);
+    const v1 = vaultV(i + 1);
+    const z0 = vaultZ(i);
+    const z1 = vaultZ(i + 1);
+
+    const quad: Point[] = [
+      pt(-1.2, v0, z0),
+      pt(1.2, v0, z0),
+      pt(1.2, v1, z1),
+      pt(-1.2, v1, z1),
+    ];
+
+    // Color gradient based on segment angle: lit top -> cyan body -> deep blue
+    const tone = i < 3 ? "#26748d" : i < 7 ? "#b7f1f7" : "#68c9df";
+    const alpha = i < 3 ? 0.95 : i < 7 ? 0.9 : 0.85;
+    poly(tone, quad, alpha);
+  }
+
+  // Gold Arch Ribs along the vault
+  for (const du of [-1.2, -0.6, 0, 0.6, 1.2]) {
+    ctx.strokeStyle = "#f6bd60";
+    ctx.lineWidth = du === -1.2 || du === 1.2 ? 2.5 : 1.5;
+    ctx.globalAlpha = 0.95;
+    ctx.beginPath();
+    const pStart = pt(du, vaultV(0), vaultZ(0));
+    ctx.moveTo(pStart.x, pStart.y);
+    for (let i = 1; i <= segments; i += 1) {
+      const p = pt(du, vaultV(i), vaultZ(i));
+      ctx.lineTo(p.x, p.y);
+    }
     ctx.stroke();
   }
 
-  // Entrance awning / canopy with yellow columns
-  ctx.fillStyle = "#f6bd60";
-  ctx.fillRect(c.x - 26, c.y - 14, 36, 4);
-  ctx.fillStyle = "#b9782f";
-  ctx.fillRect(c.x - 24, c.y - 10, 3, 10);
-  ctx.fillRect(c.x + 6, c.y - 10, 3, 10);
+  // Gold Fascia Long Beams (+v and -v eaves, and crown)
+  line("#f6bd60", pt(-1.2, 0.75, 1.4), pt(1.2, 0.75, 1.4), 2.5);
+  line("#f6bd60", pt(-1.2, 0, 2.4), pt(1.2, 0, 2.4), 1.5, 0.8);
 
-  // Black / Yellow sign with bold "CCX"
+  // 7. Front Entrance Canopy with Gold Columns (u: -0.6 -> 0.6, v: 0.75 -> 1.25, z: 0 -> 0.9)
+  // Two Gold Support Columns
+  for (const du of [-0.5, 0.5]) {
+    poly("#b9782f", [pt(du - 0.05, 1.2, 0.9), pt(du + 0.05, 1.2, 0.9), pt(du + 0.05, 1.2, 0), pt(du - 0.05, 1.2, 0)]);
+  }
+  // Gold Cantilevered Canopy Roof Deck
+  poly("#f6bd60", [pt(-0.6, 1.25, 0.9), pt(0.6, 1.25, 0.9), pt(0.6, 1.25, 0.82), pt(-0.6, 1.25, 0.82)]);
+  poly("#b9782f", [pt(0.6, 1.25, 0.9), pt(0.6, 0.75, 0.9), pt(0.6, 0.75, 0.82), pt(0.6, 1.25, 0.82)]);
+  poly("#ffe0a3", [pt(-0.6, 0.75, 0.9), pt(0.6, 0.75, 0.9), pt(0.6, 1.25, 0.9), pt(-0.6, 1.25, 0.9)]);
+
+  // 8. Dark Fascia Sign Plate with Bold Gold "CCX" Label
+  const signCenter = pt(0, 0.76, 1.15);
   ctx.fillStyle = "#10232e";
-  ctx.fillRect(c.x - 18, c.y - 22, 22, 7);
-  ctx.fillStyle = "#f6bd60";
-  ctx.font = "bold 6px monospace";
-  ctx.fillText("CCX", c.x - 14, c.y - 16);
+  ctx.globalAlpha = 0.95;
+  ctx.fillRect(signCenter.x - 18, signCenter.y - 7, 36, 14);
+  ctx.strokeStyle = "#f6bd60";
+  ctx.lineWidth = 1.5;
+  ctx.strokeRect(signCenter.x - 18, signCenter.y - 7, 36, 14);
 
-  // Terminal doors
-  ctx.fillStyle = COAST.terminalDoor;
-  for (const at of [-18, -4, 12]) ctx.fillRect(c.x + at, c.y - 9, 10, 9);
+  // Bold "CCX" Letters
+  ctx.fillStyle = "#f6bd60";
+  ctx.globalAlpha = 1;
+  ctx.font = "bold 8px monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText("CCX", signCenter.x, signCenter.y);
+
+  ctx.restore();
+}
+
+/** Hexagonal tapered concrete control tower with observation cab and beacon. */
+export function drawControlTower(ctx: CanvasRenderingContext2D, u: number, v: number): void {
+  ctx.save();
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // Base Contact Shadow
+  poly("rgba(7, 17, 22, 0.26)", [pt(-0.4, -0.4, 0), pt(0.4, -0.4, 0), pt(0.4, 0.4, 0), pt(-0.4, 0.4, 0)]);
+
+  // Tapered Concrete Shaft (z: 0 -> 2.8, width: 0.38 -> 0.26)
+  poly("#9ba9ad", [pt(-0.22, 0.22, 2.8), pt(0.22, 0.22, 2.8), pt(0.32, 0.32, 0), pt(-0.32, 0.32, 0)]);
+  poly("#67777d", [pt(0.22, 0.22, 2.8), pt(0.22, -0.22, 2.8), pt(0.32, -0.32, 0), pt(0.32, 0.32, 0)]);
+
+  // Gold String Courses up the shaft
+  for (const z of [0.9, 1.9]) {
+    const w = 0.32 - (0.1 * z) / 2.8;
+    ctx.strokeStyle = "#f6bd60";
+    ctx.lineWidth = 1.5;
+    ctx.globalAlpha = 0.8;
+    ctx.beginPath();
+    const p1 = pt(-w, w, z);
+    const p2 = pt(w, w, z);
+    ctx.moveTo(p1.x, p1.y);
+    ctx.lineTo(p2.x, p2.y);
+    ctx.stroke();
+  }
+
+  // Gold Collar under observation cab (z: 2.8 -> 2.95)
+  poly("#f6bd60", [pt(-0.38, 0.38, 2.95), pt(0.38, 0.38, 2.95), pt(0.38, 0.38, 2.8), pt(-0.38, 0.38, 2.8)]);
+  poly("#b9782f", [pt(0.38, 0.38, 2.95), pt(0.38, -0.38, 2.95), pt(0.38, -0.38, 2.8), pt(0.38, 0.38, 2.8)]);
+
+  // Glass Observation Cab (z: 2.95 -> 3.65)
+  poly("#b7f1f7", [pt(-0.46, 0.46, 3.65), pt(0.46, 0.46, 3.65), pt(0.38, 0.38, 2.95), pt(-0.38, 0.38, 2.95)], 0.95);
+  poly("#26748d", [pt(0.46, 0.46, 3.65), pt(0.46, -0.46, 3.65), pt(0.38, -0.38, 2.95), pt(0.38, 0.38, 2.95)], 0.95);
+
+  // Flat Dark Roof Cap (z: 3.65 -> 3.75)
+  poly("#10232e", [pt(-0.5, -0.5, 3.75), pt(0.5, -0.5, 3.75), pt(0.5, 0.5, 3.75), pt(-0.5, 0.5, 3.75)]);
+  ctx.strokeStyle = "#f6bd60";
+  ctx.lineWidth = 1;
+  ctx.stroke();
+
+  // Antenna Mast & Blinking Red Obstruction Beacon
+  const mastBase = pt(0, 0, 3.75);
+  ctx.strokeStyle = "#c2ccce";
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  ctx.moveTo(mastBase.x, mastBase.y);
+  ctx.lineTo(mastBase.x, mastBase.y - 16);
+  ctx.stroke();
+
+  // Blinking Red Obstruction Beacon
+  ctx.fillStyle = "#f05d68";
+  ctx.globalAlpha = 1;
+  ctx.beginPath();
+  ctx.arc(mastBase.x, mastBase.y - 18, 3, 0, Math.PI * 2);
+  ctx.fill();
+
   ctx.restore();
 }
 

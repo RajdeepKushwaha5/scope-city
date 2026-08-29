@@ -19,11 +19,14 @@ import {
   drawApronMarking,
   drawBillboard,
   drawBollards,
+  drawFacilitySign,
   drawFence,
   drawFlag,
   drawFloodlight,
   drawFuelTank,
   drawQuayHut,
+  drawTerminal,
+  drawWindsock,
   drawClouds,
   drawCivicDome,
   drawContainerStack,
@@ -60,6 +63,7 @@ import {
   HOARDINGS,
   hash,
   FACILITIES,
+  type FacilityName,
   ROAD_EVERY,
   isApron,
   isHoardingCell,
@@ -430,50 +434,164 @@ function hoardingItems(state: SceneState): Drawable[] {
 }
 
 /** Airport, commercial port and naval quay: visible destinations, not decoration. */
-function facilityItems(state: SceneState, time: number): Drawable[] {
-  const items: Drawable[] = [];
+/**
+ * One thing standing at one of the coastal facilities.
+ *
+ * A table rather than a run of `items.push` calls, because a test cannot check
+ * what it cannot enumerate. The previous version of the "every prop is on its
+ * own apron" test matched direct calls with integer coordinates out of the
+ * source, which quietly excluded every prop generated in a loop -- the runway
+ * segments, the container stacks and the bollards along both quays -- so
+ * moving any of those into the water would have left it green.
+ *
+ * `ground` is the honest part. Most of these stand on hard standing and must;
+ * the ships, the lighthouse and the aircraft on the runway threshold do not,
+ * and saying which is which here is what lets the test be exhaustive instead of
+ * selective.
+ */
+interface FacilityProp {
+  readonly facility: FacilityName;
+  readonly u: number;
+  readonly v: number;
+  readonly h: number;
+  /**
+   * What it stands on, and the reason this field exists at all.
+   *
+   * `apron` must be on its facility's own hard standing, and that is what the
+   * test enforces. `water` is afloat or offshore on purpose -- the two ships,
+   * the lighthouse on the point. `over` is laid across whatever is beneath it:
+   * the runway crosses the street grid, which is what a runway does, and
+   * asserting it were on apron would make the test wrong rather than the
+   * placement.
+   */
+  readonly ground: "apron" | "water" | "over";
+  readonly draw: (ctx: CanvasRenderingContext2D) => void;
+}
 
+/** Everything at the three facilities, in one enumerable list. */
+export function facilityProps(time: number): FacilityProp[] {
+  const props: FacilityProp[] = [];
+  const at = (
+    facility: FacilityName,
+    u: number,
+    v: number,
+    h: number,
+    draw: (ctx: CanvasRenderingContext2D) => void,
+    ground: "apron" | "water" | "over" = "apron",
+  ) => props.push({ facility, u, v, h, ground, draw });
+
+  // --- the airfield ----------------------------------------------------
   for (let u = 3; u <= 13; u += 1) {
-    const cu = u;
-    items.push({
-      z: depth(cu, 31, -0.4),
-      draw: (ctx) => drawRunway(ctx, cu, 31, "u", cu === 3 || cu === 13),
-    });
+    // Laid across the street grid, which is what a runway is.
+    at("airport", u, 31, -0.4, (ctx) => drawRunway(ctx, u, 31, "u", u === 3 || u === 13), "over");
   }
-  items.push(
-    { z: depth(5, 28, 2), draw: (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport) },
-    { z: depth(10, 28, 3), draw: (ctx) => drawControlTower(ctx, 10, 28) },
-    { z: depth(8.5, 31, 2), draw: (ctx) => drawPlane(ctx, 8.5, 31) },
-  );
+  at("airport", 5, 28, 2, (ctx) => drawHangar(ctx, 5, 28, COAST.hangarRoofAirport));
+  at("airport", 10, 28, 3, (ctx) => drawControlTower(ctx, 10, 28));
+  // Between two runway cells, so it belongs to neither of them.
+  at("airport", 8.5, 31, 2, (ctx) => drawPlane(ctx, 8.5, 31), "over");
+  // A hangar, a tower and an aeroplane is a maintenance base: there was nowhere
+  // for anybody to get on. The terminal is the building that makes it an
+  // airport, and the windsock is what makes the strip a runway rather than a
+  // black rectangle with stripes on it.
+  at("airport", 7, 28, 3, (ctx) => drawTerminal(ctx, 7, 28));
+  at("airport", 13, 29, 4, (ctx) => drawWindsock(ctx, 13, 29));
+  at("airport", 4, 29, 3, (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield"));
+  at("airport", 11, 31, 4, (ctx) => drawFloodlight(ctx, 11, 31));
 
+  // --- the container port ----------------------------------------------
+  // Not on the two cells where a street meets the quay. The row crosses the
+  // road grid at u=30 and u=36, and the test caught a bollard standing in the
+  // middle of each of them -- the same gate the naval yard's fence leaves.
   for (let u = 28; u <= 37; u += 1) {
-    const cu = u;
-    items.push({ z: depth(cu, 32, -0.2), draw: (ctx) => drawPier(ctx, cu, 32) });
+    if (u % ROAD_EVERY === 0) continue;
+    at("port", u, 32, 0.4, (ctx) => drawBollards(ctx, u, 32, "+v"));
   }
-  for (const [u, v, seed] of [[29, 29, 1], [31, 29, 2], [33, 29, 3], [35, 29, 4]] as const) {
-    items.push({ z: depth(u, v, 1), draw: (ctx) => drawContainerStack(ctx, u, v, seed) });
+  for (const [u, v, seed] of [
+    [29, 29, 1],
+    [31, 29, 2],
+    [33, 29, 3],
+    [35, 29, 4],
+    [28, 31, 5],
+    [32, 28, 6],
+  ] as const) {
+    at("port", u, v, 1, (ctx) => drawContainerStack(ctx, u, v, seed));
   }
-  items.push(
-    { z: depth(29, 31, 3), draw: (ctx) => drawCrane(ctx, 29, 31) },
-    { z: depth(34, 31, 3), draw: (ctx) => drawCrane(ctx, 34, 31) },
-    { z: depth(37.5, 31, 4), draw: (ctx) => drawLighthouse(ctx, 37.5, 31, time) },
-  );
+  at("port", 29, 31, 3, (ctx) => drawCrane(ctx, 29, 31));
+  at("port", 34, 31, 3, (ctx) => drawCrane(ctx, 34, 31));
+  // On the point at the end of the quay -- which is the port's own ground, so
+  // it is checked like everything else standing on it. It was declared `water`
+  // and the review pointed out that made it exempt from a check it passes.
+  at("port", 37.5, 31, 4, (ctx) => drawLighthouse(ctx, 37.5, 31, time));
+  // The things that make a quay a port rather than a building site: somewhere
+  // to work from, something to work by, and a name on the gate.
+  at("port", 27, 28, 2, (ctx) => drawQuayHut(ctx, 27, 28));
+  at("port", 34, 28, 3, (ctx) => drawFacilitySign(ctx, 34, 28, "Port"));
+  at("port", 31, 31, 4, (ctx) => drawFloodlight(ctx, 31, 31));
+  at("port", 35, 31, 4, (ctx) => drawFloodlight(ctx, 35, 31));
+  at("port", 34.5, 34.5, 4, (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo"), "water");
 
-  // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid
-  // along the shore, each a dark diamond with its own pair of bollards, and a
-  // row of them reads as eight jetties rather than as one wall -- especially
-  // now the apron is paved to the water and there is nothing for a deck to be
-  // laid on top of.
+  // --- the naval yard ---------------------------------------------------
+  const yard = FACILITIES.naval;
+
+  // The fence runs the landward edges only. A base is a fence with a gate in
+  // it; fencing the quay as well would wall the ship off from its own jetty,
+  // and the gaps on the road grid are where the service road goes through.
+  for (let v = yard.v0; v <= yard.v1; v += 1) {
+    if (v % ROAD_EVERY === 0) continue;
+    at("naval", yard.u0, v, 1, (ctx) => drawFence(ctx, yard.u0, v, "-u"));
+  }
+  for (let u = yard.u0; u <= yard.u1; u += 1) {
+    if (u % ROAD_EVERY === 0) continue;
+    at("naval", u, yard.v0, 1, (ctx) => drawFence(ctx, u, yard.v0, "-v"));
+  }
+
   for (let v = 18; v <= 25; v += 1) {
-    const cv = v;
-    items.push({ z: depth(39, cv, 0.4), draw: (ctx) => drawBollards(ctx, 39, cv, "+u") });
+    if (v % ROAD_EVERY === 0) continue;
+    at("naval", 39, v, 0.4, (ctx) => drawBollards(ctx, 39, v, "+u"));
   }
-  items.push(
-    { z: depth(34.5, 34.5, 4), draw: (ctx) => drawShip(ctx, 34.5, 34.5, "u", "cargo") },
-    { z: depth(41.5, 22, 4), draw: (ctx) => drawShip(ctx, 41.5, 22, "v", "navy") },
-  );
 
-  items.push(...navalYardItems(state, time));
+  // The yard is crossed by three streets -- u=36, v=18 and v=24 are all on the
+  // road grid -- and the first placement put the guardroom and both fuel tanks
+  // in the middle of them.
+  at("naval", 35, 19, 2, (ctx) => drawQuayHut(ctx, 35, 19));
+  at("naval", 35, 22, 3, (ctx) => drawFuelTank(ctx, 35, 22));
+  at("naval", 35, 23, 3, (ctx) => drawFuelTank(ctx, 35, 23));
+  // Where a shore establishment's air search set would be, and the one thing on
+  // this map that rotates.
+  at("naval", 37, 20, 4, (ctx) => drawRadar(ctx, 37, 20, time));
+  at("naval", 38, 19, 4, (ctx) => drawFloodlight(ctx, 38, 19));
+  at("naval", 38, 23, 4, (ctx) => drawFloodlight(ctx, 38, 23));
+  at("naval", 35, 17, 4, (ctx) => drawFlag(ctx, 35, 17));
+  at("naval", 37, 25, 4, (ctx) => drawFlag(ctx, 37, 25));
+  at("naval", 41.5, 22, 4, (ctx) => drawShip(ctx, 41.5, 22, "v", "navy"), "water");
+
+  return props;
+}
+
+function facilityItems(state: SceneState, time: number): Drawable[] {
+  /*
+   * Props dim with the ground they stand on, as the naval yard's do.
+   *
+   * The review made this point about the yard and it applies here for the same
+   * reason: a terminal, a crane or a nameplate that stays lit over fogged apron
+   * is a piece of the map claiming reach the scope has not granted.
+   */
+  const items: Drawable[] = facilityProps(time).map((prop) => ({
+    z: depth(prop.u, prop.v, prop.h),
+    draw: (ctx: CanvasRenderingContext2D) => {
+      const lit =
+        state.scopeState === "none" || isInScope({ u: prop.u, v: prop.v }, state.granted);
+      if (lit) {
+        prop.draw(ctx);
+        return;
+      }
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      prop.draw(ctx);
+      ctx.restore();
+    },
+  }));
+
   return items;
 }
 
@@ -489,80 +607,6 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
  * the apron, the fence closing the landward side. The berth itself stays clear,
  * because that is where the ship is.
  */
-function navalYardItems(state: SceneState, time: number): Drawable[] {
-  // Whether this corner of the coast is inside the granted scope. The props
-  // added with the apron ignored it, so a fence, a fuel farm and a guardroom
-  // stayed fully lit over fogged ground while every tree and building around
-  // them had gone grey.
-  const muted = (u: number, v: number) =>
-    state.scopeState !== "none" && !isInScope({ u, v }, state.granted);
-  const items: Drawable[] = [];
-  const yard = FACILITIES.naval;
-
-  // The fence runs the landward edge only. A base is a fence with a gate in it;
-  // fencing the quay as well would wall the ship off from its own jetty.
-  for (let v = yard.v0; v <= yard.v1; v += 1) {
-    // A gate where the service road meets the yard, so the fence is a boundary
-    // with a way through rather than a box.
-    if (v % ROAD_EVERY === 0) continue;
-    const cv = v;
-    items.push({
-      z: depth(yard.u0, cv, 1),
-      draw: (ctx) => drawFence(ctx, yard.u0, cv, "-u", muted(yard.u0, cv)),
-    });
-  }
-  for (let u = yard.u0; u <= yard.u1; u += 1) {
-    if (u % ROAD_EVERY === 0) continue;
-    const cu = u;
-    items.push({
-      z: depth(cu, yard.v0, 1),
-      draw: (ctx) => drawFence(ctx, cu, yard.v0, "-v", muted(cu, yard.v0)),
-    });
-  }
-
-  // Every one of these is on a cell that is neither road nor water. The yard is
-  // crossed by two streets -- u=36 and v=18 and v=24 all fall on the road grid
-  // -- and the first placement put the guardroom and both fuel tanks in the
-  // middle of them. A test asserts it now, because a coordinate in a literal is
-  // exactly where that mistake lives.
-  /*
-   * Everything else on the yard, dimmed with the ground it stands on.
-   *
-   * One helper rather than a `muted` argument threaded through eight different
-   * shape functions. The props have nothing in common except that they are on
-   * this apron, so what they share is the fade and not a palette -- and a
-   * per-shape fog colour for each would be eight more constants to keep in step
-   * with the ground's.
-   */
-  const prop = (u: number, v: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) => ({
-    z: depth(u, v, h),
-    draw: (ctx: CanvasRenderingContext2D) => {
-      if (!muted(u, v)) {
-        draw(ctx);
-        return;
-      }
-      ctx.save();
-      ctx.globalAlpha = 0.4;
-      draw(ctx);
-      ctx.restore();
-    },
-  });
-
-  items.push(
-    prop(35, 19, 2, (ctx) => drawQuayHut(ctx, 35, 19)),
-    prop(35, 22, 3, (ctx) => drawFuelTank(ctx, 35, 22)),
-    prop(35, 23, 3, (ctx) => drawFuelTank(ctx, 35, 23)),
-    // On the quay behind the berth, where a shore establishment's air search
-    // set would be, and the one thing on this map that rotates.
-    prop(37, 20, 4, (ctx) => drawRadar(ctx, 37, 20, time)),
-    prop(38, 19, 4, (ctx) => drawFloodlight(ctx, 38, 19)),
-    prop(38, 23, 4, (ctx) => drawFloodlight(ctx, 38, 23)),
-    prop(35, 17, 4, (ctx) => drawFlag(ctx, 35, 17)),
-    prop(37, 25, 4, (ctx) => drawFlag(ctx, 37, 25)),
-  );
-
-  return items;
-}
 
 
 /**

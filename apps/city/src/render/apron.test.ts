@@ -13,6 +13,8 @@ import {
   treeCells,
 } from "./world.js";
 import { OFFICES } from "../useMission.js";
+import { SIGN_MAX } from "./shapes.js";
+import { facilityProps } from "./scene.js";
 
 /**
  * Hardstanding.
@@ -117,49 +119,58 @@ describe("the facility rectangles", () => {
 describe("the naval yard", () => {
   const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
   /*
-   * From the call, not from the function.
+   * The yard has no function of its own any more.
    *
-   * The slice used to start at `function navalYardItems`, one line past the
-   * `items.push(...navalYardItems(...))` that puts any of it on the screen --
-   * so deleting that call would have left every test below green while the
-   * fence and every prop vanished from the city. Same shape of hole as the
-   * command palette's, and worth the same fix.
+   * These used to slice `navalYardItems` out of the source. That function is
+   * gone: its props are entries in `facilityProps` like every other facility's,
+   * because keeping them separate is what let the placement checks quietly stop
+   * covering them.
+   *
+   * What is left to check in the source is the fence, which is the one part
+   * that is geometry rather than a coordinate.
    */
-  const yard = scene.slice(
-    scene.indexOf("items.push(...navalYardItems"),
-    scene.indexOf("function treeItems"),
-  );
+  const naval = () => facilityProps(0).filter((prop) => prop.facility === "naval");
 
   it("is actually put on the screen", () => {
-    expect(yard).toMatch(/items\.push\(\.\.\.navalYardItems\(state, time\)\)/);
+    // `facilityItems` maps the whole table, so nothing can be in it and not
+    // drawn -- which is the property the old slice was trying to establish.
+    expect(scene).toContain("facilityProps(time).map((prop)");
+    expect(naval().length).toBeGreaterThan(0);
   });
 
   it("dims with the ground it stands on", () => {
-    // The props ignored scope entirely, so a fence, a fuel farm and a guardroom
-    // stayed fully lit over fogged ground while every tree and building around
-    // them had gone grey.
-    expect(yard).toContain("state.scopeState");
-    expect(yard).toMatch(/globalAlpha = 0\.4/);
+    expect(scene).toContain("ctx.globalAlpha = 0.4");
+    expect(scene).toContain("isInScope({ u: prop.u, v: prop.v }, state.granted)");
+  });
+
+  it("leaves a gate where the road meets it", () => {
+    // A base is a fence with a way through. Fencing the road as well would make
+    // it a box, with traffic driving through the wire.
+    const fenced = new Set(
+      [...scene.matchAll(/at\("naval", ([\w.]+), ([\w.]+), 1, \(ctx\) => drawFence/g)].map(
+        (m) => `${m[1]}:${m[2]}`,
+      ),
+    );
+    expect(fenced.size, "two fence runs").toBe(2);
+    expect(scene).toContain("% ROAD_EVERY === 0) continue");
   });
 
   it("is a place rather than a berth", () => {
     // It was a line of piers and a warship. Everything that says "shore
     // establishment" was missing, so the most distinctive corner of the island
     // read as a grey rectangle with a boat parked at it.
+    const yardSource = scene.slice(
+      scene.indexOf("--- the naval yard"),
+      scene.indexOf("return props;"),
+    );
     for (const prop of ["drawFence", "drawFuelTank", "drawFloodlight", "drawFlag", "drawQuayHut", "drawRadar"]) {
-      expect(yard, `the yard has no ${prop}`).toContain(prop);
+      expect(yardSource, `the yard has no ${prop}`).toContain(prop);
     }
-  });
-
-  it("leaves a gate where the road meets it", () => {
-    // A base is a fence with a way through. Fencing the road as well would make
-    // it a box, with traffic driving through the wire.
-    expect(yard).toContain(`% ROAD_EVERY === 0) continue`);
   });
 
   it("fences the land and not the water", () => {
     // Fencing the quay would wall the ship off from its own jetty.
-    const fenceRuns = [...yard.matchAll(/drawFence\(ctx, ([\w.]+), ([\w.]+), "([-+][uv])"/g)];
+    const fenceRuns = [...scene.matchAll(/drawFence\(ctx, ([\w.]+), ([\w.]+), "([-+][uv])"/g)];
     expect(fenceRuns.length).toBe(2);
     for (const run of fenceRuns) {
       expect(run[1] === "yard.u0" || run[2] === "yard.v0", "a fence on the seaward side").toBe(true);
@@ -172,16 +183,134 @@ describe("the naval yard", () => {
   });
 
   it("puts every prop on its own apron", () => {
-    // A floodlight in the water, or a fuel tank on somebody's lawn, is the
-    // failure this catches -- and coordinates in a literal are exactly where
-    // that happens.
-    const placements = [...yard.matchAll(/draw(?:FuelTank|Floodlight|Flag|QuayHut|Radar)\(ctx, (\d+), (\d+)/g)];
-    expect(placements.length).toBeGreaterThanOrEqual(7);
-    for (const at of placements) {
-      const u = Number(at[1]);
-      const v = Number(at[2]);
-      expect(facilityAt(u, v), `a prop at ${u},${v} is outside the yard`).toBe("naval");
-      expect(isApron(u, v), `a prop at ${u},${v} is not on apron`).toBe(true);
+    // Over the table, not over a regex against the source.
+    //
+    // The first version of this matched direct calls with integer coordinates,
+    // which quietly excluded every prop generated in a loop -- the runway
+    // segments, the container stacks, and the bollards along both quays. Moving
+    // any of those into the water would have left it green. It also accepted
+    // any facility rather than the intended one, so a terminal placed on the
+    // port's apron passed as happily as one on the airfield's.
+    const props = facilityProps(0);
+    expect(props.length).toBeGreaterThanOrEqual(30);
+
+    for (const prop of props) {
+      const box = FACILITIES[prop.facility];
+      const owner = facilityAt(Math.floor(prop.u), Math.floor(prop.v));
+
+      if (owner !== null) {
+        // Inside a facility, it must be inside its own. A terminal on the
+        // port's apron passed the first version of this, which accepted any
+        // non-null answer.
+        expect(
+          owner,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is on the wrong facility`,
+        ).toBe(prop.facility);
+      } else {
+        /*
+         * Outside every facility, which only `water` and `over` may be -- and
+         * then only just outside their own.
+         *
+         * The first version wrote `facilityAt(...) ?? prop.facility`, which
+         * made the assertion tautological for exactly the props that are
+         * allowed to sit off the apron: a ship moved to the far side of the
+         * island would have passed. Being permitted to float is not permission
+         * to float anywhere.
+         */
+        expect(
+          prop.ground,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is outside every facility`,
+        ).not.toBe("apron");
+
+        const away = Math.max(
+          box.u0 - prop.u,
+          prop.u - box.u1,
+          box.v0 - prop.v,
+          prop.v - box.v1,
+          0,
+        );
+        expect(
+          away,
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is ${away} cells from its facility`,
+        ).toBeLessThanOrEqual(4);
+      }
+
+      if (prop.ground === "water") {
+        // Declaring a prop afloat exempts it from the apron check, so the
+        // declaration itself has to be checked -- otherwise wrong metadata is a
+        // way out of the test. The lighthouse was declared `water` and stands
+        // on the port's own ground; it is `apron` now and passes on its merits.
+        expect(
+          isApron(Math.floor(prop.u), Math.floor(prop.v)),
+          `a ${prop.facility} prop at ${prop.u},${prop.v} is declared afloat but is on apron`,
+        ).toBe(false);
+      }
+
+      if (prop.ground !== "apron") continue;
+      expect(
+        isApron(Math.floor(prop.u), Math.floor(prop.v)),
+        `a ${prop.facility} prop at ${prop.u},${prop.v} is on a street or in the water`,
+      ).toBe(true);
+    }
+  });
+
+  it("covers the props the old check could not see", () => {
+    // Named counts, so this test cannot pass by finding fewer things. The
+    // runway is eleven segments, the port quay ten bollards and the naval quay
+    // eight; none of them were in the regex.
+    const props = facilityProps(0);
+    const on = (facility: string) => props.filter((prop) => prop.facility === facility).length;
+
+    // The runway is eleven segments, the port quay eight bollards once the two
+    // street crossings are left open, and the naval quay six for the same
+    // reason. None of them were in the regex.
+    expect(on("airport")).toBeGreaterThanOrEqual(11 + 7);
+    expect(on("port")).toBeGreaterThanOrEqual(8 + 6);
+    // The naval yard's establishment lives in the same table now. It used to be
+    // built separately in `navalYardItems`, so replacing the regex with the
+    // table quietly dropped the quay hut, both fuel tanks, the radar, both
+    // floodlights and both flags out of every placement check -- the fix for
+    // one gap opening another.
+    expect(on("naval")).toBeGreaterThanOrEqual(6 + 8);
+  });
+
+  it("says which of them are deliberately not on apron", () => {
+    // The honest half. Ships float, the lighthouse stands on the point past the
+    // quay, the aircraft sits between two runway cells, and the runway itself
+    // is laid across the street grid because that is what a runway does. If
+    // those had to be on apron the test would be wrong rather than the
+    // placements -- so they are declared rather than skipped by a regex that
+    // happened not to match them.
+    const props = facilityProps(0);
+    const afloat = props.filter((prop) => prop.ground === "water");
+    const over = props.filter((prop) => prop.ground === "over");
+
+    expect(afloat.length, "the two ships").toBe(2);
+    expect(over.length, "the runway and the aircraft on it").toBe(12);
+    expect(
+      props.filter((prop) => prop.ground === "apron").length,
+      "most of a facility should be on its own hard standing",
+    ).toBeGreaterThan(afloat.length + over.length);
+  });
+
+  it("keeps every nameplate short enough to read", () => {
+    // The board is a fixed size and the type is not fitted to it. A name that
+    // does not fit gets cut rather than shrunk, so the limit has to be checked
+    // here instead of discovered on screen.
+    //
+    // Asserting the count first, because the regex can match nothing: a name
+    // passed as a variable rather than a literal would empty the loop and let
+    // an overlong one through while the test stayed green. A loop that runs
+    // zero times is not a check.
+    const scene_ = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
+    const signs = [...scene_.matchAll(/drawFacilitySign\(ctx, [\d.]+, [\d.]+, "([^"]+)"\)/g)];
+
+    const calls = (scene_.match(/drawFacilitySign\(/g) ?? []).length;
+    expect(signs.length, "a nameplate is named by something other than a literal").toBe(calls);
+    expect(signs.length, "no nameplates found at all").toBeGreaterThanOrEqual(2);
+
+    for (const sign of signs) {
+      expect(sign[1]!.length, `${sign[1]} does not fit a nameplate`).toBeLessThanOrEqual(SIGN_MAX);
     }
   });
 });

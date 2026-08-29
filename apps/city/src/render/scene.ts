@@ -62,6 +62,7 @@ import {
   FACILITIES,
   ROAD_EVERY,
   isApron,
+  isHoardingCell,
   apronEdges,
   isInScope,
   layOutCity,
@@ -383,6 +384,12 @@ function groundItems(state: SceneState): Drawable[] {
   for (let u = 2; u <= ISLAND_W - 2; u += 1) {
     for (let v = 2; v <= ISLAND_H - 2; v += 1) {
       if (tileKindAt(u, v) !== "pavement") continue;
+      // Buildings, trees and fountains all consult this; the lamps did not.
+      // `hash("lamp:4:23") % 11` is zero, so a streetlamp stood on the Scope
+      // City board's cell -- drawn first, painted over, and reported by
+      // nothing. A reservation that three of four generators honour is not a
+      // reservation.
+      if (isHoardingCell(u, v)) continue;
       if (hash(`lamp:${u}:${v}`) % 11 !== 0) continue;
       const cu = u;
       const cv = v;

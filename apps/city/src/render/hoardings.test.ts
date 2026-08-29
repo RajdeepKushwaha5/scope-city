@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import { toScreen } from "../iso/projection.js";
 import { fitCamera } from "./scene.js";
 import {
+  FACILITIES,
   HOARDINGS,
   fountainCells,
   isHoardingCell,
@@ -204,5 +205,44 @@ describe("telling one board from another", () => {
       scene.match(/drawBillboard\(/g)?.length,
       "every board must come from HOARDINGS, not from a call site",
     ).toBe(1);
+  });
+});
+
+describe("what else stands on a hoarding's cell", () => {
+  const city = layOutCity(OFFICES);
+
+  it("is not a streetlamp", () => {
+    // Buildings, trees and fountains all consult `isHoardingCell`; the lamps
+    // did not. `hash("lamp:4:23") % 11` is zero, so a lamp stood on the Scope
+    // City board's cell -- drawn first, painted over, and reported by nothing.
+    // A reservation that three of four generators honour is not a reservation.
+    const scene = readFileSync(fileURLToPath(new URL("./scene.ts", import.meta.url)), "utf8");
+    const lamps = scene.slice(scene.indexOf("// Lamps along pavements"), scene.indexOf("return items;", scene.indexOf("// Lamps along pavements")));
+    expect(lamps).toContain("isHoardingCell(u, v)");
+  });
+
+  it("is not a fence panel on the cell in front of it", () => {
+    // The fence is drawn on the *outward* face of the yard's boundary cells,
+    // so it reaches into the cell beyond -- which is where the board was.
+    const yard = FACILITIES.naval;
+    for (const board of HOARDINGS) {
+      const touchingLandwardFence =
+        board.cell.u === yard.u0 - 1 && board.cell.v >= yard.v0 && board.cell.v <= yard.v1;
+      const touchingSeawardFence =
+        board.cell.v === yard.v0 - 1 && board.cell.u >= yard.u0 && board.cell.u <= yard.u1;
+      expect(
+        touchingLandwardFence || touchingSeawardFence,
+        `${board.title} is up against the naval yard's fence`,
+      ).toBe(false);
+    }
+  });
+
+  it("is not a building", () => {
+    for (const board of HOARDINGS) {
+      expect(
+        city.some((b) => b.cell.u === board.cell.u && b.cell.v === board.cell.v),
+        `${board.title} shares its cell with a building`,
+      ).toBe(false);
+    }
   });
 });

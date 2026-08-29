@@ -245,7 +245,7 @@ export const HOARDINGS: readonly Hoarding[] = [
     accent: "#4ec9d6",
   },
   {
-    cell: { u: 39, v: 16 },
+    cell: { u: 39, v: 14 },
     title: "Qodo",
     subtitle: "Reviews every PR",
     accent: "#c778dd",

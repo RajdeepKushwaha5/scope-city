@@ -36,14 +36,19 @@ a flag, so on those releases every pnpm command dies on an
 unknown-builtin-module trace. Finding that out with the recorder running is a
 bad minute.
 
-If `node --version` puts you in that window, export the flag once and every
-pnpm command in this document works. **The second line below starts the demo**,
-so run it when you mean to:
+If `node --version` puts you in that window, export the flag. **The second line
+below starts the demo**, so run it when you mean to:
 
 ```bash
 export NODE_OPTIONS=--experimental-sqlite
 pnpm --filter @scope-city/city dev
 ```
+
+`export` lasts for one shell and no longer. This running order uses two -- the
+city server holds the first, and the verifier and the Code Mode probe run in
+the second -- so the flag has to be exported in that one as well, or those
+commands die exactly as before. It is the kind of thing that works when you
+rehearse and fails on the take, because the rehearsal used one terminal.
 
 If `pnpm --version` fails on a supported Node, the flag is not your problem and
 will not help: install pnpm 11.10.
@@ -88,6 +93,7 @@ blocker at nineteen hundred hours.
   model` against `4 models in rotation` -- so it is on screen while you record.
   If it says the wrong one, stop and fix it before the first take.
 - Have a second terminal open at the repo root, already `cd`'d, for the verifier.
+  If you needed the SQLite flag above, export it in this one too.
 - The whole comparison is offline. If the network dies mid-recording, keep going.
 
 ---

@@ -24,22 +24,38 @@
 
   --font-ui: "Cascadia Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
   --font-body: "Cascadia Mono", "SFMono-Regular", Consolas, ui-monospace, monospace;
+
+  /*
+   * The second half of this file was written against its own token family and
+   * declared them in a second `:root` twelve hundred lines down. Two homes for
+   * the same kind of value is how a stylesheet ends up with two designs in it:
+   * a rule reaches for whichever family its author had in mind, and nothing
+   * says the other exists. The names do not collide, so they simply live here
+   * now, next to the ones they were quietly competing with.
+   */
+
+  --hud-bg: rgba(8, 25, 35, 0.94);
+  --hud-bg-raised: rgba(14, 38, 54, 0.96);
+  --hud-fg: #e6edf3;
+  --hud-dim: #8b9bb4;
+  --hud-dim-darker: #4f637e;
+  --hud-rule: rgba(255, 255, 255, 0.12);
+  --hud-rule-strong: rgba(255, 255, 255, 0.22);
+  --hud-amber: #f5b738;
+  --hud-amber-dark: #d99a22;
+  --hud-amber-glow: rgba(245, 183, 56, 0.25);
+  --hud-good: #3fb950;
+  --hud-warn: #f59e0b;
+  --hud-bad: #ef4444;
+  --hud-cyan: #38bdf8;
+  /* Names a face that is actually on the machine. "Space Mono" led this list
+     and was never fetched, so every rule below it has been rendering in
+     `ui-monospace` while claiming otherwise. */
+  --hud-font: var(--font-ui);
 }
 
 * {
   box-sizing: border-box;
-}
-
-body {
-  margin: 0;
-  background: #0a121c;
-  color: var(--ink);
-  font-family: var(--font-body);
-  font-size: 16px;
-  overflow: hidden;
-  /* Pixel art must never be smoothed on scale. */
-  image-rendering: pixelated;
-  -webkit-font-smoothing: none;
 }
 
 .world {
@@ -126,23 +142,50 @@ body {
  * `min-height: 0` is the load-bearing half: a flex child will not shrink below
  * its content without it, so `overflow-y` alone would have changed nothing.
  */
+/*
+ * A column of panels, each as tall as what it has to say, and the column
+ * scrolls when they do not all fit.
+ *
+ * It was a grid, and grids compress. Measured in the browser: four panels
+ * needing 192, 115, 139 and 109 pixels were each given exactly 67, and every
+ * body was cut to 27 -- so a caption ended mid-word, a reading was hidden
+ * behind its own panel edge, and each one grew a native scrollbar to offer
+ * access to the sentence it had just truncated. The container was 315 tall and
+ * simply divided it.
+ *
+ * `flex: none` on the children is the whole fix: a panel states its height and
+ * nothing negotiates it down. What overflows is the column, which is the one
+ * thing here that should scroll.
+ */
 .hud__scan-stack {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   gap: 10px;
-  width: min(430px, 100%);
-  align-content: start;
+  width: min(310px, 100%);
   min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Firefox has no scrollbar pseudo-elements; it honours these two instead. */
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 168, 48, 0.35) transparent;
 }
 
+.hud__scan-stack > * {
+  flex: none;
+}
+
+/*
+ * Wider than the scan column because it holds a sentence you type, but not by
+ * as much as it was. At 720 it reached most of the way across a 1600 screen and
+ * put the island behind the one panel a visitor reads first.
+ */
 .hud__order {
-  width: min(720px, 100%);
+  width: min(560px, 100%);
   margin-top: auto;
 }
 
 .hud__console {
-  width: min(470px, calc(100vw - 32px));
+  width: min(340px, calc(100vw - 32px));
   min-height: 0;
   flex: none;
 }
@@ -161,20 +204,32 @@ body {
 .window {
   position: relative;
   overflow: hidden;
-  background: rgba(6, 18, 27, 0.975);
+  /*
+   * Translucent, and blurred hard enough to stay readable over a bright map.
+   *
+   * At 0.975 these were effectively opaque: four of them down one side hid a
+   * third of the city, which is the thing they are annotating. The blur is what
+   * makes this affordable -- without it, text over the isometric grid has to
+   * fight the roofs behind it.
+   */
+  background: rgba(6, 18, 27, 0.74);
   border: 2px solid var(--panel-edge-lit);
   box-shadow:
     inset 0 0 0 1px rgba(240, 168, 48, 0.08),
     7px 7px 0 rgba(7, 13, 20, 0.28);
-  backdrop-filter: blur(8px) saturate(120%);
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
   color: var(--ink);
   font-family: var(--font-ui);
   font-size: 12px;
   letter-spacing: 0.025em;
-  max-height: 100%;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  /* Was declared in a second `.window` block further down, along with the
+     override that removed the shadow above. The hover it belongs to is a few
+     rules below. */
+  transition: border-color 150ms ease, box-shadow 150ms ease;
 }
 
 .window::before {
@@ -237,13 +292,29 @@ body {
   height: 1px;
   border-top: 1px dotted var(--panel-edge-lit);
   min-width: 12px;
+
+  /* Folded from a later block that redeclared this. */
+  flex: 1;
+  height: 1px;
+  background: repeating-linear-gradient(90deg, var(--hud-rule) 0, var(--hud-rule) 3px, transparent 3px, transparent 6px);
 }
 
+/*
+ * The body does not scroll. The column it sits in does.
+ *
+ * With `overflow-y: auto` here, every panel became its own scroller: four
+ * native scrollbars with arrows down the left of the screen, each one clipping
+ * a sentence mid-word inside a box about a hundred pixels tall. A panel is a
+ * few lines of instrument reading -- there is nothing in one worth scrolling
+ * to, and cutting a caption in half to offer the option is worse than letting
+ * the panel be as tall as its own content.
+ *
+ * `.hud__scan-stack` is the scroller, and there is one of it.
+ */
 .window__body {
   position: relative;
   z-index: 1;
   padding: 12px 13px;
-  overflow-y: auto;
   min-height: 0;
   font-family: var(--font-body);
   font-size: 14px;
@@ -268,6 +339,24 @@ body {
   min-height: 30px;
   padding: 6px 10px;
   cursor: pointer;
+
+  /* Folded from a later block that redeclared this. */
+  font-family: inherit;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  padding: 5px 12px;
+  border: 1px solid var(--hud-rule-strong);
+  background: rgba(255, 255, 255, 0.06);
+  color: var(--hud-fg);
+  cursor: pointer;
+  border-radius: 0;
+  transition: all 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
 }
 
 .btn:hover {
@@ -304,6 +393,13 @@ body {
   align-items: baseline;
   gap: 10px;
   padding: 3px 0;
+
+  /* Folded from a later block that redeclared this. */
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 3px 0;
+  font-size: 11px;
 }
 
 .stat__label {
@@ -339,6 +435,11 @@ body {
 .meter__seg {
   flex: 1;
   background: var(--panel-edge);
+
+  /* Folded from a later block that redeclared this. */
+  flex: 1;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.08);
 }
 
 .meter__seg--on {
@@ -503,12 +604,29 @@ body {
 
 /* --- the log ------------------------------------------------------------ */
 
+/*
+ * Newest line at the top, without any script to keep it there.
+ *
+ * The order is done in the render -- `CityConsole` hands this the entries
+ * reversed -- so the newest is the first child, and a scroller sitting at its
+ * default `scrollTop: 0` is already looking at it.
+ *
+ * `column-reverse` was tried first and does not do this, which is worth
+ * recording because it looks like it should. It puts the last child at the
+ * visual top, so appending does land the newest up there -- but the browser
+ * anchors an overflowing reversed container at the *start of its flex flow*,
+ * which is the visual bottom, and that end holds the oldest entries. The panel
+ * would open on the beginning of the mission and stay there.
+ */
 .log {
   display: flex;
-  flex-direction: column-reverse;
-  gap: 2px;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 160px;
   overflow-y: auto;
   min-height: 0;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(240, 168, 48, 0.35) transparent;
 }
 
 .log__line {
@@ -551,6 +669,18 @@ body {
   color: var(--ink-dim);
   text-transform: uppercase;
   font-size: 10px;
+
+  /* Folded from a later block that redeclared this. */
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border: 1px solid var(--hud-rule);
+  background: rgba(0, 0, 0, 0.3);
+  color: var(--hud-dim);
 }
 
 .status-chip__dot {
@@ -563,7 +693,7 @@ body {
 .status-chip--live { color: var(--good); }
 .status-chip--live .status-chip__dot { background: var(--good); box-shadow: 0 0 7px var(--good); }
 .status-chip--connecting,
-.status-chip--reconnecting { color: var(--accent); }
+.status-chip--reconnecting { border-color: rgba(245, 158, 11, 0.4); color: var(--hud-warn); }
 
 .hud-label {
   font-family: var(--font-ui);
@@ -578,6 +708,12 @@ body {
 .order__brief {
   color: var(--ink-dim);
   margin-bottom: 8px;
+
+  /* Folded from a later block that redeclared this. */
+  font-size: 11px;
+  color: var(--hud-dim);
+  margin-bottom: 8px;
+  line-height: 1.4;
 }
 
 .order__row {
@@ -598,6 +734,14 @@ body {
   border: 1px solid var(--panel-edge-lit);
   padding: 5px 9px;
   background: rgba(5, 12, 18, 0.4);
+
+  /* Folded from a later block that redeclared this. */
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 8px;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--hud-rule);
 }
 
 .crew-card strong,
@@ -615,14 +759,29 @@ body {
   font-size: 13px;
 }
 
+/*
+ * 54px, and the size is not arbitrary: the two rules below scale the crew art
+ * into this box and position it at `left: 18px, top: 10px`, which only lands
+ * inside a box of about this size.
+ *
+ * It was declared three times -- 28x34, then 54, then 24 -- and the 24 won by
+ * being last. That came from a pass that never touched the transforms beside
+ * it, so the portrait was a 24px frame with art scaled for a box twice as wide
+ * spilling out of it. One declaration now, and it is the one the neighbouring
+ * rules were written against.
+ */
 .console__portrait {
   position: relative;
-  display: block;
+  display: flex;
   flex: none;
-  width: 28px;
-  height: 34px;
-  border: 1px solid var(--panel-edge-lit);
-  background: #08111a;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  width: 54px;
+  height: 54px;
+  overflow: hidden;
+  background: rgba(245, 183, 56, 0.15);
+  border: 1px solid var(--hud-amber);
 }
 
 .crew-card__head {
@@ -716,6 +875,9 @@ body {
 .console__masthead {
   padding-bottom: 10px;
   border-bottom: 1px solid rgba(111, 129, 153, 0.22);
+
+  /* Folded from a later block that redeclared this. */
+  margin-bottom: 8px;
 }
 
 .console__name {
@@ -741,7 +903,6 @@ body {
   padding: 10px 0;
 }
 
-.console__portrait { width: 54px; height: 54px; }
 .console__portrait .crew-card__head { transform: scale(1.3); transform-origin: top left; left: 18px; top: 10px; }
 .console__portrait .crew-card__body { transform: scale(1.55); transform-origin: bottom left; left: 16px; bottom: 5px; }
 .console__job { color: var(--ink-dim); padding-bottom: 8px; }
@@ -892,6 +1053,15 @@ body {
   padding-bottom: 8px;
   border-bottom: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
   margin-bottom: 8px;
+
+  /* Folded from a later block that redeclared this. */
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-dim);
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--hud-rule);
+  margin-bottom: 8px;
 }
 
 .yard__list {
@@ -967,6 +1137,16 @@ body {
   padding-top: 8px;
   border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
   flex-wrap: wrap;
+
+  /* Folded from a later block that redeclared this. */
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  padding-top: 8px;
+  border-top: 1px solid var(--hud-rule);
+  flex-wrap: wrap;
 }
 
 .record__download {
@@ -1003,6 +1183,11 @@ body {
 
 .review__job {
   font-size: 13px;
+  line-height: 1.45;
+  margin-bottom: 4px;
+
+  /* Folded from a later block that redeclared this. */
+  font-size: 12px;
   line-height: 1.45;
   margin-bottom: 4px;
 }
@@ -1045,6 +1230,12 @@ body {
   padding-top: 8px;
   border-top: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
   font-size: 11px;
+
+  /* Folded from a later group that redeclared all four. */
+  margin-bottom: 8px;
+  padding-top: 6px;
+  border-top: 1px solid var(--hud-rule);
+  font-size: 10px;
 }
 
 .review__clean {
@@ -1122,6 +1313,12 @@ body {
   padding: 8px 10px;
   border-left: 2px solid var(--hud-rule, rgba(255, 255, 255, 0.12));
   background: rgba(255, 255, 255, 0.02);
+
+  /* Folded from a later block that redeclared this. */
+  margin-top: 8px;
+  padding: 6px 8px;
+  border-left: 2px solid var(--hud-rule);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .proof--pass { border-left-color: #3fb950; }
@@ -1143,12 +1340,14 @@ body {
 .proof__script,
 .proof__output {
   margin: 0;
-  font-size: 10px;
   line-height: 1.45;
   white-space: pre-wrap;
   word-break: break-word;
-  max-height: 130px;
   overflow-y: auto;
+
+  /* Folded from a later group that redeclared the size and the cap. */
+  font-size: 9px;
+  max-height: 100px;
 }
 
 .proof__script {
@@ -1212,10 +1411,12 @@ body {
 
 .inspector__absent,
 .inspector__note {
-  font-size: 11px;
   line-height: 1.5;
   color: var(--hud-dim, #7f8c9b);
   margin: 4px 0 0;
+
+  /* Folded from a later group that redeclared the size. */
+  font-size: 10px;
 }
 
 .inspector__refusal {
@@ -1288,26 +1489,13 @@ body {
 
 /* ---- HUD chrome ---------------------------------------------------------- */
 
-@import url("https://fonts.googleapis.com/css2?family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Inter:wght@400;500;600;700&display=swap");
 
-:root {
-  --hud-bg: rgba(8, 25, 35, 0.94);
-  --hud-bg-raised: rgba(14, 38, 54, 0.96);
-  --hud-fg: #e6edf3;
-  --hud-dim: #8b9bb4;
-  --hud-dim-darker: #4f637e;
-  --hud-rule: rgba(255, 255, 255, 0.12);
-  --hud-rule-strong: rgba(255, 255, 255, 0.22);
-  --hud-amber: #f5b738;
-  --hud-amber-dark: #d99a22;
-  --hud-amber-glow: rgba(245, 183, 56, 0.25);
-  --hud-good: #3fb950;
-  --hud-warn: #f59e0b;
-  --hud-bad: #ef4444;
-  --hud-cyan: #38bdf8;
-  --hud-font: "Space Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
-}
-
+/*
+ * The page itself. `body` was declared twice with different answers -- two
+ * backgrounds, two font families, and font smoothing set to `none` in one and
+ * `antialiased` in the other. This one won by being later, so it is the one
+ * kept; what the earlier block had to itself is still up there.
+ */
 html, body, #root {
   margin: 0;
   padding: 0;
@@ -1317,7 +1505,11 @@ html, body, #root {
   background: #030c14;
   color: var(--hud-fg);
   font-family: var(--hud-font);
+  font-size: 16px;
   -webkit-font-smoothing: antialiased;
+  /* Pixel art must never be smoothed on scale. The two <img> rules further
+     down say it again for themselves; this is the backstop. */
+  image-rendering: pixelated;
 }
 
 /* ---- CANVAS & ATMOSPHERE ------------------------------------------------ */
@@ -1354,34 +1546,73 @@ canvas.world:active {
 
 /* ---- HUD MAIN GRID ------------------------------------------------------- */
 
+/*
+ * The scrollbars, and they are meant to be barely there.
+ *
+ * Every panel used to grow its own, with the platform's arrows on it -- four
+ * chunky native bars down the side of an isometric city. These are 6px, they
+ * sit on the track rather than in a gutter, and the thumb is nearly invisible
+ * until the pointer is over the thing that scrolls.
+ */
 .hud__scan-stack::-webkit-scrollbar,
 .cmd-list::-webkit-scrollbar,
 .log::-webkit-scrollbar,
 .yard__list::-webkit-scrollbar {
-  width: 4px;
+  width: 6px;
+}
+
+.hud__scan-stack::-webkit-scrollbar-track,
+.cmd-list::-webkit-scrollbar-track,
+.log::-webkit-scrollbar-track,
+.yard__list::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 .hud__scan-stack::-webkit-scrollbar-thumb,
 .cmd-list::-webkit-scrollbar-thumb,
 .log::-webkit-scrollbar-thumb,
 .yard__list::-webkit-scrollbar-thumb {
-  background: var(--hud-rule-strong);
-  border-radius: 2px;
+  background: rgba(240, 168, 48, 0.18);
+  border-radius: 3px;
+  /* The animation: a thumb that warms up under the pointer instead of
+     switching on. Colour only -- a bar that changes width while you are
+     reaching for it moves the target out from under the cursor. */
+  transition: background 180ms var(--ease-out, ease);
 }
+
+.hud__scan-stack:hover::-webkit-scrollbar-thumb,
+.cmd-list:hover::-webkit-scrollbar-thumb,
+.log:hover::-webkit-scrollbar-thumb,
+.yard__list:hover::-webkit-scrollbar-thumb {
+  background: rgba(240, 168, 48, 0.5);
+}
+
+.hud__scan-stack::-webkit-scrollbar-thumb:hover,
+.cmd-list::-webkit-scrollbar-thumb:hover,
+.log::-webkit-scrollbar-thumb:hover,
+.yard__list::-webkit-scrollbar-thumb:hover {
+  background: var(--accent);
+}
+
+
 
 /* ---- WINDOW COMPONENT ---------------------------------------------------- */
 
-.window {
-  background: var(--hud-bg);
-  border: 2px solid var(--hud-rule);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.6);
-  border-radius: 0px;
-  overflow: hidden;
-  transition: border-color 150ms ease, box-shadow 150ms ease;
-}
-
+/*
+ * The window's own look is declared once, above. This block used to redeclare
+ * it and quietly took two things away.
+ *
+ * `box-shadow: 0 8px 32px` replaced a hard `7px 7px 0` offset and the inset
+ * amber hairline -- so every panel went from sitting on the map like a printed
+ * card to floating in a soft blur, and the thin warm line along the inside
+ * edge disappeared. Those two rules are most of why the chrome reads as an
+ * instrument rather than a modal, and nothing in the diff said they were
+ * being removed.
+ *
+ * What is left here is what this block was actually for: how a window responds
+ * to a pointer, and how a raised gate announces itself. Neither of those
+ * conflicts with the declaration above.
+ */
 .window:hover {
   border-color: var(--hud-rule-strong);
 }
@@ -1396,32 +1627,9 @@ canvas.world:active {
   white-space: nowrap;
 }
 
-.window__rule {
-  flex: 1;
-  height: 1px;
-  background: repeating-linear-gradient(90deg, var(--hud-rule) 0, var(--hud-rule) 3px, transparent 3px, transparent 6px);
-}
 
 /* ---- BUTTONS & INPUTS ---------------------------------------------------- */
 
-.btn {
-  font-family: inherit;
-  font-size: 11px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  padding: 5px 12px;
-  border: 1px solid var(--hud-rule-strong);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--hud-fg);
-  cursor: pointer;
-  border-radius: 0;
-  transition: all 120ms ease;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 6px;
-}
 
 .btn:hover:not(:disabled) {
   background: rgba(255, 255, 255, 0.14);
@@ -1457,20 +1665,6 @@ canvas.world:active {
 
 /* ---- STATUS CHIPS & METERS ----------------------------------------------- */
 
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-  font-size: 9px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  padding: 2px 6px;
-  border: 1px solid var(--hud-rule);
-  background: rgba(0, 0, 0, 0.3);
-  color: var(--hud-dim);
-}
-
-.status-chip--reconnecting { border-color: rgba(245, 158, 11, 0.4); color: var(--hud-warn); }
 
 .status-chip--reconnecting .status-chip__dot { background: var(--hud-warn); }
 
@@ -1478,46 +1672,12 @@ canvas.world:active {
 
 .status-chip--offline .status-chip__dot { background: var(--hud-bad); }
 
-.meter__seg {
-  flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-}
 
-.stat {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 3px 0;
-  font-size: 11px;
-}
 
 /* ---- CREW CARD ----------------------------------------------------------- */
 
-.crew-card {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 8px;
-  background: rgba(255, 255, 255, 0.03);
-  border: 1px solid var(--hud-rule);
-}
 
-.console__portrait {
-  width: 24px;
-  height: 24px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: rgba(245, 183, 56, 0.15);
-  border: 1px solid var(--hud-amber);
-  position: relative;
-}
 
-.console__masthead {
-  margin-bottom: 8px;
-}
 
 .gate__actions .btn { flex: 1; }
 
@@ -1531,13 +1691,6 @@ canvas.world:active {
   margin-bottom: 6px;
 }
 
-.log {
-  max-height: 160px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-}
 
 .log__line--status { border-left-color: var(--hud-cyan); }
 
@@ -1552,12 +1705,6 @@ canvas.world:active {
 
 /* ---- MISSION ORDER ------------------------------------------------------- */
 
-.order__brief {
-  font-size: 11px;
-  color: var(--hud-dim);
-  margin-bottom: 8px;
-  line-height: 1.4;
-}
 
 /* ---- TOOLTIP ------------------------------------------------------------- */
 
@@ -1905,69 +2052,13 @@ canvas.world:active {
 
 /* ---- THE YARD & REVIEW STYLES -------------------------------------------- */
 
-.yard__probes {
-  font-size: 10px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
-  color: var(--hud-dim);
-  padding-bottom: 8px;
-  border-bottom: 1px solid var(--hud-rule);
-  margin-bottom: 8px;
-}
 
-.record__footer {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 10px;
-  margin-top: 8px;
-  padding-top: 8px;
-  border-top: 1px solid var(--hud-rule);
-  flex-wrap: wrap;
-}
 
 /* ---- SCOPE REVIEW -------------------------------------------------------- */
 
-.review__job {
-  font-size: 12px;
-  line-height: 1.45;
-  margin-bottom: 4px;
-}
-
-.review__findings, .review__clean {
-  margin-bottom: 8px;
-  padding-top: 6px;
-  border-top: 1px solid var(--hud-rule);
-  font-size: 10px;
-}
 
 /* ---- PROOF --------------------------------------------------------------- */
 
-.proof {
-  margin-top: 8px;
-  padding: 6px 8px;
-  border-left: 2px solid var(--hud-rule);
-  background: rgba(255, 255, 255, 0.02);
-}
-
-.proof__script, .proof__output {
-  margin: 0;
-  font-size: 9px;
-  line-height: 1.45;
-  white-space: pre-wrap;
-  word-break: break-word;
-  max-height: 100px;
-  overflow-y: auto;
-}
-
-.inspector__badge--proposed { border-color: #f0a020; color: #f0a020; }
-
-.inspector__absent, .inspector__note {
-  font-size: 10px;
-  line-height: 1.5;
-  color: var(--hud-dim);
-  margin: 4px 0 0;
-}
 
 /* ==========================================================================
    TOPNAV HEADER & SCENARIO BAR

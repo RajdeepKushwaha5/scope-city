@@ -23,6 +23,25 @@ const NL = String.fromCharCode(10);
  * definition of `.hud__main` hidden inside a group would then have evaded the
  * uniqueness check entirely, which is the one thing that check exists to catch.
  */
+/**
+ * Selectors that legitimately appear more than once, and how many times.
+ *
+ * A block declaring `.a, .b` counts once for each, so a selector that is both
+ * grouped with a sibling and styled on its own is two entries and one design.
+ *
+ * The count is the point. This was a Set, which exempted any number: a third
+ * declaration of an allowed selector -- the exact bug the test exists to find --
+ * stayed green because the name was on the list. Now the number has to be
+ * right, so a new duplicate fails even on a selector that is allowed two.
+ */
+const GROUPED = new Map<string, number>([
+  [".console__footer", 2],
+  [".console__permit-title", 2],
+  [".console__section-title", 2],
+  [".proof__script", 2],
+  [".review__clean", 2],
+]);
+
 function topLevelSelectors(): string[] {
   const out: string[] = [];
   let pending: string[] = [];
@@ -48,8 +67,15 @@ function topLevelSelectors(): string[] {
       continue;
     }
 
+    // Split the head on commas as well as collecting the lines above it. A
+    // group written across lines was already handled; one written on a single
+    // line -- `.a, .b {` -- was recorded as the string ".a, .b", which matches
+    // no selector and so hid every duplicate inside one.
     const head = text.slice(0, brace).trim();
-    if (!head.startsWith("@")) out.push(...pending, ...(head ? [head] : []));
+    const heads = head.startsWith("@")
+      ? []
+      : head.split(",").map((part) => part.trim()).filter(Boolean);
+    out.push(...pending, ...heads);
     pending = [];
   }
 
@@ -94,6 +120,35 @@ describe("the HUD stylesheet", () => {
       const count = topLevelSelectors().filter((s) => s === selector).length;
       expect(count, selector + " is defined " + count + " times").toBe(1);
     }
+  });
+
+  it("defines each component exactly once too", () => {
+    // The note above used to end "the rest of the file has its own duplication
+    // to answer for". This is that answer.
+    //
+    // A second half of this stylesheet had redeclared eighteen of these, and a
+    // later block wins silently: `.window` lost the hard offset shadow and the
+    // inset amber hairline that make a panel read as an instrument rather than
+    // a modal, and `.log` had its direction reversed so new lines arrived below
+    // the fold during a live mission.
+    const dupes = new Map<string, number>();
+    for (const selector of topLevelSelectors()) {
+      dupes.set(selector, (dupes.get(selector) ?? 0) + 1);
+    }
+
+    // Over the union, not just what the file happens to contain. Iterating the
+    // discovered selectors alone meant a GROUPED entry whose rules were both
+    // deleted had a count of zero, never appeared in the map, and was never
+    // compared -- so removing the styling from a live component left this
+    // green. Absent is a wrong count like any other.
+    const checked = new Set([...dupes.keys(), ...GROUPED.keys()]);
+
+    const wrong = [...checked]
+      .map((selector) => [selector, dupes.get(selector) ?? 0] as const)
+      .filter(([selector, count]) => count !== (GROUPED.get(selector) ?? 1))
+      .map(([selector, count]) => `${selector} (${count}, expected ${GROUPED.get(selector) ?? 1})`);
+
+    expect(wrong, "declared the wrong number of times").toEqual([]);
   });
 
   it("keeps the full-viewport containers transparent to the pointer", () => {

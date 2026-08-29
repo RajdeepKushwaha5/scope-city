@@ -145,12 +145,35 @@ export function CityConsole(props: {
           <div className="empty">The radio is quiet.</div>
         ) : (
           <div className="log">
-            {props.lines.map((line, index) => (
-              <div key={`${line.at}-${index}`} className={`log__line log__line--${line.kind}`}>
-                <span className="log__at">{line.at}</span>
-                <span className="log__what">{line.what}</span>
-              </div>
-            ))}
+            {/*
+              * Newest first, reversed here rather than in the stylesheet.
+              *
+              * Entries are appended, so the array runs oldest to newest. Doing
+              * the flip in the DOM means the newest line is the first child and
+              * an untouched scroller is already showing it; doing it with
+              * `column-reverse` instead leaves the container anchored at the
+              * far end of the flex flow, which is the oldest.
+              */}
+            {/*
+              * Keyed by where the line sits in the source array, not by where
+              * it lands after the flip.
+              *
+              * The source is append-only, so an entry's original index never
+              * changes. Its reversed index changes on every append -- so keying
+              * on that gave every row a new key each time a line arrived, and
+              * React tore down and rebuilt the whole log instead of adding one
+              * node. The cost grew with the mission, and anything living in the
+              * DOM, a text selection included, went with it.
+              */}
+            {props.lines
+              .map((line, index) => [line, index] as const)
+              .reverse()
+              .map(([line, index]) => (
+                <div key={`${line.at}-${index}`} className={`log__line log__line--${line.kind}`}>
+                  <span className="log__at">{line.at}</span>
+                  <span className="log__what">{line.what}</span>
+                </div>
+              ))}
           </div>
         )}
       </div>

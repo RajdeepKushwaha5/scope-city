@@ -38,11 +38,30 @@ export function drawDitheredTile(
 ): void {
   const c = toScreen(u, v, 0);
 
+  /*
+   * Half a pixel of overlap on every side.
+   *
+   * Two diamonds sharing an edge do not meet cleanly: the canvas antialiases
+   * each fill against nothing, so the shared edge ends up a blend of tile and
+   * background and comes out as a hairline a shade darker than either. Over a
+   * field of them that is a visible lattice, and on the open sea -- where the
+   * tiles are all nearly the same colour and there is nothing else to look at
+   * -- the lattice was the most legible thing on the water. It is most of why
+   * the ocean read as a swimming pool.
+   *
+   * Overlapping is the fix rather than nudging the coordinates, because the
+   * seam is in the antialiasing and not in the arithmetic; the neighbour has to
+   * paint over it. Half a pixel is enough at every zoom this map uses and small
+   * enough that it cannot round to a whole one at any of them.
+   */
+  const bleedW = TILE_W / 2 + 0.5;
+  const bleedH = TILE_H / 2 + 0.5;
+
   ctx.beginPath();
-  ctx.moveTo(c.x, c.y - TILE_H / 2);
-  ctx.lineTo(c.x + TILE_W / 2, c.y);
-  ctx.lineTo(c.x, c.y + TILE_H / 2);
-  ctx.lineTo(c.x - TILE_W / 2, c.y);
+  ctx.moveTo(c.x, c.y - bleedH);
+  ctx.lineTo(c.x + bleedW, c.y);
+  ctx.lineTo(c.x, c.y + bleedH);
+  ctx.lineTo(c.x - bleedW, c.y);
   ctx.closePath();
 
   ctx.fillStyle = variant === 0 ? base.top : variant === 1 ? base.left : base.right;

@@ -124,6 +124,41 @@ describe("sandbanks", () => {
 });
 
 describe("the water's own texture", () => {
+  it("shades in patches rather than per cell", () => {
+    // The number this test exists for. Hashing each cell independently gave
+    // every tile its own shade, which is right for a lawn -- grass is one
+    // colour everywhere and the variation is texture -- and wrong for water: it
+    // made the tessellation the most legible thing on the ocean, and a regular
+    // grid of alternating blue tiles is a swimming pool.
+    //
+    // Measured as how often a cell agrees with the one next to it. Independent
+    // hashing gives a third by chance; patches should be most of the way to
+    // one, with the shortfall being the ragged edges between them.
+    let pairs = 0;
+    let agree = 0;
+    for (const { u, v } of cells) {
+      if (!isOffshore(u, v) || !isOffshore(u + 1, v)) continue;
+      pairs += 1;
+      if (waterVariant(u, v) === waterVariant(u + 1, v)) agree += 1;
+    }
+
+    expect(pairs).toBeGreaterThan(500);
+    expect(agree / pairs, "the sea is shaded cell by cell").toBeGreaterThan(0.6);
+  });
+
+  it("still breaks the patches up", () => {
+    // The other side of it. A sea of one shade is the flat plane this started
+    // as, and it would pass the test above perfectly.
+    let pairs = 0;
+    let agree = 0;
+    for (const { u, v } of cells) {
+      if (!isOffshore(u, v) || !isOffshore(u + 1, v)) continue;
+      pairs += 1;
+      if (waterVariant(u, v) === waterVariant(u + 1, v)) agree += 1;
+    }
+    expect(agree / pairs, "the sea is one flat colour").toBeLessThan(0.95);
+  });
+
   it("uses all three shades", () => {
     // The point of it. If the hash collapsed to one value the sea would be the
     // flat plane this replaced, and every other test here would still pass.

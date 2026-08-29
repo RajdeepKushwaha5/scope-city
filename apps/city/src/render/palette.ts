@@ -27,8 +27,18 @@ export const GROUND: Record<string, Material> = {
   // shade the faces of a solid; these are all the *top* of a flat tile, picked
   // per cell so a plane of identical diamonds gets edges. Spread them as far as
   // the greens and the sea reads as choppy static.
-  water: { top: "#3f7fbd", left: "#3b7ab6", right: "#3775af", edge: "#22496f" },
-  waterShallow: { top: "#59a2d4", left: "#549cce", right: "#4f96c8", edge: "#3c7fae" },
+  /*
+   * Three blues that are almost the same blue.
+   *
+   * They started as far apart as the three greens, which is right for a lawn --
+   * grass is one colour everywhere and the variation is texture -- and wrong
+   * for water. Per-tile shading made the tessellation the most legible thing on
+   * the ocean, and a regular grid of alternating blue tiles is a swimming pool.
+   * These are two or three points apart, and the shading is by patch rather
+   * than by cell, so what you see is current rather than tiling.
+   */
+  water: { top: "#3f7fbd", left: "#3e7dbb", right: "#3c7bb8", edge: "#22496f" },
+  waterShallow: { top: "#5199cd", left: "#5097cb", right: "#4e95c9", edge: "#3c7fae" },
   road: { top: "#9298a1", left: "#82878f", right: "#71767d", edge: "#565b61" },
   pavement: { top: "#b6bcc4", left: "#a3a9b0", right: "#91969d", edge: "#70757b" },
   fogged: { top: "#39434f", left: "#323b46", right: "#2b333c", edge: "#232a32" },

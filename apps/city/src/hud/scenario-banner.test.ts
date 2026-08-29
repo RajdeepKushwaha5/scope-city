@@ -260,10 +260,16 @@ describe("every scenario is reachable, from one surface", () => {
     "utf8",
   );
 
-  /** The palette's own item list, not the whole file. */
+  /**
+   * The palette's own item list, not the whole file -- and through the element
+   * that consumes it, not stopping short of it. Cutting at `<CommandPalette`
+   * tested a declaration nothing had to render: pointing the component at a
+   * different array, or dropping the prop, left every assertion below green
+   * while the palette showed none of what they check.
+   */
   const paletteItems = app.slice(
     app.indexOf("const commandItems"),
-    app.indexOf("<CommandPalette"),
+    app.indexOf("/>", app.indexOf("<CommandPalette")),
   );
 
   it("offers every scenario in the command palette", () => {
@@ -272,6 +278,10 @@ describe("every scenario is reachable, from one surface", () => {
     // every one of these literals by definition -- so the test went on being
     // green while the palette itself was unreachable.
     expect(paletteItems.length).toBeGreaterThan(200);
+    // The array reaches the component that draws it.
+    expect(paletteItems, "the palette must be given these items").toContain(
+      "items={commandItems}",
+    );
     for (const scenario of SCENARIOS) {
       expect(paletteItems, `${scenario} is not in the palette`).toContain(
         `runScenario("${scenario}")`,
@@ -283,8 +293,20 @@ describe("every scenario is reachable, from one surface", () => {
     // The bar carried the only `setCommandOpen(true)` in the app. Removing it
     // left the palette mounted, closed, and impossible to open -- taking the
     // over-reach run with it, which has no button of its own.
-    expect(app).toContain("setCommandOpen(true)");
-    expect(app, "Ctrl/Cmd+K must be bound").toMatch(/metaKey \|\| event\.ctrlKey/);
+    //
+    // What this used to assert was that three substrings appeared *somewhere*
+    // in App.tsx: the setter, the modifier test, and the prop. None of the
+    // three is tied to the other two, so a handler that matched Ctrl+K and then
+    // returned would have passed. The chord itself is decided by
+    // `opensCommandPalette`, which is tested against real chords in
+    // `command-shortcut.test.ts`; what is left to check here is that this file
+    // is what calls it, and that a visible control exists beside the keystroke.
+    expect(app, "the tested predicate must be the one bound").toMatch(
+      /opensCommandPalette\(event, aModalIsOpen\(\)\)/,
+    );
+    expect(app, "and it must be what opens the palette").toMatch(
+      /opensCommandPalette[\s\S]{0,400}setCommandOpen\(true\)/,
+    );
     expect(app, "and a control, since a hidden keystroke is nearly absent").toContain(
       "onOpenCommand=",
     );

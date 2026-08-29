@@ -28,6 +28,7 @@ import { useRecordedMission } from "./useRecordedMission.js";
 import { useControlPlane } from "./use-control-plane.js";
 import { toScreen } from "./iso/projection.js";
 import { nextOfficeIndex } from "./map-keyboard.js";
+import { aModalIsOpen, opensCommandPalette } from "./command-shortcut.js";
 
 /**
  * The city.
@@ -88,9 +89,13 @@ export function App(): React.JSX.Element {
    */
   useEffect(() => {
     const onKey = (event: KeyboardEvent) => {
-      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return;
-      // The browser's own find-in-page binding on some platforms; ours wins
-      // here because the page is a canvas and there is nothing to find.
+      // The decision lives in `command-shortcut.ts` and is tested there. It
+      // also declines while a dialogue is open: the palette renders above
+      // everything, so it used to stack over the intro and the crew sheet with
+      // both of their key handlers still bound underneath.
+      if (!opensCommandPalette(event, aModalIsOpen())) return;
+      // Only once we are taking it. The browser's own binding wins otherwise,
+      // and a dialogue -- unlike the canvas -- has text worth searching.
       event.preventDefault();
       setCommandOpen(true);
     };

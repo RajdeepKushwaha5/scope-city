@@ -250,6 +250,30 @@ body {
   .window__bar .status-chip__dot {
     font-size: 9px;
   }
+
+  /*
+   * Room for the title, not only for the controls.
+   *
+   * Truncating the title was the right order of sacrifice and it was the whole
+   * of the fix, which left about five pixels of it on a 390px phone -- a
+   * control nobody can read the owner of. The bar buys the space back from its
+   * own padding and gaps instead: the icons keep a 20px touch target, and the
+   * dotted rule that fills the bar gives up its minimum, since it is decoration
+   * and the only thing here that is.
+   */
+  .window__bar {
+    gap: 5px;
+    padding-left: 17px;
+    padding-right: 7px;
+  }
+
+  .window__bar::before {
+    left: 7px;
+  }
+
+  .window__rule {
+    min-width: 0;
+  }
 }
 
 .window__bar::before {

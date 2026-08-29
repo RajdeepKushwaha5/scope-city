@@ -9,7 +9,9 @@ export function IntroDialogue(props: {
 
   return (
     <div className="dialogue-overlay">
-      <div className="dialogue-box">
+      {/* Declared so a screen reader treats this as the modal it looks like,
+          and so the Ctrl+K guard can see it without App having to be told. */}
+      <div className="dialogue-box" role="dialog" aria-modal="true" aria-label="What am I looking at?">
         <div className="dialogue-speaker">
           <div className="dialogue-avatar" aria-hidden="true">
             <span className="dialogue-avatar__hat" />

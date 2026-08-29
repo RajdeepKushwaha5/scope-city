@@ -141,7 +141,15 @@ describe("the script does not point the verifier at the scripted runs", () => {
   });
 
   it("protects the sentence that keeps the proof honest", () => {
-    const cuts = script.slice(script.indexOf("What to cut"));
+    /*
+     * Whitespace collapsed first, which the test above already knew to do and
+     * this one did not: the script is hard-wrapped, so any phrase long enough
+     * to be worth asserting is one reflow away from spanning a line break. It
+     * failed on a rewrite that kept the sentence and moved where it wrapped --
+     * a test failing on reflow rather than on drift, which is exactly what the
+     * note two tests up warns about.
+     */
+    const cuts = script.slice(script.indexOf("What to cut")).replace(/\s+/g, " ");
     expect(cuts).toMatch(/introducing the recorded run as a real one/i);
   });
 });

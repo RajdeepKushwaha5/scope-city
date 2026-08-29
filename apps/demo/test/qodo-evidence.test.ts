@@ -113,16 +113,64 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/predate the workflow/i);
   });
 
-  it("does not state a total that goes stale on the next merge", () => {
-    // It said "32 of 32" long after it had moved, and "60 of 60" would have
-    // been wrong the moment the PR writing it merged. The durable claim is the
-    // invariant -- every merged PR has a review -- with the PR list as the
-    // proof, which is what the hackathon asks for anyway.
+  it("does not claim a coverage it has not counted", () => {
+    /*
+     * This test used to require the sentence "every merged pull request carries
+     * a Qodo review", and that sentence was false: nine of the eighty-five did
+     * not, because they were merged inside the five minutes Qodo takes to post.
+     * So the test was holding an untrue claim in place, which is worse than not
+     * having tested it -- a reader would find the assertion and take it as
+     * evidence the claim had been checked.
+     *
+     * What is checkable from here is whether the section overstates. An
+     * unqualified "every ... carries a Qodo review" is the shape that went
+     * wrong, and naming the exceptions is what makes the rest believable. The
+     * count itself is verified against GitHub, not against this file, which is
+     * the whole reason the PR list is linked.
+     */
     const total = section.slice(section.indexOf("### The record"));
 
-    expect(total).not.toMatch(/\d+ of \d+/);
-    expect(total).toMatch(/every merged pull request carries a Qodo review/i);
-    expect(total).toContain("is%3Amerged");
+    expect(
+      total,
+      "an unqualified coverage claim is the thing that went stale",
+    ).not.toMatch(/every merged pull request carries a Qodo review/i);
+    // And no printed total, which is the other way it goes stale: the count
+    // moves on the next merge whether or not anyone edits this file.
+    expect(total, "a total here is false at the next merge").not.toMatch(/\d+ of the \d+/);
+    /*
+     * The set, not a membership test.
+     *
+     * This started as alternation, so it passed while eight of the nine could
+     * be deleted. Tightened to a loop, it still only proved each expected one
+     * was present -- so the section could claim "all but nine" while naming
+     * eleven, and nothing here would notice. The claim is about a set, and only
+     * comparing sets checks a claim about a set.
+     */
+    const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97];
+
+    /*
+     * The sentence that lists them, not the whole section, which also links
+     * #60 and #61 while discussing the pre-workflow commits.
+     *
+     * Whitespace is collapsed first because the README is hard-wrapped: the
+     * anchor phrase is split across a line break in the file, so searching the
+     * raw text for it finds nothing and the slice silently covers everything.
+     */
+    const flat = total.replace(/\s+/g, " ");
+    const listStart = flat.indexOf("They are");
+    const listEnd = flat.indexOf("Every one of them", listStart);
+    expect(listStart, "the exception list has moved or gone").toBeGreaterThan(-1);
+    expect(listEnd).toBeGreaterThan(listStart);
+    const list = flat.slice(listStart, listEnd);
+
+    const named = [...new Set([...list.matchAll(/pull\/(\d+)/g)].map((m) => Number(m[1])))].sort(
+      (a, b) => a - b,
+    );
+
+    expect(named, "the exceptions named must be exactly the ones without a Qodo review").toEqual(
+      NO_QODO,
+    );
+    expect(total, "and the list is how a reader checks the rest").toContain("is%3Amerged");
   });
 
   it("fails when the section is missing rather than reading the whole file", () => {

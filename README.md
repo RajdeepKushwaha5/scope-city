@@ -567,23 +567,46 @@ and a test pins the revert.
 
 ### Where the reasoning lives
 
-Findings were answered in commit messages and pull request descriptions, which is
-where this project keeps its reasoning — but a decision recorded only there is a
-decision a reviewer has to go looking for. The threads themselves now carry the
-three that most needed it:
+For most of the week, findings were answered in commit messages and pull request
+descriptions. That is where this project keeps its reasoning, and it is not
+enough: a decision recorded only there is a decision a reviewer has to go looking
+for, and the thread stays silent next to a finding that was in fact resolved.
 
-- **[The dismissal above](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3882454504)**
-  — why forty pixels of dead strip between panels is a better trade than a
-  scrollbar that cannot be dragged in Firefox.
-- **[A fix that diverges from what was suggested](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3882458873)**
-  — two findings on the same PR pulled in opposite directions, one asking for
-  non-ASCII letters to continue an identifier and the next asking for the
-  opposite so that 退款订单184 still parses. Both cannot be satisfied by the same
-  class, which was the signal the rule was aimed at the wrong question.
-- **[How a security fix was verified](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3882462180)**
-  — the SMTP injection, refused against a real Mailpit rather than by reading the
-  code, with a note on which of the four sibling findings were taken and why the
-  topology leak was the interesting one.
+Every **High** finding on the pull requests cited in this section now carries a
+reply saying what was done and why. Start with these:
+
+- **[A component making the error it exists to expose](https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3859962811)**
+  — the scenario banner promised the clean job "finishes inside its scope" while
+  the script it describes stops at the Gate.
+- **[Two findings that contradicted each other](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3880176392)**
+  — one asked for non-ASCII letters to continue an identifier, the next for the
+  opposite so 退款订单184 still parses. Both cannot hold, which was the signal
+  the rule was aimed at the wrong question.
+- **[A security bug in the code written to prevent security bugs](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3870163299)**
+  — SMTP injection through a recipient, refused against a real Mailpit rather
+  than by reading the code.
+- **[Safe against reuse, unsafe against re-asking](https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3877716017)**
+  — deleting a consumed countersign blinded the replay guard to exactly the
+  gates that had been used, so a resumed session would have asked a human to
+  authorise a refund that had already happened.
+- **[A finding declined, with the trade written down](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3861771004)**
+  — two findings on the same line pulling opposite ways; forty pixels of dead
+  strip between panels is a better price than a scrollbar Firefox cannot drag.
+
+From [#73](https://github.com/RajdeepKushwaha5/scope-city/pull/73) onward the
+threads are answered as the reviews arrive, including the rounds where a fix
+introduced the next finding — [the replay lock that never
+released](https://github.com/RajdeepKushwaha5/scope-city/pull/81#discussion_r3885831248)
+took four rounds and each of them is in the thread.
+
+One correction worth recording here rather than leaving to be found. For part of
+the week the script used to check for outstanding findings filtered on the login
+`qodo-code-review`, and the bot is `qodo-code-review[bot]`. It returned zero
+every time, and [#78](https://github.com/RajdeepKushwaha5/scope-city/pull/78) and
+[#79](https://github.com/RajdeepKushwaha5/scope-city/pull/79) were merged with
+six findings unread between them. They were fixed in
+[#83](https://github.com/RajdeepKushwaha5/scope-city/pull/83) and the mistake is
+stated in that PR and in each of the six threads.
 
 ### The record
 

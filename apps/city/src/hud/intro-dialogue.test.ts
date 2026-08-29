@@ -34,8 +34,17 @@ describe("the intro dialogue", () => {
   it("keeps Tab inside itself", () => {
     // A modal that lets focus walk out leaves a keyboard user tabbing through a
     // dialogue they cannot see, with no way back.
+    //
+    // The decision lives in `trapTarget` and is tested against every position
+    // in `focus-trap.test.ts`. The first version of it was inline and only
+    // wrapped when focus was already on the first or last control -- and this
+    // dialogue takes focus on its own container, which is neither, so the very
+    // first Shift+Tab after opening left the modal.
     expect(intro).toContain('event.key !== "Tab"');
-    expect(intro).toContain("event.shiftKey && document.activeElement === first");
+    expect(intro).toContain("trapTarget({");
+    expect(intro, "the container must count as outside the controls").toContain(
+      "onControl: [...focusable].some((candidate) => candidate === active)",
+    );
   });
 
   it("gives focus back to whatever opened it", () => {

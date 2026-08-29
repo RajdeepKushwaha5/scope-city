@@ -1,5 +1,6 @@
 import { useEffect, useRef } from "react";
 import { soundEngine } from "./sound-engine.js";
+import { trapTarget } from "./focus-trap.js";
 
 export function IntroDialogue(props: {
   open: boolean;
@@ -44,14 +45,23 @@ export function IntroDialogue(props: {
 
       const first = focusable[0]!;
       const last = focusable[focusable.length - 1]!;
+      const active = document.activeElement;
 
-      if (event.shiftKey && document.activeElement === first) {
-        event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
-        event.preventDefault();
-        first.focus();
-      }
+      // The container counts as "not on a control", which is the case the
+      // previous version missed: this dialogue takes focus on itself, because
+      // the first thing inside it is prose rather than a button, and the
+      // container is deliberately not in the query above. So the very first
+      // Shift+Tab after opening fell through to the browser and left the modal.
+      const target = trapTarget({
+        shiftKey: event.shiftKey,
+        onControl: [...focusable].some((candidate) => candidate === active),
+        onFirst: active === first,
+        onLast: active === last,
+      });
+      if (target === null) return;
+
+      event.preventDefault();
+      (target === "first" ? first : last).focus();
     };
 
     window.addEventListener("keydown", onKey);

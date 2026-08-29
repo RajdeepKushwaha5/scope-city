@@ -2432,25 +2432,167 @@ export function drawCrane(ctx: CanvasRenderingContext2D, u: number, v: number): 
 }
 
 export function drawLighthouse(ctx: CanvasRenderingContext2D, u: number, v: number, time: number): void {
-  const c = toScreen(u, v, 0);
   ctx.save();
-  ctx.fillStyle = COAST.lighthouse;
-  ctx.fillRect(c.x - 7, c.y - 46, 14, 46);
-  ctx.fillStyle = COAST.lighthouseStripe;
-  ctx.fillRect(c.x - 7, c.y - 13, 14, 8);
-  ctx.fillRect(c.x - 7, c.y - 31, 14, 8);
-  ctx.fillStyle = COAST.lighthouseRoof;
-  ctx.fillRect(c.x - 10, c.y - 51, 20, 6);
-  ctx.fillStyle = COAST.lighthouseLamp;
-  ctx.fillRect(c.x - 6, c.y - 58, 12, 8);
-  fadeBy(ctx, 0.12 + (Math.sin(time / 650) + 1) * 0.06);
-  ctx.fillStyle = COAST.lighthouseBeam;
+  const pt = (du: number, dv: number, dz = 0) => toScreen(u + du, v + dv, dz);
+
+  const poly = (color: string, points: Point[], alpha = 1) => {
+    ctx.fillStyle = color;
+    ctx.globalAlpha = alpha;
+    ctx.beginPath();
+    const first = points[0];
+    if (!first) return;
+    ctx.moveTo(first.x, first.y);
+    for (let i = 1; i < points.length; i += 1) {
+      const p = points[i];
+      if (p) ctx.lineTo(p.x, p.y);
+    }
+    ctx.closePath();
+    ctx.fill();
+  };
+
+  // 1. Ground Shadow
+  poly("rgba(7, 17, 22, 0.35)", [
+    pt(-0.7, -0.6, 0),
+    pt(0.7, -0.6, 0),
+    pt(0.7, 0.8, 0),
+    pt(-0.7, 0.8, 0),
+  ]);
+
+  // 2. Octagonal Plinth Base (z: 0 -> 0.35)
+  poly("#6c7a89", [
+    pt(-0.55, 0.45, 0.35),
+    pt(0.55, 0.45, 0.35),
+    pt(0.55, 0.45, 0),
+    pt(-0.55, 0.45, 0),
+  ]);
+  poly("#4a5866", [
+    pt(0.55, 0.45, 0.35),
+    pt(0.55, -0.45, 0.35),
+    pt(0.55, -0.45, 0),
+    pt(0.55, 0.45, 0),
+  ]);
+  poly("#8797a6", [
+    pt(-0.55, -0.45, 0.35),
+    pt(0.55, -0.45, 0.35),
+    pt(0.55, 0.45, 0.35),
+    pt(-0.55, 0.45, 0.35),
+  ]);
+
+  // 3. Tapered Red & White Octagonal Tower (4 Bands, z: 0.35 -> 2.35)
+  const bands = [
+    { z0: 0.35, z1: 0.85, r0: 0.45, r1: 0.38, red: true },
+    { z0: 0.85, z1: 1.35, r0: 0.38, r1: 0.31, red: false },
+    { z0: 1.35, z1: 1.85, r0: 0.31, r1: 0.25, red: true },
+    { z0: 1.85, z1: 2.35, r0: 0.25, r1: 0.2, red: false },
+  ] as const;
+
+  for (const b of bands) {
+    const frontCol = b.red ? "#c0392b" : "#f5f7f2";
+    const sideCol = b.red ? "#962d22" : "#d4e3e3";
+
+    poly(frontCol, [
+      pt(-b.r0, b.r0, b.z0),
+      pt(b.r0, b.r0, b.z0),
+      pt(b.r1, b.r1, b.z1),
+      pt(-b.r1, b.r1, b.z1),
+    ]);
+    poly(sideCol, [
+      pt(b.r0, b.r0, b.z0),
+      pt(b.r0, -b.r0, b.z0),
+      pt(b.r1, -b.r1, b.z1),
+      pt(b.r1, b.r1, b.z1),
+    ]);
+  }
+
+  // 4. Balcony Gallery Platform & Railing (z: 2.35 -> 2.5)
+  poly("#263339", [
+    pt(-0.32, 0.32, 2.45),
+    pt(0.32, 0.32, 2.45),
+    pt(0.32, -0.32, 2.45),
+    pt(-0.32, -0.32, 2.45),
+  ]);
+  poly("#10232e", [
+    pt(-0.32, 0.32, 2.45),
+    pt(0.32, 0.32, 2.45),
+    pt(0.32, 0.32, 2.35),
+    pt(-0.32, 0.32, 2.35),
+  ]);
+
+  // Railing Posts
+  ctx.strokeStyle = "#10232e";
+  ctx.lineWidth = 1.2;
+  for (const [du, dv] of [
+    [-0.3, 0.3],
+    [0, 0.3],
+    [0.3, 0.3],
+    [0.3, 0],
+    [0.3, -0.3],
+  ] as const) {
+    const r0 = pt(du, dv, 2.45);
+    const r1 = pt(du, dv, 2.65);
+    ctx.beginPath();
+    ctx.moveTo(r0.x, r0.y);
+    ctx.lineTo(r1.x, r1.y);
+    ctx.stroke();
+  }
+
+  // 5. Hexagonal Cyan Glass Lantern Room (z: 2.45 -> 3.0)
+  poly(
+    "#68c9df",
+    [
+      pt(-0.2, 0.2, 3.0),
+      pt(0.2, 0.2, 3.0),
+      pt(0.2, 0.2, 2.45),
+      pt(-0.2, 0.2, 2.45),
+    ],
+    0.9,
+  );
+  poly(
+    "#4fa9bf",
+    [
+      pt(0.2, 0.2, 3.0),
+      pt(0.2, -0.2, 3.0),
+      pt(0.2, -0.2, 2.45),
+      pt(0.2, 0.2, 2.45),
+    ],
+    0.9,
+  );
+
+  // Lantern Struts
+  const str0 = pt(0, 0.2, 2.45);
+  const str1 = pt(0, 0.2, 3.0);
+  ctx.strokeStyle = "#f5f7f2";
+  ctx.lineWidth = 1.2;
   ctx.beginPath();
-  ctx.moveTo(c.x, c.y - 54);
-  ctx.lineTo(c.x + 110, c.y - 72);
-  ctx.lineTo(c.x + 110, c.y - 44);
+  ctx.moveTo(str0.x, str0.y);
+  ctx.lineTo(str1.x, str1.y);
+  ctx.stroke();
+
+  // 6. Conical Roof Cap & Gold Spire Finial (z: 3.0 -> 3.7)
+  const peak = pt(0, 0, 3.55);
+  poly("#10232e", [pt(-0.26, 0.26, 3.0), pt(0.26, 0.26, 3.0), peak]);
+  poly("#09141b", [pt(0.26, 0.26, 3.0), pt(0.26, -0.26, 3.0), peak]);
+
+  // Gold Spire Ball
+  const spire = pt(0, 0, 3.7);
+  ctx.fillStyle = "#f6bd60";
+  ctx.beginPath();
+  ctx.arc(spire.x, spire.y, 3, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 7. Sweeping Lighthouse Beam
+  const beamAngle = (time / 650) % (Math.PI * 2);
+  const beamX = Math.cos(beamAngle) * 90;
+  const beamY = Math.sin(beamAngle) * 45;
+  const lampPt = pt(0, 0, 2.75);
+  ctx.fillStyle = "rgba(255, 243, 196, 0.22)";
+  ctx.beginPath();
+  ctx.moveTo(lampPt.x, lampPt.y);
+  ctx.lineTo(lampPt.x + beamX - 15, lampPt.y + beamY + 12);
+  ctx.lineTo(lampPt.x + beamX + 15, lampPt.y + beamY - 12);
   ctx.closePath();
   ctx.fill();
+
   ctx.restore();
 }
 

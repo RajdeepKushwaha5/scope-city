@@ -593,20 +593,25 @@ reply saying what was done and why. Start with these:
   — two findings on the same line pulling opposite ways; forty pixels of dead
   strip between panels is a better price than a scrollbar Firefox cannot drag.
 
-From [#73](https://github.com/RajdeepKushwaha5/scope-city/pull/73) onward the
-threads are answered as the reviews arrive, including the rounds where a fix
-introduced the next finding — [the replay lock that never
-released](https://github.com/RajdeepKushwaha5/scope-city/pull/81#discussion_r3885831248)
-took four rounds and each of them is in the thread.
+The process is reliable from
+[#83](https://github.com/RajdeepKushwaha5/scope-city/pull/83) onward, and that is
+a deliberately later date than the point where answering in threads started.
 
-One correction worth recording here rather than leaving to be found. For part of
-the week the script used to check for outstanding findings filtered on the login
-`qodo-code-review`, and the bot is `qodo-code-review[bot]`. It returned zero
-every time, and [#78](https://github.com/RajdeepKushwaha5/scope-city/pull/78) and
+The reason is worth recording rather than leaving to be found. For part of the
+week the script used to check for outstanding findings filtered on the login
+`qodo-code-review`, and the bot is `qodo-code-review[bot]`. It matched nothing
+and reported zero every time, so
+[#78](https://github.com/RajdeepKushwaha5/scope-city/pull/78) and
 [#79](https://github.com/RajdeepKushwaha5/scope-city/pull/79) were merged with
-six findings unread between them. They were fixed in
-[#83](https://github.com/RajdeepKushwaha5/scope-city/pull/83) and the mistake is
-stated in that PR and in each of the six threads.
+six findings unread between them — after the threads were supposedly being
+answered as reviews arrived. They were fixed in
+[#83](https://github.com/RajdeepKushwaha5/scope-city/pull/83), and the mistake is
+stated there and in each of the six threads.
+
+Since then, every review round is answered before the merge, including the ones
+where a fix introduced the next finding: [the replay lock that never
+released](https://github.com/RajdeepKushwaha5/scope-city/pull/81#discussion_r3885831248)
+took four rounds and all four are in the thread.
 
 ### The record
 

@@ -46,6 +46,8 @@ export function CityConsole(props: {
   } | null;
   /** Absent in the scripted replays, which have nothing to explain. */
   onOpenIntro?: () => void;
+  /** Opens the command palette, which is otherwise only a keystroke. */
+  onOpenCommand?: () => void;
 }): React.JSX.Element {
   const [sound, setSound] = useState(() => soundEngine.isEnabled());
   const total = 10 * 60 * 1000;
@@ -81,6 +83,20 @@ export function CityConsole(props: {
           >
             {sound ? "▶" : "✖"}
           </button>
+          {props.onOpenCommand ? (
+            <button
+              type="button"
+              className="window__icon"
+              aria-label="Open the command palette"
+              title="Command palette (Ctrl+K)"
+              onClick={() => {
+                soundEngine.playClick();
+                props.onOpenCommand?.();
+              }}
+            >
+              {"⌘"}
+            </button>
+          ) : null}
           {props.onOpenIntro ? (
             <button
               type="button"

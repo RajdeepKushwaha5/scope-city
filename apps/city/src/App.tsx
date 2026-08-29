@@ -74,6 +74,29 @@ export function App(): React.JSX.Element {
   const [camera, setCamera] = useState({ x: 0, y: 0, zoom: 1 });
   const [selectedOffice, setSelectedOffice] = useState<string | null>(null);
   const [commandOpen, setCommandOpen] = useState(false);
+
+  /*
+   * Ctrl/Cmd+K, and it has to live here.
+   *
+   * The palette listens for Escape itself, but nothing listened for the
+   * keystroke that opens it -- that was a button on the top bar, and removing
+   * the bar took the only `setCommandOpen(true)` in the app with it. The
+   * palette became unreachable, and with it the over-reach run, which has no
+   * button of its own. There is a control for it in the console title bar too,
+   * because a feature reachable only by a keystroke nobody mentioned is close
+   * enough to absent.
+   */
+  useEffect(() => {
+    const onKey = (event: KeyboardEvent) => {
+      if (event.key.toLowerCase() !== "k" || !(event.metaKey || event.ctrlKey)) return;
+      // The browser's own find-in-page binding on some platforms; ours wins
+      // here because the page is a canvas and there is nothing to find.
+      event.preventDefault();
+      setCommandOpen(true);
+    };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, []);
   const [flashing, setFlashing] = useState(false);
   const [bannerDismissed, setBannerDismissed] = useState(false);
   const [activeScenario, setActiveScenario] =
@@ -681,6 +704,7 @@ export function App(): React.JSX.Element {
             onExpireNow={() => void mission.expireNow()}
             verification={mission.verification}
             onOpenIntro={() => setIntroOpen(true)}
+            onOpenCommand={() => setCommandOpen(true)}
           />
         </div>
       </div>

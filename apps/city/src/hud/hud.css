@@ -220,6 +220,38 @@ body {
   white-space: nowrap;
 }
 
+/*
+ * The title gives way before the controls do.
+ *
+ * The bar does not wrap and the window clips, so on a narrow screen something
+ * has to lose. It should be the words: a truncated title is still a title, and
+ * a clipped mute button is a control the operator cannot reach. The console
+ * drops to 42vw on a phone, where the name, the status chip, three icons and
+ * their gaps do not fit together.
+ */
+.window__bar > span:first-of-type {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.window__bar .status-chip {
+  min-width: 0;
+  overflow: hidden;
+}
+
+@media (max-width: 700px) {
+  /* The chip's word goes; its dot still says the same thing in less room. */
+  .window__bar .status-chip {
+    font-size: 0;
+    padding: 2px;
+  }
+
+  .window__bar .status-chip__dot {
+    font-size: 9px;
+  }
+}
+
 .window__bar::before {
   content: "";
   position: absolute;

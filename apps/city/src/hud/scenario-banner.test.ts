@@ -260,10 +260,34 @@ describe("every scenario is reachable, from one surface", () => {
     "utf8",
   );
 
+  /** The palette's own item list, not the whole file. */
+  const paletteItems = app.slice(
+    app.indexOf("const commandItems"),
+    app.indexOf("<CommandPalette"),
+  );
+
   it("offers every scenario in the command palette", () => {
+    // Searched the palette's own array rather than all of App.tsx. Matching
+    // anywhere in the file passed on the scenario dispatcher -- which contains
+    // every one of these literals by definition -- so the test went on being
+    // green while the palette itself was unreachable.
+    expect(paletteItems.length).toBeGreaterThan(200);
     for (const scenario of SCENARIOS) {
-      expect(app, `${scenario} is not in the palette`).toContain(`runScenario("${scenario}")`);
+      expect(paletteItems, `${scenario} is not in the palette`).toContain(
+        `runScenario("${scenario}")`,
+      );
     }
+  });
+
+  it("can actually open the palette", () => {
+    // The bar carried the only `setCommandOpen(true)` in the app. Removing it
+    // left the palette mounted, closed, and impossible to open -- taking the
+    // over-reach run with it, which has no button of its own.
+    expect(app).toContain("setCommandOpen(true)");
+    expect(app, "Ctrl/Cmd+K must be bound").toMatch(/metaKey \|\| event\.ctrlKey/);
+    expect(app, "and a control, since a hidden keystroke is nearly absent").toContain(
+      "onOpenCommand=",
+    );
   });
 
   it("puts the comparison on a button, not only behind a keystroke", () => {

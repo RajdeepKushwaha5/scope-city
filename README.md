@@ -162,14 +162,36 @@ every branch reachable from a test.
   Node 24 has it outright. The whole of 23 is excluded rather than bisected: it
   is a non-LTS line, and pinning the supported range to what was actually tested
   beats guessing which 23.x changed it.
-- **A local model is optional, and proves something.** Point `OLLAMA_HOST` at
-  Ollama, vLLM or any OpenAI-compatible endpoint and it joins the pool beside
-  the hosted keys -- TrueForge registers it as a `custom` provider, the same
-  mechanism the Gemini slots use. The scope, the proxy, the ledger and the gate
-  are unchanged: being able to swap the model and watch nothing about the
-  enforcement change is the clearest demonstration that enforcement does not
-  depend on trusting the model. A local model may accept no reasoning effort,
-  so the control plane drops that setting for it rather than failing the launch.
+- **A local model runs the whole thing, and that is the point.** Point
+  `OLLAMA_HOST` at Ollama, vLLM or any OpenAI-compatible endpoint and name it
+  with `SCOPE_MODELS=local/qwen` -- TrueForge registers it as a `custom`
+  provider, the same mechanism the Gemini slots use. The scope, the proxy, the
+  ledger and the gate are unchanged: being able to swap the model and watch
+  nothing about the enforcement change is the clearest demonstration that
+  enforcement does not depend on trusting the model.
+
+  Measured rather than asserted. On a laptop with an RTX 3050 (4 GB) and 16 GB
+  of memory, `qwen2.5:3b` runs a mission end to end -- the scope drafted, the
+  lookup allowed at the proxy, and the refund held at the Gate for a countersign
+  -- with no hosted key configured at all:
+
+  ```
+  agent.arrived   charge.find_by_order
+  call.allowed    charge.find_by_order
+  agent.arrived   charge.refund
+  gate.raised     charge.refund
+  mission.ended   done
+  ```
+
+  `qwen2.5:7b` does not fit that machine: 4.7 GB of weights against 4 GB of
+  VRAM, and the failure arrives as a 500 carrying llama-server's own
+  out-of-memory. So the default is the model that runs, not the bigger one.
+
+  It is registered but never discovered automatically, because rotation treats
+  models as interchangeable and a 7B on a laptop is not interchangeable with a
+  hosted key -- naming it is a decision. A local model may accept no reasoning
+  effort, so the control plane drops that setting for it rather than failing the
+  launch.
 - **Mail is optional, and needs no account.** Without it the Post House keeps an
   in-memory outbox, which enforces correctly but cannot be looked at. Point
   `MAILPIT_HOST` at a running [Mailpit](https://mailpit.axllent.org) and the

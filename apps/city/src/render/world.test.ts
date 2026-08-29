@@ -5,6 +5,7 @@ import {
   ISLAND_W,
   ROAD_EVERY,
   fountainCells,
+  isBlockCentre,
   isFacilityCell,
   isInScope,
   layOutCity,
@@ -150,5 +151,39 @@ describe("room to breathe", () => {
   it("plants the space it opened up", () => {
     // Otherwise this is not a city with parks in it, it is a city with gaps.
     expect(treeCells(buildings).length).toBeGreaterThan(buildings.length / 2);
+  });
+
+  it("plants every garden, not the even-numbered half of them", () => {
+    // The rule that opens a block's centre ignores the seed, and the planter
+    // took even-seeded grass -- so an odd-seeded centre was cleared of its
+    // building and then skipped, and became bare ground. Half the courtyards
+    // were holes rather than gardens, which is the opposite of the change.
+    const planted = new Set(
+      [...treeCells(buildings), ...fountainCells(buildings)].map((c) => `${c.u}:${c.v}`),
+    );
+
+    const centres = buildable.filter((c) => isBlockCentre(c.u, c.v));
+    expect(centres.length).toBeGreaterThan(10);
+
+    // Every building here, offices included -- `built` above is filler only,
+    // because the garden rule is about what fills a block and an office takes
+    // the cell nearest its landmark whatever that cell is.
+    const anything = new Set(buildings.map(({ cell }) => `${cell.u}:${cell.v}`));
+
+    for (const cell of centres) {
+      const key = `${cell.u}:${cell.v}`;
+      expect(
+        anything.has(key) || planted.has(key),
+        `the centre at ${cell.u},${cell.v} is neither built nor planted`,
+      ).toBe(true);
+    }
+  });
+
+  it("keeps the two rules reading the same predicate", () => {
+    // They were the same expression written out twice, in two files' worth of
+    // apart, and went out of step the moment one of them changed.
+    expect(isBlockCentre(3, 3)).toBe(true);
+    expect(isBlockCentre(ROAD_EVERY + 3, ROAD_EVERY + 3)).toBe(true);
+    expect(isBlockCentre(2, 3)).toBe(false);
   });
 });

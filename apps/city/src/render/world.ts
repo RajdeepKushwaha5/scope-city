@@ -227,7 +227,7 @@ export function layOutCity(
       // The centre of each block goes first because it is the cell with no
       // street frontage, so the buildings that remain are the ones lining the
       // road -- which is the shape a block has, rather than a random scatter.
-      if (u % ROAD_EVERY === 3 && v % ROAD_EVERY === 3) continue;
+      if (isBlockCentre(u, v)) continue;
       if (seed % 2 === 0) continue;
 
       const distance = Math.hypot(u - midU, v - midV) / maxDist;
@@ -247,6 +247,18 @@ export function layOutCity(
   return buildings;
 }
 
+/**
+ * The cell in the middle of a block, which has no street frontage.
+ *
+ * Named because three things depend on it agreeing with itself: the filler
+ * skips it, the planting claims it, and the tests assert both. Written out
+ * twice, it went out of step immediately -- half the centres were opened by
+ * one rule and then rejected by the other, and became bare ground.
+ */
+export function isBlockCentre(u: number, v: number): boolean {
+  return u % ROAD_EVERY === 3 && v % ROAD_EVERY === 3;
+}
+
 /** Open block cells, for trees. */
 export function treeCells(buildings: readonly Building[]): Cell[] {
   const built = new Set(buildings.map((b) => `${b.cell.u}:${b.cell.v}`));
@@ -262,6 +274,21 @@ export function treeCells(buildings: readonly Building[]): Cell[] {
       const seed = cellSeed(u, v);
       // Fountains own their park cell; never place a canopy over the feature.
       if (kind === "grass" && seed % 30 === 0) continue;
+
+      /*
+       * A block's centre is planted whatever its seed says.
+       *
+       * The garden rule opens every centre regardless of parity, and this
+       * generator plants even-seeded grass -- so an odd-seeded centre was
+       * cleared of its building and then skipped here, and ended up neither
+       * building, tree nor fountain. Half the courtyards were bare gaps, which
+       * is not the city having gardens in it, it is the city having holes.
+       */
+      if (kind === "grass" && isBlockCentre(u, v)) {
+        cells.push({ u, v });
+        continue;
+      }
+
       if (kind === "grass" ? seed % 2 !== 0 : hash(`street-tree:${u}:${v}`) % 11 !== 0) continue;
       cells.push({ u, v });
     }

@@ -10,11 +10,34 @@ import {
 
 const DEFAULT_ORDER = "Refund order #184 and notify its owner";
 
+/**
+ * One line naming the models a mission will actually run on.
+ *
+ * Three states, and they are three different sentences. Null is "nobody to
+ * ask" -- the deployed city has no control plane, so it cannot know and must
+ * not claim. Empty is a real answer: a harness with only an opt-in model
+ * registered discovers no rotation candidates, and a mission there will fail to
+ * find one, which the operator should be told before they press Dispatch.
+ */
+export function modelSummary(models: readonly string[] | null | undefined): string {
+  if (models === null || models === undefined) return "model set by the harness this connects to";
+  if (models.length === 0) return "no models in rotation — dispatch will fail";
+  if (models.length === 1) return `${models[0]} • one model`;
+  return `${models.length} models in rotation • ${models[0]} and ${models.length - 1} more`;
+}
+
 export function MissionOrder(props: {
   active: boolean;
   connection: "offline" | "connecting" | "live" | "reconnecting";
   error: string | null;
   onLaunch: (order: string, effort: EffortLevel) => Promise<void>;
+  /**
+   * The models the control plane says it will rotate over, or null when there
+   * is nobody to ask -- a static deployment, or a server that does not report
+   * them. Null and empty are different: a machine with only a local model
+   * registered really does discover no rotation candidates.
+   */
+  models?: readonly string[] | null;
   /** Which crew is on duty, and how to change it. Owned by `App`. */
   effort: EffortLevel;
   onEffort: (effort: EffortLevel) => void;
@@ -137,9 +160,22 @@ export function MissionOrder(props: {
               <strong>
                 {effortLabel(thinkingEffort)} effort{props.active ? " · in use" : ""}
               </strong>
-              {/* The model is stated because it is fixed, and saying so is the
-                  honest version of the picker this replaced. */}
-              <small>gemini-2.5-flash &bull; 4 rotating keys</small>
+              {/*
+                * What is actually registered, not a string literal.
+                *
+                * This read "gemini-2.5-flash - 4 rotating keys" whatever the
+                * server was running, and it was wrong in three separate ways at
+                * once. Set fewer than four Gemini keys and the slots without
+                * one are skipped, so the count was a guess. Set GEMINI_MODEL
+                * and the model id was a guess. Point SCOPE_MODELS at the local
+                * slot and both were -- the panel named a hosted model while a
+                * Qwen on the operator's laptop did the work.
+                *
+                * A figure the interface asserts and does not measure is the
+                * thing this project is an argument against, sitting in the
+                * panel that dispatches the mission.
+                */}
+              <small title={props.models?.join(", ") ?? undefined}>{modelSummary(props.models)}</small>
             </div>
             <span className="crew-card__edit-btn">&#9998; Change</span>
           </button>

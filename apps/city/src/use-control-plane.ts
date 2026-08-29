@@ -42,6 +42,15 @@ export type ProbeReason =
 export interface ProbeResult {
   readonly available: boolean;
   readonly reason: ProbeReason;
+  /**
+   * The models this control plane will actually rotate over, when it says.
+   *
+   * Null where there is nothing to ask -- a static deployment, or a server too
+   * old to report them. The city has to be able to tell "four models" from "I
+   * do not know", because the panel used to assert the first while knowing
+   * neither.
+   */
+  readonly models: readonly string[] | null;
 }
 
 export async function probeControlPlane(
@@ -87,20 +96,42 @@ export async function probeControlPlane(
       body = await response.json();
     } catch (cause) {
       const stalled = cause instanceof Error && cause.name === "AbortError";
-      return { available: false, reason: stalled ? "unreachable" : "not-a-control-plane" };
+      return { available: false, reason: stalled ? "unreachable" : "not-a-control-plane", models: null };
     }
-    if (!isHealth(body)) return { available: false, reason: "not-a-control-plane" };
+    if (!isHealth(body)) return { available: false, reason: "not-a-control-plane", models: null };
 
     // Present either way. `ok: false` is the control plane reporting that the
     // harness behind it is unreachable, which is a thing only a control plane
     // can tell you.
     const healthy = (body as { ok: boolean }).ok;
-    return { available: true, reason: healthy ? "control-plane" : "harness-unwell" };
+    return {
+      available: true,
+      reason: healthy ? "control-plane" : "harness-unwell",
+      models: modelsIn(body),
+    };
   } catch {
-    return { available: false, reason: "unreachable" };
+    return { available: false, reason: "unreachable", models: null };
   } finally {
     clearTimeout(timer);
   }
+}
+
+/**
+ * The rotation the health body reports, if it reports one.
+ *
+ * Null rather than an empty array when the field is missing, because "this
+ * server did not say" and "this server rotates over nothing" are different
+ * facts and the panel says different things about them. A server that has no
+ * rotation candidates is a real state -- a machine with only a local model
+ * registered discovers none -- and it should read as that rather than as
+ * silence.
+ */
+function modelsIn(body: unknown): readonly string[] | null {
+  const models = (body as { models?: { rotation?: unknown } }).models;
+  if (typeof models !== "object" || models === null) return null;
+  const rotation = (models as { rotation?: unknown }).rotation;
+  if (!Array.isArray(rotation)) return null;
+  return rotation.filter((name): name is string => typeof name === "string");
 }
 
 /** The shape `GET /api/health` answers with, and nothing else. */
@@ -110,18 +141,24 @@ function isHealth(body: unknown): boolean {
   return typeof health.ok === "boolean" && typeof health.activeMissions === "number";
 }
 
-export function useControlPlane(): ControlPlane {
+export function useControlPlane(): { state: ControlPlane; models: readonly string[] | null } {
   const [state, setState] = useState<ControlPlane>("checking");
+  // What the server said it would rotate over, or null if there was nobody to
+  // ask. The panel needs the difference: it used to assert a model and a count
+  // while knowing neither.
+  const [models, setModels] = useState<readonly string[] | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     void probeControlPlane().then((result) => {
-      if (!cancelled) setState(result.available ? "available" : "absent");
+      if (cancelled) return;
+      setState(result.available ? "available" : "absent");
+      setModels(result.models);
     });
     return () => {
       cancelled = true;
     };
   }, []);
 
-  return state;
+  return { state, models };
 }

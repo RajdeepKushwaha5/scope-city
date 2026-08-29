@@ -27,11 +27,17 @@ const serving = (status: number, body: unknown, json = true) =>
       },
     }) as unknown as Response) as unknown as typeof fetch;
 
-const HEALTH = { ok: true, harness: { ok: true }, activeMissions: 0 };
+const HEALTH_MODELS = ["gemini-a/flash-a", "gemini-b/flash-b"];
+const HEALTH = {
+  ok: true,
+  harness: { ok: true },
+  activeMissions: 0,
+  models: { rotation: HEALTH_MODELS, source: "discovered" },
+};
 
 describe("probeControlPlane", () => {
   it("reports available for the health route's own answer", async () => {
-    expect(await probeControlPlane(serving(200, HEALTH))).toEqual({ available: true, reason: "control-plane" });
+    expect(await probeControlPlane(serving(200, HEALTH))).toEqual({ available: true, reason: "control-plane", models: HEALTH_MODELS });
   });
 
   it("reports available when the harness is unwell, which the route answers 503", async () => {
@@ -41,25 +47,25 @@ describe("probeControlPlane", () => {
     // "absent" for the real thing -- hiding the live controls at exactly the
     // moment they would have explained why the harness was unreachable.
     expect(
-      await probeControlPlane(serving(503, { ok: false, harness: { ok: false }, activeMissions: 0 })),
-    ).toEqual({ available: true, reason: "harness-unwell" });
+      await probeControlPlane(serving(503, { ...HEALTH, ok: false, harness: { ok: false } })),
+    ).toEqual({ available: true, reason: "harness-unwell", models: HEALTH_MODELS });
   });
 
   it("reports absent when a static host rewrites the path to index.html", async () => {
     // The bug this exists for. 200, and emphatically not a control plane:
     // proven against a server mimicking the vercel.json rewrite, which returned
     // `text/html` and the built page.
-    expect(await probeControlPlane(serving(200, null, false))).toEqual({ available: false, reason: "not-a-control-plane" });
+    expect(await probeControlPlane(serving(200, null, false))).toEqual({ available: false, reason: "not-a-control-plane", models: null });
   });
 
   it("reports absent when a host serves a JSON error page with a 200", async () => {
     // Some hosts answer unknown paths with JSON rather than HTML, so parsing
     // successfully is not the test either -- the shape has to match.
-    expect(await probeControlPlane(serving(200, { error: "not found" }))).toEqual({ available: false, reason: "not-a-control-plane" });
+    expect(await probeControlPlane(serving(200, { error: "not found" }))).toEqual({ available: false, reason: "not-a-control-plane", models: null });
   });
 
   it("reports absent when a static host answers with its 404 page", async () => {
-    expect(await probeControlPlane(serving(404, { error: "not found" }))).toEqual({ available: false, reason: "not-a-control-plane" });
+    expect(await probeControlPlane(serving(404, { error: "not found" }))).toEqual({ available: false, reason: "not-a-control-plane", models: null });
   });
 
   it("distinguishes a static host from a host that is not there", async () => {
@@ -80,7 +86,7 @@ describe("probeControlPlane", () => {
     const refuse = (async () => {
       throw new Error("ECONNREFUSED");
     }) as unknown as typeof fetch;
-    expect(await probeControlPlane(refuse)).toEqual({ available: false, reason: "unreachable" });
+    expect(await probeControlPlane(refuse)).toEqual({ available: false, reason: "unreachable", models: null });
   });
 
   it("calls a stalled body unreachable, not a static host", async () => {
@@ -104,6 +110,7 @@ describe("probeControlPlane", () => {
     expect(await probeControlPlane(stall, 20)).toEqual({
       available: false,
       reason: "unreachable",
+      models: null,
     });
   });
 
@@ -116,6 +123,41 @@ describe("probeControlPlane", () => {
         init?.signal?.addEventListener("abort", () => reject(new Error("aborted")));
       })) as unknown as typeof fetch;
 
-    expect(await probeControlPlane(hang, 20)).toEqual({ available: false, reason: "unreachable" });
+    expect(await probeControlPlane(hang, 20)).toEqual({ available: false, reason: "unreachable", models: null });
+  });
+});
+
+describe("the models a control plane reports", () => {
+  it("passes them through when the server says", () => {
+    // The panel used to state "gemini-2.5-flash - 4 rotating keys" from a
+    // string literal, whatever was registered. Now it can only say what it was
+    // told.
+    const probe = probeControlPlane(serving(200, HEALTH));
+    return probe.then((result) => expect(result.models).toEqual(HEALTH_MODELS));
+  });
+
+  it("says nothing rather than guessing when the field is missing", () => {
+    // An older server, or one that never had the field. Null and empty are
+    // different facts: a machine with only a local model registered really does
+    // discover no rotation candidates, and that should read as an empty
+    // rotation rather than as silence.
+    const older = { ok: true, harness: { ok: true }, activeMissions: 0 };
+    return probeControlPlane(serving(200, older)).then((result) =>
+      expect(result.models).toBeNull(),
+    );
+  });
+
+  it("reports an empty rotation as empty, not as unknown", () => {
+    const none = { ...HEALTH, models: { rotation: [], source: "none discovered" } };
+    return probeControlPlane(serving(200, none)).then((result) =>
+      expect(result.models).toEqual([]),
+    );
+  });
+
+  it("keeps only the names, whatever else is in the array", () => {
+    const messy = { ...HEALTH, models: { rotation: ["local/qwen", 7, null], source: "pinned" } };
+    return probeControlPlane(serving(200, messy)).then((result) =>
+      expect(result.models).toEqual(["local/qwen"]),
+    );
   });
 });

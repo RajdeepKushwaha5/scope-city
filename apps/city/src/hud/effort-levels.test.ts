@@ -3,6 +3,7 @@ import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { REASONING_EFFORTS } from "@scope-city/harness";
 import { EFFORT_LEVELS, effortLabel, effortSpriteUrl } from "./CrewModal.js";
+import { modelSummary } from "./MissionOrder.js";
 
 /**
  * The levels offered have to be the levels the harness will accept.
@@ -50,5 +51,36 @@ describe("offered effort levels", () => {
         true,
       );
     }
+  });
+});
+
+describe("naming the models a mission will run on", () => {
+  it("does not claim one when there is nobody to ask", () => {
+    // The deployed city has no control plane, so it cannot know what a harness
+    // would rotate over. It said "gemini-2.5-flash - 4 rotating keys" anyway.
+    expect(modelSummary(null)).toBe("model set by the harness this connects to");
+    expect(modelSummary(undefined)).toBe("model set by the harness this connects to");
+  });
+
+  it("warns when the harness has nothing to rotate onto", () => {
+    // A real state, not a missing answer: a machine with only an opt-in model
+    // registered discovers no rotation candidates, and a mission there will
+    // fail to find one. Better said before Dispatch than after.
+    expect(modelSummary([])).toContain("dispatch will fail");
+  });
+
+  it("names the one model when there is one", () => {
+    expect(modelSummary(["local/qwen"])).toBe("local/qwen \u2022 one model");
+  });
+
+  it("counts what is actually registered", () => {
+    // The old string said four whatever the count was. Set two Gemini keys and
+    // the other two slots are skipped for want of a credential.
+    expect(modelSummary(["gemini-a/flash-a", "gemini-b/flash-b"])).toContain("2 models in rotation");
+    expect(modelSummary(["a", "b", "c", "d"])).toContain("4 models in rotation");
+  });
+
+  it("says which one, not only how many", () => {
+    expect(modelSummary(["local/qwen", "gemini-a/flash-a"])).toContain("local/qwen");
   });
 });

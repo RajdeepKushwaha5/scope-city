@@ -398,6 +398,27 @@ function groundItems(state: SceneState): Drawable[] {
 function facilityItems(state: SceneState, time: number): Drawable[] {
   const items: Drawable[] = [];
 
+  /*
+   * Props dim with the ground they stand on, as the naval yard's do.
+   *
+   * The review made this point about the yard and it applies here for the same
+   * reason: a terminal, a crane or a nameplate that stays lit over fogged apron
+   * is a piece of the map claiming reach the scope has not granted.
+   */
+  const prop = (u: number, v: number, h: number, draw: (ctx: CanvasRenderingContext2D) => void) => ({
+    z: depth(u, v, h),
+    draw: (ctx: CanvasRenderingContext2D) => {
+      if (state.scopeState === "none" || isInScope({ u, v }, state.granted)) {
+        draw(ctx);
+        return;
+      }
+      ctx.save();
+      ctx.globalAlpha = 0.4;
+      draw(ctx);
+      ctx.restore();
+    },
+  });
+
   for (let u = 3; u <= 13; u += 1) {
     const cu = u;
     items.push({
@@ -413,10 +434,10 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     // nowhere for anybody to get on. The terminal is the building that makes it
     // an airport, and the windsock is what makes the strip a runway rather than
     // a black rectangle with stripes on it.
-    { z: depth(7, 28, 3), draw: (ctx) => drawTerminal(ctx, 7, 28) },
-    { z: depth(13, 29, 4), draw: (ctx) => drawWindsock(ctx, 13, 29) },
-    { z: depth(4, 29, 3), draw: (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield") },
-    { z: depth(11, 31, 4), draw: (ctx) => drawFloodlight(ctx, 11, 31) },
+    prop(7, 28, 3, (ctx) => drawTerminal(ctx, 7, 28)),
+    prop(13, 29, 4, (ctx) => drawWindsock(ctx, 13, 29)),
+    prop(4, 29, 3, (ctx) => drawFacilitySign(ctx, 4, 29, "Airfield")),
+    prop(11, 31, 4, (ctx) => drawFloodlight(ctx, 11, 31)),
     { z: depth(4, 25, 3), draw: (ctx) => drawBillboard(ctx, 4, 25, "Scope City", "Authority has borders") },
   );
 
@@ -425,7 +446,7 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
   // nothing left for a deck to be laid on top of.
   for (let u = 28; u <= 37; u += 1) {
     const cu = u;
-    items.push({ z: depth(cu, 32, 0.4), draw: (ctx) => drawBollards(ctx, cu, 32) });
+    items.push({ z: depth(cu, 32, 0.4), draw: (ctx) => drawBollards(ctx, cu, 32, "+v") });
   }
   for (const [u, v, seed] of [
     [29, 29, 1],
@@ -444,10 +465,10 @@ function facilityItems(state: SceneState, time: number): Drawable[] {
     { z: depth(35, 27, 3), draw: (ctx) => drawBillboard(ctx, 35, 27, "TrueForge", "Mission control") },
     // The things that make a quay a port rather than a building site: somewhere
     // to work from, something to work by, and a name on the gate.
-    { z: depth(27, 28, 2), draw: (ctx) => drawQuayHut(ctx, 27, 28) },
-    { z: depth(34, 28, 3), draw: (ctx) => drawFacilitySign(ctx, 34, 28, "Port") },
-    { z: depth(31, 31, 4), draw: (ctx) => drawFloodlight(ctx, 31, 31) },
-    { z: depth(35, 31, 4), draw: (ctx) => drawFloodlight(ctx, 35, 31) },
+    prop(27, 28, 2, (ctx) => drawQuayHut(ctx, 27, 28)),
+    prop(34, 28, 3, (ctx) => drawFacilitySign(ctx, 34, 28, "Port")),
+    prop(31, 31, 4, (ctx) => drawFloodlight(ctx, 31, 31)),
+    prop(35, 31, 4, (ctx) => drawFloodlight(ctx, 35, 31)),
   );
 
   // Bollards, not pier decks. The quay used to be eight `drawPier` slabs laid

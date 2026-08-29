@@ -780,7 +780,8 @@ export function App(): React.JSX.Element {
               onNoScopeReplay={() => runScenario("noscope")}
               onResetView={() => setCamera(fitCamera(size))}
               onRecordedReplay={() => runScenario("recorded")}
-              canDispatch={controlPlane === "available"}
+              canDispatch={controlPlane.state === "available"}
+              models={controlPlane.models}
               recordedPlaying={recorded.playing}
               recordedVerdict={recorded.verdict}
             />

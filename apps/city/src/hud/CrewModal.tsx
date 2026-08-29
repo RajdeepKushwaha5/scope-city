@@ -8,9 +8,8 @@ export type EffortLevel = ReasoningEffort;
  * How hard the model should think on this mission.
  *
  * This dialog began as a crew picker offering Opus, Sonnet and Haiku. None of
- * them is what runs: missions execute on `gemini-2.5-flash` across four
- * rotating keys, and the selection never reached the launch request at all --
- * it changed a portrait and some text in the panel and nothing else.
+ * them is what runs, and the selection never reached the launch request at all
+ * -- it changed a portrait and some text in the panel and nothing else.
  *
  * That is the precise failure this whole project is an argument against. An
  * interface stating a capability the system does not have is the gap between
@@ -198,9 +197,9 @@ export function CrewModal(props: {
             and carries the horizontal padding the box itself does not. */}
         <div className="crew-modal-v2__body">
         <p className="crew-modal-v2__subtitle">
-          Sent with the mission and passed to the model. Every run uses{" "}
-          <code>gemini-2.5-flash</code> across four rotating keys; this changes how
-          much it thinks, not which model answers.
+          Sent with the mission and passed to the model. This changes how much it
+          thinks, not which model answers &mdash; the mission order names the
+          models this harness will actually use.
         </p>
 
         {/* A radiogroup, so the selection is announced rather than implied by

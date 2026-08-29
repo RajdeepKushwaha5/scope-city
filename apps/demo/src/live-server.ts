@@ -282,6 +282,22 @@ async function main(): Promise<void> {
         ok: harness.ok,
         harness,
         activeMissions: [...missions.values()].filter((mission) => mission.status === "running").length,
+        /*
+         * Which models this server will actually rotate over.
+         *
+         * Added because the city was stating one from a string literal:
+         * "gemini-2.5-flash - 4 rotating keys", regardless of what is
+         * registered. That is wrong in three separate ways at once. Set fewer
+         * than four Gemini keys and the slots without one are skipped, so the
+         * count is a guess. Set GEMINI_MODEL and the model id is a guess. Point
+         * SCOPE_MODELS at the local slot and both are, and the panel names a
+         * hosted model while a Qwen on the operator's laptop does the work.
+         *
+         * A number the interface asserts and does not measure is the thing this
+         * whole project is an argument against, and it was in the panel that
+         * dispatches the mission.
+         */
+        models: { rotation: models, source },
       });
       return;
     }

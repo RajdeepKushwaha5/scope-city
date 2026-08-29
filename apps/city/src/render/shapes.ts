@@ -1135,44 +1135,64 @@ export function drawTerminal(ctx: CanvasRenderingContext2D, u: number, v: number
   const c = toScreen(u, v, 0);
   ctx.save();
 
+  // Shadow
   ctx.fillStyle = COAST.shadow;
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y + 5, 44, 14, 0, 0, Math.PI * 2);
+  ctx.ellipse(c.x, c.y + 6, 46, 15, 0, 0, Math.PI * 2);
   ctx.fill();
 
-  ctx.fillStyle = COAST.terminalWall;
-  ctx.fillRect(c.x - 40, c.y - 30, 80, 32);
+  // Side concrete annex with flat roof
+  ctx.fillStyle = "#9ba9ad";
+  ctx.fillRect(c.x + 22, c.y - 22, 24, 22);
+  ctx.fillStyle = "#c2ccce";
+  ctx.fillRect(c.x + 22, c.y - 24, 24, 3);
+  // HVAC box on annex
+  ctx.fillStyle = "#67777d";
+  ctx.fillRect(c.x + 28, c.y - 28, 12, 5);
 
-  // The vault. Two arcs, the second inset, so the glazing reads as glass over
-  // a frame rather than as a painted stripe.
+  // Main terminal walls
+  ctx.fillStyle = COAST.terminalWall;
+  ctx.fillRect(c.x - 38, c.y - 32, 60, 32);
+
+  // Barrel-vaulted glass roof canopy
   ctx.fillStyle = COAST.terminalRoof;
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y - 29, 40, 20, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(c.x - 8, c.y - 30, 32, 18, 0, Math.PI, Math.PI * 2);
   ctx.fill();
-  ctx.fillStyle = COAST.terminalGlass;
+  ctx.fillStyle = "#68c9df";
   ctx.beginPath();
-  ctx.ellipse(c.x, c.y - 29, 34, 16, 0, Math.PI, Math.PI * 2);
+  ctx.ellipse(c.x - 8, c.y - 30, 27, 15, 0, Math.PI, Math.PI * 2);
   ctx.fill();
 
-  ctx.strokeStyle = COAST.terminalRib;
+  // Glass vault structural ribbing
+  ctx.strokeStyle = "#26748d";
   ctx.lineWidth = 1;
-  for (const at of [-24, -12, 0, 12, 24]) {
+  for (const at of [-20, -10, 0, 10, 20]) {
+    const ox = c.x - 8 + at;
+    const h = Math.sqrt(Math.max(0, 1 - (at / 27) ** 2)) * 15;
     ctx.beginPath();
-    ctx.moveTo(c.x + at, c.y - 29);
-    ctx.lineTo(c.x + at, c.y - 29 - Math.sqrt(Math.max(0, 1 - (at / 34) ** 2)) * 16);
+    ctx.moveTo(ox, c.y - 30);
+    ctx.lineTo(ox, c.y - 30 - h);
     ctx.stroke();
   }
 
-  // Landside canopy and the departures board under it.
-  ctx.fillStyle = COAST.terminalTrim;
-  ctx.fillRect(c.x - 42, c.y - 12, 84, 3);
-  ctx.fillStyle = COAST.signFace;
-  ctx.fillRect(c.x - 14, c.y - 24, 28, 9);
-  ctx.fillStyle = COAST.apronLine;
-  ctx.fillRect(c.x - 11, c.y - 21, 22, 3);
+  // Entrance awning / canopy with yellow columns
+  ctx.fillStyle = "#f6bd60";
+  ctx.fillRect(c.x - 26, c.y - 14, 36, 4);
+  ctx.fillStyle = "#b9782f";
+  ctx.fillRect(c.x - 24, c.y - 10, 3, 10);
+  ctx.fillRect(c.x + 6, c.y - 10, 3, 10);
 
+  // Black / Yellow sign with bold "CCX"
+  ctx.fillStyle = "#10232e";
+  ctx.fillRect(c.x - 18, c.y - 22, 22, 7);
+  ctx.fillStyle = "#f6bd60";
+  ctx.font = "bold 6px monospace";
+  ctx.fillText("CCX", c.x - 14, c.y - 16);
+
+  // Terminal doors
   ctx.fillStyle = COAST.terminalDoor;
-  for (const at of [-26, -8, 10]) ctx.fillRect(c.x + at, c.y - 9, 14, 9);
+  for (const at of [-18, -4, 12]) ctx.fillRect(c.x + at, c.y - 9, 10, 9);
   ctx.restore();
 }
 

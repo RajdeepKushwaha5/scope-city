@@ -6,6 +6,8 @@ import {
   FOGGED,
   GROUND,
   HOUSE,
+  HOVERED,
+  SELECTED,
   UI,
   TRAFFIC_COLOURS,
   landmarkStyle,
@@ -108,10 +110,17 @@ export interface SceneState {
    * inspector reads.
    */
   readonly buildings?: ReadonlyMap<string, { authority: string; activity: string }>;
-  /** The office the operator has selected, if any. */
-  readonly selected?: string | null;
-  /** The office under the pointer. Kept separate from locked selection. */
-  readonly hovered?: string | null;
+  /**
+   * The cell the operator has selected, if any.
+   *
+   * A cell rather than an office name, because nine of the city's two hundred
+   * and forty structures have an office and the other two hundred and thirty
+   * were unselectable for want of a key to hold them by. A cell is the one
+   * identity every building has.
+   */
+  readonly selected?: { readonly u: number; readonly v: number } | null;
+  /** The cell under the pointer. Kept separate from locked selection. */
+  readonly hovered?: { readonly u: number; readonly v: number } | null;
   /** Animation phase, 0..1, for the states that pulse. */
   readonly phase?: number;
   /**
@@ -418,6 +427,14 @@ function markerFor(runtime: { authority: string; activity: string }): BuildingMa
   return "none";
 }
 
+/** Cell equality, since the pointer state and the layout hold separate objects. */
+function same(
+  a: { readonly u: number; readonly v: number },
+  b: { readonly u: number; readonly v: number },
+): boolean {
+  return a.u === b.u && a.v === b.v;
+}
+
 function buildingItems(buildings: readonly Building[], state: SceneState): Drawable[] {
   return buildings.map((building) => {
     const { u, v } = building.cell;
@@ -426,10 +443,28 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
     let style: BuildingStyleSet = building.kind === "house" ? HOUSE : CONCRETE;
     if (state.scopeState !== "none" && !inScope) style = FOGGED;
 
+    // Pointer state paints the body, and it wins over the fog. An operator who
+    // clicks a fogged building is asking what it is; answering by leaving it
+    // the same grey as its two hundred neighbours answers nothing. The fog is
+    // still the truth about it, and the inspector beside it says so in words.
+    const picked = state.selected !== null && state.selected !== undefined && same(state.selected, building.cell);
+    const under =
+      !picked && state.hovered !== null && state.hovered !== undefined && same(state.hovered, building.cell);
+    if (picked) style = SELECTED;
+    else if (under) style = HOVERED;
+
     const height = building.height;
     const seed = building.seed % 105;
-    const lit = state.scopeState === "none" || inScope;
-    const styleName = style === FOGGED ? "fog" : building.kind === "house" ? "house" : "concrete";
+    const lit = state.scopeState === "none" || inScope || picked || under;
+    const styleName = picked
+      ? "picked"
+      : under
+        ? "under"
+        : style === FOGGED
+          ? "fog"
+          : building.kind === "house"
+            ? "house"
+            : "concrete";
 
     return {
       z: depth(u, v, height),
@@ -457,13 +492,17 @@ function buildingItems(buildings: readonly Building[], state: SceneState): Drawa
           if (runtime) {
             drawBuildingMarker(ctx, u, v, height, markerFor(runtime), state.phase ?? 0);
           }
-          if (state.selected === building.office) drawSelection(ctx, u, v, height);
-          else if (state.hovered === building.office) {
-            ctx.save();
-            ctx.globalAlpha = 0.62;
-            drawSelection(ctx, u, v, height);
-            ctx.restore();
-          }
+        }
+
+        // Outside the office branch, because the outline is about the pointer
+        // and the pointer can be anywhere. It was nested under `building.office`
+        // and so could never appear on the rest of the city.
+        if (picked) drawSelection(ctx, u, v, height);
+        else if (under) {
+          ctx.save();
+          ctx.globalAlpha = 0.62;
+          drawSelection(ctx, u, v, height);
+          ctx.restore();
         }
       },
     };

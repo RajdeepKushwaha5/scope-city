@@ -66,6 +66,41 @@ export const FOGGED: BuildingStyleSet = {
 };
 
 /**
+ * The building the operator has clicked.
+ *
+ * An outline alone was not enough to find. It is one and a half pixels of gold
+ * traced around a roof, on a skyline of two hundred and forty roofs, and at the
+ * zoom the city opens at a whole building is about six pixels across -- so the
+ * mark meant to answer "which one did I just pick" was smaller than the thing
+ * it was marking. The body carries the answer now and the outline sharpens it.
+ *
+ * Warm, and deliberately the only warm building in a cool city: the palette is
+ * concrete and slate everywhere else, so a single amber block is found by
+ * glance rather than by search. It is the accent already used for authority
+ * elsewhere in the HUD, which keeps one colour meaning one thing.
+ */
+export const SELECTED: BuildingStyleSet = {
+  body: { top: "#f7d99a", left: "#e2bd76", right: "#c8a25c", edge: "#6d5324" },
+  roof: { top: "#f0a830", left: "#d18f24", right: "#af761b", edge: "#7a5211" },
+  glass: "#fff0cf",
+  glassDark: "#d9b478",
+};
+
+/**
+ * The building under the pointer.
+ *
+ * Lighter than the selection and cooler, because hover is a question and
+ * selection is an answer. Two identical highlights would leave the operator
+ * unable to tell what they had committed to from what they were merely near.
+ */
+export const HOVERED: BuildingStyleSet = {
+  body: { top: "#fdf2dc", left: "#ecdcbe", right: "#d4c3a4", edge: "#6b6350" },
+  roof: { top: "#6f93bd", left: "#5f80a6", right: "#4f6c8c", edge: "#3a5069" },
+  glass: "#dcecfb",
+  glassDark: "#adc3d8",
+};
+
+/**
  * District landmarks. Each is a distinct hue so six of them are told apart at a
  * glance and on video, which is the whole reason for having six districts
  * rather than two hundred buildings.

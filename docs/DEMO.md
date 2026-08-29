@@ -22,23 +22,31 @@ happened**, then one surprise, then credit the harness.
 pnpm --filter @scope-city/city dev
 ```
 
-**Check `pnpm` runs before you start recording.** pnpm 11 imports
-`node:sqlite`, which Node 22.13 exposes and Node 23.0-23.3 hide behind a flag,
-so on those releases every pnpm command dies on an unknown-builtin-module
-trace. Finding that out with the recorder running is a bad minute.
+**Check the toolchain before you start recording.** Two prerequisites, and
+they fail differently, so check them separately -- `pnpm --version` reports
+pnpm's version or dies, and it cannot tell you which of the two is wrong:
 
 ```bash
-pnpm --version    # 11.10.0, or you are on a release that gates node:sqlite
+node --version    # v22.13 or later. v23.0 to v23.3 need the flag below.
+pnpm --version    # 11.10.0
 ```
 
-If it fails, export the flag once and every pnpm command in this document
-works, including the one above -- prefixing only the version check proves
-nothing and starts nothing:
+pnpm 11 imports `node:sqlite`, which 22.13 exposes and 23.0 to 23.3 hide behind
+a flag, so on those releases every pnpm command dies on an
+unknown-builtin-module trace. Finding that out with the recorder running is a
+bad minute.
+
+If `node --version` puts you in that window, export the flag once and every
+pnpm command in this document works, including the one above. Prefixing only
+the version check proves the flag works and starts nothing:
 
 ```bash
 export NODE_OPTIONS=--experimental-sqlite
 pnpm --filter @scope-city/city dev
 ```
+
+If `pnpm --version` fails on a supported Node, the flag is not your problem and
+will not help: install pnpm 11.10.
 
 Node 22.13 is the supported line and the better answer; 23.4 unflagged
 `node:sqlite` again, so the problem is a window rather than a whole major

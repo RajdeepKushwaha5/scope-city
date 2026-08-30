@@ -7,6 +7,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { canonical } from "../src/canonical.js";
+import { buildRecord } from "../src/record.js";
+import { CountersignBook } from "../src/countersign-book.js";
+import { newOperatorKeyBase64, operatorSigner } from "../src/operator-key.js";
 
 /**
  * The standalone verifier duplicates this package's hashing on purpose, so that
@@ -97,10 +100,15 @@ describe("the standalone verifier hashes the same way this package does", () => 
 describe("the verifier refuses records it should refuse", () => {
   const script = fileURLToPath(new URL("../../../scripts/verify-record.mjs", import.meta.url));
 
-  function run(record: unknown): { code: number; out: string } {
+  function run(record: unknown, publicKeyPem?: string): { code: number; out: string } {
     const file = join(mkdtempSync(join(tmpdir(), "scope-verify-")), "record.json");
     writeFileSync(file, JSON.stringify(record));
-    const result = spawnSync(process.execPath, [script, file], { encoding: "utf8" });
+    const result = spawnSync(process.execPath, [script, file], {
+      encoding: "utf8",
+      env: publicKeyPem
+        ? { ...process.env, SCOPE_OPERATOR_PUBLIC_KEY: publicKeyPem }
+        : process.env,
+    });
     return { code: result.status ?? -1, out: `${result.stdout}${result.stderr}` };
   }
 
@@ -124,6 +132,119 @@ describe("the verifier refuses records it should refuse", () => {
 
     return { missionId, scopeId: scope.scopeId, job: scope.job, scope, entries, head: previous, algorithm: "sha256", lossy: false };
   }
+
+  /**
+   * A record with a real approval, signed, whose chain checks out.
+   *
+   * `signedGate` takes the arguments the gate was raised with separately from
+   * the ones the signature covers, so a test can hand it a record where a
+   * genuine signature sits beside a call it never authorised. That is the whole
+   * attack: the chain stays intact, the signature stays real, and only an
+   * independently derived fingerprint catches it.
+   */
+  function signedGate(params: { readonly signedArgs: Record<string, unknown>; readonly raisedArgs: Record<string, unknown> }) {
+    const { signer } = operatorSigner(newOperatorKeyBase64());
+    const scope = {
+      missionId: "m_" + "b".repeat(10),
+      scopeId: "SC-SIGN",
+      agent: "a",
+      job: "Refund order 184",
+      state: "granted",
+      offices: ["charge.refund"],
+      resources: { charge_ids: ["ch_184"] },
+      limits: { maxAmountMinor: { "charge.refund": 4900 }, maxCalls: {}, maxResponseBytes: 64_000 },
+      projection: {},
+      countersignRequired: ["charge.refund"],
+      expiresAt: 2_000_000_000_000,
+      grantedBy: "operator:test",
+      grantedAt: 1,
+      version: 1,
+    } as unknown as Parameters<typeof CountersignBook.prototype.raise>[0]["scope"];
+
+    const book = new CountersignBook(signer);
+    const raised = book.raise({
+      scope,
+      toolCallId: "c1",
+      threadId: "main",
+      office: "charge.refund",
+      args: params.signedArgs,
+      now: 1,
+    });
+    book.settle("c1", { status: "approved", at: 2 });
+    const signature = book.signatureFor("c1")!;
+
+    const world = [
+      { type: "gate.raised", threadId: "main", toolCallId: "c1", office: "charge.refund", args: params.raisedArgs, at: 1 },
+      {
+        type: "gate.cleared",
+        toolCallId: "c1",
+        approved: true,
+        signature: signature.signature,
+        operator: signature.operator,
+        algorithm: signature.algorithm,
+        fingerprint: raised.fingerprint,
+        at: 2,
+      },
+    ];
+
+    const record = buildRecord({
+      missionId: scope.missionId,
+      scope,
+      events: world.map((w, i) => ({ sequence: i + 1, at: w.at, event: { type: "world", event: w } })) as never,
+      startedAt: 1,
+      finishedAt: 3,
+    });
+
+    return { record, publicKeyPem: signer.publicKeyPem };
+  }
+
+  it("reports a signed approval as signed but unverified without the key", () => {
+    // Seeing a signature and checking one are different things, and reporting
+    // the first as the second would be the whole point thrown away.
+    const { record } = signedGate({
+      signedArgs: { charge_id: "ch_184", amount_minor: 4900 },
+      raisedArgs: { charge_id: "ch_184", amount_minor: 4900 },
+    });
+
+    const { code, out } = run(record);
+    expect(code, out).toBe(0);
+    expect(out).toContain("signed, unverified");
+  });
+
+  it("refuses a real signature paired with a rewritten call", () => {
+    /*
+     * The attack the fingerprint derivation exists for.
+     *
+     * Everything here is genuine except the pairing: the signature was really
+     * made by the operator, the chain really covers the entries, and the
+     * `fingerprint` field really is the one that was signed. Only the call it
+     * sits beside was changed, from a 49-dollar refund to a 3,990-dollar one.
+     *
+     * A verifier that checked the signature against the fingerprint written in
+     * the record would pass this and print `signature valid`, which is why the
+     * fingerprint is recomputed from the raised gate and the sealed scope.
+     */
+    const { record, publicKeyPem } = signedGate({
+      signedArgs: { charge_id: "ch_184", amount_minor: 4900 },
+      raisedArgs: { charge_id: "ch_999", amount_minor: 399_000 },
+    });
+
+    const { out } = run(record, publicKeyPem);
+    expect(out, "the chain is intact, which is the point").toContain("chain intact");
+    expect(out).toContain("SIGNATURE INVALID");
+    expect(out).toContain("does not describe the call it answers");
+  });
+
+  it("verifies a signature that does describe its call", () => {
+    const { record, publicKeyPem } = signedGate({
+      signedArgs: { charge_id: "ch_184", amount_minor: 4900 },
+      raisedArgs: { charge_id: "ch_184", amount_minor: 4900 },
+    });
+
+    const { code, out } = run(record, publicKeyPem);
+    expect(code, out).toBe(0);
+    expect(out).toContain("signature valid");
+  });
 
   it("accepts a sound record", () => {
     const { code, out } = run(sound());

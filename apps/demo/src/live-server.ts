@@ -801,6 +801,28 @@ async function main(): Promise<void> {
        * -- it cannot be moved to a different call, and it cannot be fabricated
        * by whatever wrote the log.
        */
+      /*
+       * Settled here, before the event is written, because the signature has to
+       * exist by then.
+       *
+       * `gates.decide` resolves a promise, and the code that settles the book
+       * runs in its continuation -- which is after this synchronous handler has
+       * already appended `gate.cleared`. So every recorded approval went out
+       * without its signature, and the signature made a moment later lived only
+       * in memory with no event left to attach it to. The feature was inert in
+       * the one path that matters.
+       *
+       * Settling twice is safe: Ed25519 is deterministic, so the later settle
+       * in the mission runner recomputes the identical signature over the
+       * identical fingerprint. What is not safe is recording an approval that
+       * claims nothing, which is what happened before.
+       */
+      mission.book.settle(toolCallId, {
+        status: approved ? "approved" : "denied",
+        ...(reason ? { reason } : {}),
+        at: Date.now(),
+      } as never);
+
       const signed = mission.book.signatureFor(toolCallId);
       const pending = mission.book.pending(toolCallId);
       mission.feed.append({

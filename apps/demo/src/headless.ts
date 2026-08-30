@@ -29,7 +29,12 @@ import {
   startProxyHttp,
   type Mission,
 } from "@scope-city/proxy";
-import { CountersignBook, MissionEventLog, missionBrief } from "@scope-city/mission";
+import {
+  CountersignBook,
+  MissionEventLog,
+  missionBrief,
+  operatorSigner,
+} from "@scope-city/mission";
 import { newProxyToken, runMission, type MissionResult } from "./mission-run.js";
 import {
   IRREVERSIBLE_OFFICES,
@@ -169,7 +174,21 @@ async function main(): Promise<void> {
     version: 1,
   };
 
-  const book = new CountersignBook();
+  /*
+   * The headless run signs its approvals too.
+   *
+   * It is a supported runtime that writes mission records, so leaving it
+   * unsigned would make the README's claim true of one entry point and not the
+   * other -- and the difference would only surface when somebody verified a
+   * record produced by the wrong one.
+   */
+  const { signer: operator, ephemeral: operatorIsEphemeral } = operatorSigner();
+  console.log(
+    operatorIsEphemeral
+      ? `  operator key   ${operator.operator} (generated for this run)`
+      : `  operator key   ${operator.operator} (from SCOPE_OPERATOR_KEY)`,
+  );
+  const book = new CountersignBook(operator);
   const registry = new MissionRegistry();
 
   const mission: Mission = {

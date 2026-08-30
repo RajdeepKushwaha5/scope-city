@@ -683,6 +683,21 @@ attests that the process holding it approved; binding that to a human needs
 OIDC or a hardware token. The verifier says which of those it found rather than
 letting a green line imply the stronger claim.
 
+Two things the verifier derives rather than believes, because the record it is
+reading is the thing under suspicion. The **fingerprint** is recomputed from the
+raised gate and the sealed scope, so a genuine signature cannot be paired with a
+call it never authorised: a rewritten record with an intact chain and a real
+signature still fails, and there is a test that builds exactly that. And the
+**operator id** printed comes from the key that verified, not from the label in
+the file.
+
+To check a record somebody hands you, you need the public half:
+
+```bash
+node -e "import('@scope-city/mission').then(m=>console.log(m.operatorPublicKeyPem()))"
+SCOPE_OPERATOR_PUBLIC_KEY="$(cat operator.pub)" node scripts/verify-record.mjs <record.json>
+```
+
 None of that is hard to see coming, and none of it changes the argument the
 project makes. It does change what you could deploy on Monday, and a submission
 that says so is more use than one that lets you find out.

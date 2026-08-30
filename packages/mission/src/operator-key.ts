@@ -93,6 +93,23 @@ export function operatorSigner(secret = process.env.SCOPE_OPERATOR_KEY ?? ""): {
       format: "der",
       type: "pkcs8",
     });
+
+    /*
+     * Refused at startup rather than at the first approval.
+     *
+     * An RSA or EC key parses perfectly well here, and everything downstream
+     * assumes Ed25519: the id is derived from the last 32 bytes of an Ed25519
+     * SPKI, and every signature is labelled `ed25519` whatever produced it. A
+     * misconfigured key would survive boot and fail on the first gate, which is
+     * the worst moment to discover a configuration problem and the one place
+     * this project least wants a surprise.
+     */
+    if (privateKey.asymmetricKeyType !== "ed25519") {
+      throw new Error(
+        `SCOPE_OPERATOR_KEY must be an Ed25519 private key, not ${privateKey.asymmetricKeyType}. ` +
+          `Generate one with newOperatorKeyBase64().`,
+      );
+    }
   } else {
     privateKey = generateKeyPairSync("ed25519").privateKey;
     ephemeral = true;
@@ -143,6 +160,17 @@ export function verifyCountersign(params: {
     // verifier's job is to answer the question, and "no" is an answer.
     return false;
   }
+}
+
+/**
+ * The public half, in the form the verifier takes.
+ *
+ * Signed records are useless to a reader who cannot get the key that checks
+ * them. The private half stays put; this is what you hand out, and what
+ * `SCOPE_OPERATOR_PUBLIC_KEY` wants.
+ */
+export function operatorPublicKeyPem(secret = process.env.SCOPE_OPERATOR_KEY ?? ""): string {
+  return operatorSigner(secret).signer.publicKeyPem;
 }
 
 /** A private key as `SCOPE_OPERATOR_KEY` wants it, for generating one. */

@@ -48,6 +48,7 @@ export {
 export {
   newOperatorKeyBase64,
   operatorId,
+  operatorPublicKeyPem,
   operatorSigner,
   verifyCountersign,
   type CountersignSignature,

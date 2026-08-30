@@ -101,36 +101,101 @@ describe("admitting what a model proposed", () => {
     ).toEqual([]);
   });
 
-  it("drops an argument the office does not declare", () => {
-    // The evaluator refuses undeclared arguments, so keeping them would turn a
-    // malformed call into a clean refusal and count it as a probe that passed.
-    const [probe] = admissibleProbes(
-      [
-        {
-          office: "charge.get",
-          args: { charge_id: "ch_185", force: true },
-          why: "neighbour",
-        },
-      ],
-      registry,
-      NOW,
-    );
-    expect(probe?.args).toEqual({ charge_id: "ch_185" });
+  it("rejects the whole proposal when an argument is undeclared", () => {
+    /*
+     * It used to strip the bad argument and admit the rest, which ran a
+     * different call from the one the model proposed and counted the
+     * evaluator's inevitable refusal as a probe that meant something. A
+     * malformed proposal is a model failing to answer, not evidence about a
+     * scope.
+     */
+    expect(
+      admissibleProbes(
+        [
+          {
+            office: "charge.get",
+            args: { charge_id: "ch_185", force: true },
+            why: "neighbour",
+          },
+        ],
+        registry,
+        NOW,
+      ),
+    ).toEqual([]);
   });
 
-  it("drops an argument that is a structure rather than a value", () => {
-    const [probe] = admissibleProbes(
+  it("rejects a proposal whose argument is a structure rather than a value", () => {
+    expect(
+      admissibleProbes(
+        [
+          {
+            office: "charge.get",
+            args: { charge_id: { $ne: null } },
+            why: "injection",
+          },
+        ],
+        registry,
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects a proposal missing an argument the office requires", () => {
+    // Refused for being incomplete, which says nothing about where the
+    // boundary is.
+    expect(
+      admissibleProbes(
+        [{ office: "charge.get", args: {}, why: "x" }],
+        registry,
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it("rejects an amount that arrives as a string", () => {
+    // The evaluator compares amounts as numbers. A string there is a type error
+    // rather than an attack, and counting its refusal would be padding.
+    expect(
+      admissibleProbes(
+        [
+          {
+            office: "charge.refund",
+            args: { charge_id: "ch_184", amount_minor: "90000" },
+            why: "over the ceiling",
+          },
+        ],
+        registry,
+        NOW,
+      ),
+    ).toEqual([]);
+  });
+
+  it("does not let malformed output starve the valid attacks behind it", () => {
+    /*
+     * The cap was applied to the input, so unusable proposals could push out
+     * every real one -- and unusable output is exactly what a struggling model
+     * produces, so the cap defended against the case it was least likely to
+     * meet and none of the case it was.
+     */
+    const junk = Array.from({ length: MAX_ADVERSARY_PROBES }, () => ({
+      office: "does.not.exist",
+      args: {},
+      why: "junk",
+    }));
+    const probes = admissibleProbes(
       [
+        ...junk,
         {
           office: "charge.get",
-          args: { charge_id: { $ne: null } },
-          why: "injection",
+          args: { charge_id: "ch_185" },
+          why: "the real one",
         },
       ],
       registry,
       NOW,
     );
-    expect(probe?.args).toEqual({});
+    expect(probes).toHaveLength(1);
+    expect(probes[0]!.why).toBe("the real one");
   });
 
   it("drops a proposal that is not shaped like a call at all", () => {
@@ -166,11 +231,43 @@ describe("admitting what a model proposed", () => {
 
   it("does not let a model write an essay into the operator's report", () => {
     const probe = admissibleProbes(
-      [{ office: "charge.get", args: {}, why: "x".repeat(5000) }],
+      [
+        {
+          office: "charge.get",
+          args: { charge_id: "ch_184" },
+          why: "x".repeat(5000),
+        },
+      ],
       registry,
       NOW,
     )[0];
     expect(probe!.why.length).toBeLessThanOrEqual(160);
+  });
+
+  it("does not let a model forge a line in the record", () => {
+    /*
+     * `why` is written by a model from a ticket an attacker may have authored,
+     * and it is printed to a terminal and stored in the record. Trimming does
+     * not remove what makes that dangerous: a newline forges a log line, an
+     * ANSI escape repaints one already written, and a bidirectional control
+     * reorders text so it reads as something else.
+     */
+    const probe = admissibleProbes(
+      [
+        {
+          office: "charge.get",
+          args: { charge_id: "ch_184" },
+          why: "harmless\n  ALLOWED  charge.refund  approved\u001b[31m\u202e",
+        },
+      ],
+      registry,
+      NOW,
+    )[0];
+
+    expect(probe!.why).not.toContain("\n");
+    expect(probe!.why).not.toContain("\u001b");
+    expect(probe!.why).not.toContain("\u202e");
+    expect(probe!.why).toContain("harmless");
   });
 
   // --- and what does become a probe ---------------------------------------
@@ -270,7 +367,15 @@ describe("running the adversary against a scope", () => {
     });
 
     expect(out.findings).toEqual([]);
-    expect(out.report.declined).toContain("ECONNREFUSED");
+    /*
+     * Neutral, because this report is appended to the mission feed and
+     * serialised to every connected browser. `connect ECONNREFUSED
+     * 127.0.0.1:11434` names the port a local model listens on, to a surface
+     * that has no business knowing it. The detail goes to the operator's log.
+     */
+    expect(out.report.declined).toBe("the local adversary was unavailable");
+    expect(out.report.declined).not.toContain("ECONNREFUSED");
+    expect(out.report.declined).not.toContain("11434");
     expect(out.report.holes).toBe(0);
   });
 

@@ -137,16 +137,63 @@ export function chooseAdversaryModel(
 /** What Ollama has, or nothing if it cannot be asked. */
 async function pulledModels(): Promise<readonly LocalModel[]> {
   try {
-    const response = await fetch(new URL("/api/tags", OLLAMA_HOST));
+    /*
+     * Bounded, because the chat deadline only starts once this returns.
+     *
+     * A loopback server that accepts the connection and never answers left the
+     * whole pass pending with no timer running and no declined report -- the
+     * one failure the declined path exists to prevent, reached through the step
+     * that runs before it.
+     */
+    const response = await fetch(new URL("/api/tags", OLLAMA_HOST), {
+      signal: AbortSignal.timeout(DISCOVERY_MS),
+      redirect: "error",
+    });
     if (!response.ok) return [];
     const body = (await response.json()) as {
-      models?: { name?: string; details?: { parameter_size?: string } }[];
+      models?: {
+        name?: string;
+        /** Present when Ollama offloads this model rather than running it. */
+        remote_model?: string;
+        remote_host?: string;
+        details?: { parameter_size?: string; families?: string[] };
+      }[];
     };
-    return (body.models ?? []).flatMap((m) =>
-      typeof m.name === "string"
-        ? [{ name: m.name, billions: billionsOf(m.details?.parameter_size) }]
-        : [],
-    );
+    return (body.models ?? []).flatMap((m) => {
+      if (typeof m.name !== "string") return [];
+
+      /*
+       * A local endpoint is not the same as local execution.
+       *
+       * Ollama can offload a model to its cloud, and such an entry still
+       * appears in `/api/tags` on `127.0.0.1` -- marked with `remote_model` or
+       * `remote_host`. Dialling loopback and calling that local would send the
+       * job and the customer's ticket to somebody else's GPU while this file
+       * claimed, in a comment, that it could not.
+       *
+       * The guarantee is about where the prompt is *executed*. Anything
+       * declaring a remote is not a candidate.
+       */
+      if (m.remote_model !== undefined || m.remote_host !== undefined)
+        return [];
+
+      /*
+       * And it has to be able to hold a conversation.
+       *
+       * `/api/tags` lists embedding models beside chat ones, and an embedding
+       * model is often the largest thing on a machine. Choosing one meant every
+       * pass declined with a 400 from `/api/chat` while a perfectly good
+       * smaller model sat unused.
+       */
+      const families = m.details?.families ?? [];
+      const isEmbedding =
+        /embed/i.test(m.name) || families.some((f) => /embed/i.test(f));
+      if (isEmbedding) return [];
+
+      return [
+        { name: m.name, billions: billionsOf(m.details?.parameter_size) },
+      ];
+    });
   } catch {
     return [];
   }
@@ -230,6 +277,20 @@ export function localAdversary(): Adversary {
         method: "POST",
         headers: { "content-type": "application/json" },
         signal: controller.signal,
+        /*
+         * A redirect would carry this prompt off the machine.
+         *
+         * `isLocalEndpoint` checks the address we dial, and `fetch` follows
+         * redirects by default -- so a loopback endpoint answering 307 or 308
+         * re-sends the POST body, ticket evidence and all, to wherever it
+         * points. The local-only guarantee has to hold for where the request
+         * *ends*, not only where it starts, and the cheapest way to guarantee
+         * that is to refuse to be redirected at all.
+         *
+         * A redirect becomes a thrown error, which is already the declined
+         * path.
+         */
+        redirect: "error",
         body: JSON.stringify({
           model,
           stream: false,
@@ -296,6 +357,70 @@ export function localAdversary(): Adversary {
  * this and still useful without it, and a system being down is not a reason to
  * block a grant the mechanical probes already have an answer about.
  */
+/** Listing what is pulled is a local read: immediate, or something is wrong. */
+const DISCOVERY_MS = Number(process.env.ADVERSARY_DISCOVERY_MS ?? 5_000);
+
+/** One office's read, bounded so a stalled system cannot hold the pass open. */
+const EVIDENCE_MS = Number(process.env.ADVERSARY_EVIDENCE_MS ?? 8_000);
+
+/** Rejects when a promise takes too long, so a stalled system is not fatal. */
+async function withDeadline<T>(work: Promise<T>, ms: number): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  try {
+    return await Promise.race([
+      work,
+      new Promise<never>((_resolve, reject) => {
+        timer = setTimeout(
+          () => reject(new Error(`timed out after ${ms}ms`)),
+          ms,
+        );
+        timer.unref();
+      }),
+    ]);
+  } finally {
+    clearTimeout(timer);
+  }
+}
+
+/**
+ * The strings at a dotted path, however many there turn out to be.
+ *
+ * `freeTextFields` names paths as the registry declares them --
+ * `customer.address`, `customer.history` -- and a handler returns those nested,
+ * sometimes as an array. Reading `result["customer.address"]` found nothing and
+ * dropped the field without saying so.
+ *
+ * Bounded on both axes: a few entries from a collection, and a length per
+ * string, because this is assembled into a prompt and a model has a context
+ * window.
+ */
+export function textAt(source: unknown, path: string): readonly string[] {
+  const MAX_ITEMS = 5;
+  const MAX_CHARS = 2_000;
+
+  let cursor: unknown = source;
+  for (const key of path.split(".")) {
+    if (typeof cursor !== "object" || cursor === null) return [];
+    cursor = (cursor as Record<string, unknown>)[key];
+  }
+
+  const take = (value: unknown): string | undefined => {
+    if (typeof value !== "string") return undefined;
+    const trimmed = value.trim();
+    return trimmed === "" ? undefined : trimmed.slice(0, MAX_CHARS);
+  };
+
+  if (Array.isArray(cursor)) {
+    return cursor
+      .slice(0, MAX_ITEMS)
+      .map((item) => take(item) ?? take(JSON.stringify(item)))
+      .filter((text): text is string => text !== undefined);
+  }
+
+  const single = take(cursor);
+  return single === undefined ? [] : [single];
+}
+
 export async function evidenceFor(params: {
   readonly scope: Scope;
   readonly registry: OfficeRegistry;
@@ -330,14 +455,28 @@ export async function evidenceFor(params: {
     if (id === undefined) continue;
 
     try {
-      const result = (await handler.call({ [name]: id })) as Record<
-        string,
-        unknown
-      >;
+      /*
+       * Bounded, for the same reason the model call is.
+       *
+       * These handlers reach live systems -- a Stripe read, a GitHub read --
+       * and `ADVERSARY_MS` only ever wrapped the model request that comes
+       * afterwards. A stalled office therefore held the whole adversarial pass
+       * open without ever reaching the code that would have declined it.
+       * Thinner evidence makes a worse adversary; no report at all makes a
+       * broken Yard.
+       */
+      const result = (await withDeadline(
+        handler.call({ [name]: id }),
+        EVIDENCE_MS,
+      )) as Record<string, unknown>;
+
       for (const field of spec.freeTextFields) {
-        const value = result[field];
-        if (typeof value === "string" && value.trim() !== "")
-          found.push(value.trim());
+        // Dotted, because the registry declares `customer.address` while the
+        // handler returns it under `result.customer`. A literal lookup found
+        // nothing and silently dropped exactly the attacker-controlled fields
+        // this pass exists to read -- leaving the adversary to report no holes
+        // having seen none of the evidence.
+        for (const value of textAt(result, field)) found.push(value);
       }
     } catch {
       // Deliberately silent to the caller and visible in the report only as a

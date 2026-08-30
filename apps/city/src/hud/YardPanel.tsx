@@ -13,7 +13,9 @@ import { Window } from "./Window.js";
  * nothing is wrong would leave the operator unable to tell a scope that is
  * sound from one that was never examined.
  */
-export function YardPanel(props: { report: BacktestReport | null }): React.JSX.Element {
+export function YardPanel(props: {
+  report: BacktestReport | null;
+}): React.JSX.Element {
   const report = props.report;
   const adversary = report?.adversary;
 
@@ -22,9 +24,13 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
       title="THE YARD"
       right={
         report ? (
-          <span className={`status-chip status-chip--${report.clean ? "live" : "reconnecting"}`}>
+          <span
+            className={`status-chip status-chip--${report.clean ? "live" : "reconnecting"}`}
+          >
             <span className="status-chip__dot" />
-            {report.clean ? "no holes" : `${report.findings.filter((f) => f.severity !== "note").length} to review`}
+            {report.clean
+              ? "no holes"
+              : `${report.findings.filter((f) => f.severity !== "note").length} to review`}
           </span>
         ) : null
       }
@@ -34,7 +40,8 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
       ) : (
         <>
           <div className="yard__probes">
-            {report.probesRun} adversarial probes · nothing called, nothing spent
+            {report.probesRun} adversarial probes · nothing called, nothing
+            spent
           </div>
 
           {/*
@@ -63,14 +70,17 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
               ) : (
                 <>
                   <div className="yard__adversary-head">
-                    {adversary.model} wrote {adversary.admitted} attack
-                    {adversary.admitted === 1 ? "" : "s"} on this machine ·{" "}
+                    {adversary.model} wrote {adversary.wrote} attack
+                    {adversary.wrote === 1 ? "" : "s"} on this machine ·{" "}
                     {adversary.holes === 0
                       ? "none got through"
                       : `${adversary.holes} got through`}
                   </div>
                   {adversary.attempts.map((attempt, i) => (
-                    <div className="yard__attempt" key={`${attempt.office}-${i}`}>
+                    <div
+                      className="yard__attempt"
+                      key={`${attempt.office}-${i}`}
+                    >
                       <span
                         className={`yard__verdict yard__verdict--${attempt.refused ? "refused" : "allowed"}`}
                       >
@@ -93,18 +103,27 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
           ) : (
             <div className="yard__list">
               {report.findings.map((finding, i) => (
-                <div key={`${finding.kind}-${i}`} className={`yard__item yard__item--${finding.severity}`}>
+                <div
+                  key={`${finding.kind}-${i}`}
+                  className={`yard__item yard__item--${finding.severity}`}
+                >
                   <div className="yard__head">
-                    <span className={`yard__sev yard__sev--${finding.severity}`}>
+                    <span
+                      className={`yard__sev yard__sev--${finding.severity}`}
+                    >
                       {finding.severity}
                     </span>
                     <span className="yard__office">{finding.office}</span>
                   </div>
                   <div className="yard__summary">{finding.summary}</div>
                   {finding.detail && finding.detail.length > 0 ? (
-                    <div className="yard__detail">{finding.detail.join(" · ")}</div>
+                    <div className="yard__detail">
+                      {finding.detail.join(" · ")}
+                    </div>
                   ) : null}
-                  {finding.remedy ? <div className="yard__remedy">{finding.remedy}</div> : null}
+                  {finding.remedy ? (
+                    <div className="yard__remedy">{finding.remedy}</div>
+                  ) : null}
                 </div>
               ))}
             </div>

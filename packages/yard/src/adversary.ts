@@ -90,6 +90,32 @@ export type Adversary = (request: AdversaryRequest) => Promise<AdversaryResult>;
  */
 export const MAX_ADVERSARY_PROBES = 24;
 
+/**
+ * Model text reduced to one line that cannot forge anything around it.
+ *
+ * `why` is written by a model from a ticket an attacker may have authored, and
+ * it is printed to a terminal and stored in the mission record. Trimming and
+ * truncating does not remove what makes that dangerous: a newline forges a log
+ * line, an ANSI escape repaints one already written, and a bidirectional
+ * control reorders text so it reads as something else.
+ *
+ * Flattened where it is admitted rather than where it is rendered, because one
+ * of those renderers would eventually be added without the sanitiser.
+ */
+export function displaySafe(text: string): string {
+  return (
+    text
+      // C0 and C1 controls: newlines, carriage returns, and the escape that
+      // begins an ANSI sequence.
+      .replace(/[\u0000-\u001f\u007f-\u009f]+/g, " ")
+      // Explicit bidirectional overrides and isolates.
+      .replace(/[\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 160)
+  );
+}
+
 /** Arguments are values, not structures. A nested object is not a call. */
 function isFlatValue(value: unknown): boolean {
   return (
@@ -122,7 +148,17 @@ export function admissibleProbes(
 ): readonly Probe[] {
   const probes: Probe[] = [];
 
-  for (const raw of proposed.slice(0, MAX_ADVERSARY_PROBES)) {
+  /*
+   * The cap counts what was admitted, not what was read.
+   *
+   * Slicing the input first meant twenty-four malformed proposals could starve
+   * every valid attack behind them -- and malformed output is exactly what a
+   * struggling model produces, so the cap protected the Yard from the case it
+   * was least likely to face and none of the case it was.
+   */
+  for (const raw of proposed) {
+    if (probes.length >= MAX_ADVERSARY_PROBES) break;
+
     if (typeof raw?.office !== "string") continue;
     const spec = registry.get(raw.office);
     if (!spec) continue;
@@ -130,25 +166,50 @@ export function admissibleProbes(
       typeof raw.args !== "object" ||
       raw.args === null ||
       Array.isArray(raw.args)
-    )
+    ) {
       continue;
+    }
 
+    /*
+     * The whole proposal, or none of it.
+     *
+     * Stripping the bad arguments and admitting the remainder produced a
+     * different call from the one the model proposed, ran that, and counted the
+     * evaluator's inevitable refusal as a probe that meant something. A
+     * malformed proposal is not evidence about a scope; it is a model failing
+     * to answer, and it should leave the count rather than pad it.
+     */
     const args: Record<string, unknown> = {};
+    let admissible = true;
     for (const [name, value] of Object.entries(raw.args)) {
-      if (!(name in spec.args)) continue;
-      if (!isFlatValue(value)) continue;
+      const binding = spec.args[name];
+      if (!binding || !isFlatValue(value)) {
+        admissible = false;
+        break;
+      }
+      // An amount is a number to the evaluator. A string there is a type error,
+      // not an attack.
+      if (binding.kind === "amount_minor" && typeof value !== "number") {
+        admissible = false;
+        break;
+      }
       args[name] = value;
     }
+    if (!admissible) continue;
+
+    // A call missing a required argument is refused for being incomplete, which
+    // says nothing about where the boundary is.
+    const incomplete = Object.entries(spec.args).some(
+      ([name, binding]) => binding.required && !(name in args),
+    );
+    if (incomplete) continue;
 
     probes.push({
       office: raw.office,
       args,
-      // The model's stated reason, trimmed, because it lands in an operator's
-      // report and a paragraph there is a paragraph nobody reads.
-      why:
-        typeof raw.why === "string"
-          ? raw.why.trim().slice(0, 160)
-          : `${raw.office}`,
+      // The model's stated reason, flattened to one printable line, because it
+      // lands in an operator's report and in the record.
+      why: typeof raw.why === "string" ? displaySafe(raw.why) : raw.office,
       at: now,
     });
   }
@@ -231,6 +292,18 @@ export async function runAdversary(params: {
       evidence,
     });
   } catch (error) {
+    /*
+     * A neutral reason to the client, the detail to the operator's log.
+     *
+     * This report is appended to the mission feed and serialised to every
+     * connected browser. A raw exception message there discloses internal
+     * topology -- `connect ECONNREFUSED 127.0.0.1:11434` names the port a
+     * local model listens on -- to a surface that has no business knowing it.
+     *
+     * The same rule the upstream MCP adapter follows for its errors, for the
+     * same reason.
+     */
+    console.error("[yard] the local adversary did not run:", error);
     return {
       findings: [],
       probesRun: 0,
@@ -240,7 +313,7 @@ export async function runAdversary(params: {
         admitted: 0,
         holes: 0,
         attempts: [],
-        declined: error instanceof Error ? error.message : String(error),
+        declined: "the local adversary was unavailable",
       },
     };
   }
@@ -266,13 +339,31 @@ export async function runAdversary(params: {
     });
 
     if (decision.allowed) {
+      /*
+       * A warning about what was permitted, not a proven exploit.
+       *
+       * `evaluate` proves one thing: the scope allows this call. It cannot
+       * prove the model's claim that the call exceeds the job, because it has
+       * never seen the job. So a legitimate call the mission actually needs --
+       * proposed by a model that misunderstood, with perfectly valid granted
+       * arguments -- came back as a `critical` boundary hole indistinguishable
+       * from a real one.
+       *
+       * The mechanical probes can claim `critical` because their construction
+       * carries the proof: a neighbouring id is by definition not the granted
+       * one. Here the intent is a model's opinion, so the finding says exactly
+       * what was established, attributes the intent to its author, and leaves
+       * the judgement to the operator reading it before the grant.
+       */
       findings.push({
         kind: "boundary_hole",
-        severity: "critical",
+        severity: "warning",
         office: probe.office,
-        summary: `The scope permits ${probe.why}`,
+        summary: `The scope permits a call the adversary proposed as: ${probe.why}`,
         detail: [JSON.stringify(probe.args)],
-        remedy: `Narrow ${probe.office} before granting.`,
+        remedy:
+          `Check ${probe.office} against what the job needs. The evaluator ` +
+          `confirms the scope allows this; whether it should is yours to decide.`,
       });
     }
   }

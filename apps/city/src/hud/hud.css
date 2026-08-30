@@ -1287,10 +1287,18 @@
 }
 
 /* A model wrote this, so it wraps rather than truncating: a sentence cut in
-   half reads as a bug in the panel rather than as brevity. */
+   half reads as a bug in the panel rather than as brevity.
+ *
+ * `min-width: 0` alone was not enough. A flex item defaults to the width of its
+ * longest unbreakable run, so a model returning 160 characters without a space
+ * -- which is a thing a model does, and a thing an attacker can ask it to do --
+ * pushed the row past the panel and took the layout with it. `overflow-wrap`
+ * breaks that run at the edge. */
 .yard__why {
   color: var(--hud-ink, #c8d2dc);
   min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .yard__list {

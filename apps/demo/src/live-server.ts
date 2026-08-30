@@ -68,6 +68,27 @@ const SANDBOX_AVAILABLE = { value: false };
  * hidden behind a city that appears to be thinking.
  */
 const POOL_WAIT_BUDGET_MS = 4 * 60 * 1000;
+
+/**
+ * How long a grant waits for the adversarial pass it must not outrun.
+ *
+ * Above the pass's own ceiling rather than below it. Reading nested evidence
+ * makes the prompt larger and the pass slower -- 25s measured against
+ * `qwen2.5:7b` with six fields of ticket and charge text -- and a wait that
+ * expires before the work it is waiting for turns this guard back into the race
+ * it was written to close.
+ */
+const GRANT_WAIT_MS = Number(process.env.ADVERSARY_GRANT_WAIT_MS ?? 60_000);
+
+/**
+ * How long a grant waits for the adversarial pass it must not outrun.
+ *
+ * Above the pass's own ceiling rather than below it. Reading nested evidence
+ * makes the prompt larger and the pass slower -- measured at 25s against
+ * `qwen2.5:7b` with six fields of ticket and charge text -- and a wait that
+ * expires before the work it is waiting for turns this guard back into the race
+ * it was written to close.
+ */
 /**
  * Models to rotate across, pinned by configuration if anyone asked.
  *
@@ -99,6 +120,16 @@ interface LiveMission extends ManagedLiveMission {
    * a pre-grant report means anything.
    */
   report: ReturnType<typeof backtest>;
+  /**
+   * The local adversary, while it is still writing.
+   *
+   * The pass runs unawaited so the operator can read the scope during it, which
+   * left a race the feature cannot afford: grant early and the attacks arrive
+   * after the mission has moved on, where the completion guard drops them. The
+   * promise is that the scope is attacked *before* anyone grants it, so the
+   * grant waits here rather than the proposal doing so.
+   */
+  adversary?: Promise<void>;
   scope: ReturnType<typeof createFixtureMission>["scope"];
   readonly startedAt: number;
   sessionId?: string;
@@ -267,6 +298,21 @@ async function main(): Promise<void> {
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();
+
+  /*
+   * Missions whose operator has already been shown a late adversarial finding.
+   *
+   * The refusal below happens once. A second grant is the operator saying they
+   * have read it, which is a decision the Yard does not get to overrule.
+   */
+  const grantedOnce = new Set<string>();
+
+  /*
+   * Missions whose operator has already been shown a late adversarial finding.
+   *
+   * The refusal below happens once. A second grant is the operator saying they
+   * have read it, which is a decision the Yard does not get to overrule.
+   */
 
   const proxy = await startProxyHttp({
     registry,
@@ -520,7 +566,7 @@ async function main(): Promise<void> {
        * learn to skip.
        */
       if (adversaryStatus().live) {
-        void (async () => {
+        live.adversary = (async () => {
           try {
             const evidence = await evidenceFor({ scope: proposed, registry: offices, systems });
             const merged = withAdversary(
@@ -674,6 +720,57 @@ async function main(): Promise<void> {
       if (mission.status !== "proposed") {
         json(res, 409, { error: "that mission is not awaiting a grant" });
         return;
+      }
+
+      /*
+       * The attacks finish before the grant does.
+       *
+       * The adversarial pass runs unawaited so the operator can read the scope
+       * while a local model writes attacks against it. That is the right
+       * trade-off for the proposal and the wrong one for the grant: an operator
+       * who clicks quickly would hand over authority while the attacks were
+       * still being written, and the completion guard -- which refuses to
+       * append to a mission that has moved on -- would then drop them entirely.
+       * A pass whose findings are discarded is worse than no pass, because the
+       * panel says it ran.
+       *
+       * So the grant waits. It is a second or two in the ordinary case, and it
+       * is bounded, because a model that never answers must not make the mission
+       * ungrantable.
+       */
+      if (mission.adversary) {
+        const settled = await Promise.race([
+          mission.adversary.then(() => true),
+          new Promise<boolean>((resolve) => {
+            const t = setTimeout(() => resolve(false), GRANT_WAIT_MS);
+            t.unref();
+          }),
+        ]);
+        mission.adversary = undefined;
+
+        /*
+         * And if it found something, the operator sees it before deciding.
+         *
+         * They granted a scope on the strength of a report that did not yet
+         * contain these findings. Refusing once, with the reason, is what makes
+         * "attacked before it is granted" true rather than approximately true
+         * -- and an over-reach caught before the grant is the only kind that
+         * costs nothing. Granting again proceeds, because this is the Yard: it
+         * informs the decision, it does not take it.
+         */
+        const found = mission.report.findings.filter(
+          (f) => f.severity !== "note",
+        );
+        if (settled && found.length > 0 && !grantedOnce.has(mission.id)) {
+          grantedOnce.add(mission.id);
+          json(res, 409, {
+            error:
+              "The local adversary finished after you granted, and it found something. " +
+              "The Yard report has been updated -- read it and grant again to proceed.",
+            findings: found,
+          });
+          return;
+        }
       }
 
       // Re-checked here, not only at proposal.

@@ -306,7 +306,7 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
       : adversary.declined
         ? [`YARD  local adversary did not run: ${adversary.declined}`]
         : [
-            `YARD  ${adversary.model} wrote ${adversary.admitted} attack(s) on this machine, ` +
+            `YARD  ${adversary.model} wrote ${adversary.wrote} attack(s) on this machine, ` +
               `${adversary.holes === 0 ? "none got through" : `${adversary.holes} got through`}`,
             /*
              * And what they were, because the count is the least interesting
@@ -327,7 +327,18 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
               ),
           ];
 
-    const lines = [
+    /*
+     * The second report carries the first one's findings too, so logging it
+     * whole wrote every mechanical line into the record twice -- and the
+     * duplicates buried the adversary lines they were meant to introduce.
+     *
+     * A report with adversary metadata logs only what that pass added. The
+     * stored `state.yard` is still the complete merged report, because a panel
+     * showing half the findings would be a different bug.
+     */
+    const lines = adversary
+      ? attackLine
+      : [
       ...(feed.report.clean
         ? [`YARD  ${feed.report.probesRun} probes, no holes`]
         : [
@@ -336,8 +347,7 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
               .filter((finding) => finding.severity !== "note")
               .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
           ]),
-      ...attackLine,
-    ];
+        ];
 
     return lines.reduce<LiveCityState>(
       (acc, line) => addLog(acc, line, "plain", Date.now()),

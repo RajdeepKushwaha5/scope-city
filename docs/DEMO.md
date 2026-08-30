@@ -98,23 +98,49 @@ blocker at nineteen hundred hours.
 
 ---
 
-## 0:00 — The premise (20 seconds)
+## 0:00 — The gap an approval gate leaves (30 seconds)
 
-Do not open with the city. Open with the problem, in one specific sentence.
+Do not open with the city, and do not open with a refund. Open by crediting the
+harness, and then naming the thing it does not cover. A judge who has seen the
+TrueForge launch video already knows the first half, and being agreed with is a
+faster way into their attention than being introduced to.
 
-> A support agent needs to refund one forty-nine dollar charge. To do that, it
-> gets an API key that can refund *every* charge, list *every* customer, and
-> email *anyone*. That is not a bug in someone's integration — that is how all
-> of them work. The agent inherits whatever the user could do.
+> You have heard the one about the coding agent that deleted a production
+> database after it was told to stop.
 
-Then the turn:
+> TrueForge answers that. Name a tool in `require_approval_for_tools` and it
+> does not run without a human, whatever the model has decided. The gate you
+> will see is that mechanism, holding the offices this project marks
+> irreversible.
 
-> Everyone's answer is to ask the model nicely and hope. I wanted to find out
-> what happens if you just take the ability away instead.
+Then the turn, and this is the whole video:
+
+> Here is the one it does not answer. Last year a crafted email made Microsoft
+> 365 Copilot leak internal data. No click. The user did nothing.
+>
+> **Nothing on that list ran.** It was all reads, and nobody puts reads on the
+> list -- an agent that stops for every lookup is an agent whose approvals stop
+> being read. And gating them would not have helped anyway: approval is yes or
+> no on a call. Say yes and the entire response comes back. What the agent got
+> to *see* is not a question the gate asks.
+
+> An approval gate is a brake. It is the wrong instrument for a car being
+> steered somewhere it should never have been able to go.
+
+> So I built the road instead. The agent gets one order, one charge, one
+> recipient, ten minutes — and everything else is not refused to it. It is
+> *absent*. It never appears in `tools/list`, so there is nothing for an
+> injected instruction to name.
+
+Two sentences of positioning, said once and never repeated:
+
+> The gate in this demo is TrueForge's own `require_approval_for_tools`, given
+> the list of offices that cannot be undone. I did not replace the brakes. I
+> added a road, and kept the brakes for the last step you cannot take back.
 
 ---
 
-## 0:20 — The city (25 seconds)
+## 0:30 — The city (25 seconds)
 
 Now show it. Explain **while** moving, never in a paragraph first.
 
@@ -133,7 +159,7 @@ words before the first claim is what makes this project hard to follow.
 
 ---
 
-## 0:45 — The same ticket, twice (75 seconds)
+## 0:55 — The same ticket, twice (65 seconds)
 
 This is the demo. Everything before it is setup and everything after is
 evidence.
@@ -183,11 +209,17 @@ The one sentence to get exactly right:
 > don't tell the agent no — we make the thing unreachable, so there's nothing
 > for a prompt injection to talk it into.
 
-Then the third line, which is easy to skip and worth ten seconds:
+Then the third line. It is the easiest to skip and it is the one the opening was
+for, so give it a beat:
 
 > And look at the call that *was* allowed — the charge lookup came back with the
-> customer's payment history stripped out. The scope decides what comes back,
+> customer's payment history stripped out. The scope decides what comes *back*,
 > not just what goes out.
+
+> That is the Copilot case. It was all reads, and the data simply left. You
+> could put the read on the approval list — and then approve it, because it is
+> a legitimate lookup, and the whole response comes back regardless. Approval
+> answers *whether the call happens*. This layer answers *what comes back*.
 
 ---
 
@@ -306,40 +338,67 @@ Then the honesty line, which buys more credibility than it costs:
 
 ---
 
-## 3:10 — One surprise (25 seconds)
+## 3:10 — A server I did not write (25 seconds)
 
-The subagents are already spent — they happened inside the recorded run, which
-is why that run earns its place. So this is **Code Mode**, and it is the right
-one anyway: it answers the objection a security audience is already forming.
+The strongest twenty-five seconds available, and the one a judge is waiting for:
+everything so far ran against systems in this repository. Answer that before
+anybody has to ask.
 
-> You might be thinking: fine, but the agent has a sandbox. It can write Python.
-> So I tested that.
+> Everything you have watched runs against systems I wrote. So does that boundary
+> only hold because I wrote both sides of it? Here it is in front of GitHub's own
+> MCP server, which I did not write a line of.
 
 ```bash
-pnpm --filter @scope-city/demo probe:code-mode
+pnpm --filter @scope-city/demo probe:forge-harness
 ```
 
 ```
-  HELD    in-scope       allowed, and the response still filtered
-  HELD    out-of-scope   Refused: resource_not_in_scope
-  HELD    countersigned  requires interactive handling, not callable from sandbox
+  upstream tools        3 offices exposed by the Forge
+  harness session       <id> on <model>          # both vary per run
+  visible to the agent  issue.get
+  through the boundary  call.allowed issue.get
+
+  HELD  one office visible, and the harness reached GitHub through it
 ```
 
-> Arbitrary code, same boundary. The in-scope call still came back redacted —
-> writing Python doesn't get you a wider response.
+This is the whole chain, not an adapter: a real TrueForge session, the proxy,
+and GitHub's server at the far end. `visible to the agent` is a `tools/list`
+asked through the boundary — what the harness could see, not what it happened
+to call.
 
-**Swap for the Yard** if the audience is more product than security: the
-over-reach run, where a scope drawn too wide is caught and narrowed *before*
-anything is granted. It is a weaker close for a security room and a better one
-for a product room.
+Point at the gap between the numbers:
+
+> Twenty-six tools on that server. Among them `merge_pull_request`, `push_files`,
+> `create_repository` — everything a token can reach. This agent's scope grants
+> one, over one issue, and one is what its tool list contains. The other
+> twenty-five are not refused. They are not there.
+
+And the detail that makes it more than a filter, which is worth the last ten
+seconds:
+
+> The repository name is not an argument the agent can set. The office supplies
+> its own. So there is no sentence anyone can write, in an issue or anywhere
+> else, that points this at a different repository.
+
+(`probe:forge` is the same district without the harness in front of it — useful
+when this one fails and you need to know which half broke.)
+
+**Cut this before anything else** if you are over time, and say the one line
+instead: *"the same scope works in front of GitHub's own MCP server, and it is in
+the README."* Code Mode and the Yard are the other two candidates, both in
+"Things to say only if asked".
 
 ---
 
 ## 3:35 — Close (10 seconds)
 
-> Built on TrueForge, the open-source agent harness — the sandbox, the subagents
-> and the approval gate are all its primitives. Scope City is the boundary
-> around them, and the city is so you can see it hold.
+> Built on TrueForge. The sandbox, the subagents and the approval gate are its
+> primitives — I did not reimplement any of them, and the gate you watched is
+> its own `require_approval_for_tools`.
+>
+> What I added is the road: the agent could not have attempted most of what it
+> was asked to do, so most of the time there was nothing to approve. Scope City
+> is the boundary, and the city is so you can watch it hold.
 
 ---
 
@@ -355,6 +414,9 @@ you do not have.
 | "What if the harness rate-limits?" | A rate limit ends the turn, not the session. It waits for that key rather than throwing the work away. |
 | "Could you run a different model?" | Any OpenAI-compatible endpoint, including a local one. The boundary doesn't change — that's the point of it being outside the model. |
 | "How do you know the docs are right?" | Two places TrueForge's documentation and the harness disagree are written up in `docs/TRUEFORGE.md`, both found by probing rather than reading. |
+| "But the agent has a sandbox — can't it just write Python?" | Tested. `pnpm --filter @scope-city/demo probe:code-mode`: in-scope allowed and still filtered, out-of-scope refused, countersigned not callable from the sandbox. Arbitrary code, same boundary. |
+| "What if the operator grants too much?" | That is the Yard, and it runs before anything is granted: it probes the drafted scope, finds an office answering with more than the job needs, and the scope is narrowed and re-probed clean. An over-reach caught before the grant is the only kind that costs nothing. |
+| "Isn't this what `require_approval_for_tools` already does?" | It is what raises the gate here, and it is the right instrument for the last irreversible step. It is the wrong one for everything before it: approving every call is how an operator stops reading them, and a read is never destructive so it never pauses at all. That is the Copilot case in one sentence. |
 
 ---
 
@@ -365,11 +427,20 @@ Cut in this order:
 
 1. The clean-job run, if you were going to show it at all. It proves the
    boundary has no false positives, and nobody doubts that yet.
-2. The projection line at 1:45 — painful to lose, and the first to go.
-3. Code Mode. Keep it in your pocket for the questions instead; it is the best
-   answer you have to "but the agent can write code".
-4. The subagent aside at 2:20. Say only "a captured session" and move on.
+2. The Forge at 3:10, down to its one sentence. Painful, and still the first
+   whole beat to go, because the two-run comparison is the argument and this is
+   a corroboration of it.
+3. The subagent aside at 2:20. Say only "a captured session" and move on.
 
-**Never cut** the two-run comparison, or the verifier, or the sentence
-introducing the recorded run as a real one. The first is the argument, the
-second is the proof, and the third is what keeps the second honest.
+**Never cut** five things. The opening turn, because without the Copilot case
+this is a project about refunds rather than about a category of failure. The
+two-run comparison, which is the argument. The projection line, which is what
+the opening was for and is the only part an approval gate cannot do. The
+verifier, which is the proof. And the sentence introducing the recorded run as a
+real one, which is what keeps the proof honest — the two runs before it are
+scripted, and a video that blurs that is the video doing what this project
+accuses everyone else of.
+
+The third of those used to be first on this list. It was cut in an earlier draft
+of the running order, and the video then made a claim it never paid off — the
+opening promised an answer to a leak and the body only ever refused writes.

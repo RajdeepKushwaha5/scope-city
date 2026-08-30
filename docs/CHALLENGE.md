@@ -1,8 +1,15 @@
 # What we are actually being judged on
 
 The brief, verbatim where it matters, with an honest column for where Scope
-City stands. Kept in the repo rather than in someone's head, because the two
-gaps below are the kind that stay comfortable until the day before a deadline.
+City stands. Kept in the repo rather than in someone's head, because the gaps
+below are the kind that stay comfortable until the day before a deadline.
+
+**Status as of 2026-08-30.** This file is a running assessment, and for part of
+the week it was a stale one: it went on calling the sandbox and the operator
+gate gaps after both were working, which is worse than never having written it
+down. A reader comparing documents and finding them in disagreement is right to
+believe the pessimistic one, so the rows below are dated and the ones that moved
+say what moved them.
 
 ---
 
@@ -130,13 +137,16 @@ judges already have in mind:
 | Their example | Ours |
 |---|---|
 | `grafana · error rate by service (MCP)` | `ticket.get` through the scope proxy |
-| `sandbox · bisect the last four deploys` | **missing** — see gap 2 |
+| `sandbox · bisect the last four deploys` | The Yard, and since 2026-08-30 a local model attacking the scope inside it |
 | `cause found · deploy 4c21 doubled timeouts` | charge resolved, over-reach redacted |
 | `Rollback is irreversible. Holding for your approval.` | The Gate, klaxon, countersign |
 | `Approved by you · 4c21 rolled back` | refund executes |
 | `error rate recovering · session logged` | mission record, hash-chained |
 
-Five of six. The missing one is the sandbox.
+Six of six as of 2026-08-30. The sandbox row was the last to close and it
+closed sideways: the Yard is not "the agent ran code", it is code run *against
+the proposed scope before the agent exists*, which is the more interesting use
+of the same capability.
 
 ---
 
@@ -175,9 +185,9 @@ show one.
 
 | A judge must see | Us |
 |---|---|
-| TrueForge reaching a tool | **Yes.** Live session, real MCP connection, refusals over the wire. |
-| Code running in the sandbox | **No.** Criterion at zero. |
-| Stopping for a person | **Headlessly only.** Not yet clicked in the city. |
+| TrueForge reaching a tool | **Yes.** Live session, real MCP connection, refusals over the wire — and since #103, over a server nobody here wrote. |
+| Code running in the sandbox | **Yes, when configured.** `SCOPE_SANDBOX=true` with a provider. Off in a fresh clone on purpose: the demo must run without an account. |
+| Stopping for a person | **Yes, in the city.** `useLiveMission.countersign` posts the operator's decision to `/api/missions/:id/decisions`. The "headlessly only" note here was true for about a day. |
 
 > **02. Pick one job an agent can finish.**
 
@@ -213,11 +223,11 @@ decision rather than an oversight.
 
 | Capability | Us |
 |---|---|
-| Connects to your tools (MCP) | **Central.** The proxy is the product. |
-| Runs code safely (sandbox) | **Unused.** The gap. |
+| Connects to your tools (MCP) | **Central.** The proxy is the product — and Scope City is an MCP *client* too, so the boundary holds in front of a third-party server. |
+| Runs code safely (sandbox) | **Used when configured.** The Yard runs there, which is where a local model's attacks are evaluated before the grant. |
 | Waits for a human | **Used.** `tool.approval_required`, countersign bound to a call fingerprint. |
-| Delegates (subagents) | Enabled in the spec; the city renders `thread.created`. Not yet forced by a mission. |
-| Survives reconnects | Not demonstrated. The orchestrator is replayable by design, so this is cheap to show. |
+| Delegates (subagents) | Enabled in the spec; the city renders `thread.created` as a second figure in the field. A mission does not *force* one, and saying otherwise would be the drift this file exists to prevent. |
+| Survives reconnects | The feed replays from a sequence on reconnect and the browser recovers a mission in progress. Not yet recorded end to end with a refresh mid-gate, which is the version that would actually prove it. |
 | Runs on any model | **Used.** Three keys, rotation with per-failure cooldowns. |
 | Loads Skills | Unused. A deliberate skip -- the mission has no procedure worth versioning yet. |
 | Scales to Postgres/Redis | Not relevant at this size. |

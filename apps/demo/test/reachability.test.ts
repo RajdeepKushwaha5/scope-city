@@ -229,3 +229,40 @@ describe("stating the arrangement at startup", () => {
     ).toContain("this machine only");
   });
 });
+
+describe("refusing a bind Node cannot listen on", () => {
+  /*
+   * The preflight exists to catch a listener that will not exist. Accepting a
+   * value `server.listen` rejects means the operator gets a startup error from
+   * inside the listener instead of the diagnosis this file was written to give.
+   */
+
+  it("refuses a bracketed bind", () => {
+    // Brackets are required in a URL authority and rejected as a listen host.
+    // The comparisons here strip them, so `[::]` used to pass.
+    const verdict = boundaryReachability({
+      bind: "[::]",
+      publicHost: "127.0.0.1",
+    });
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain("Use ::");
+  });
+
+  it("refuses a bracketed loopback bind too", () => {
+    expect(boundaryReachability({ bind: "[::1]", publicHost: "::1" }).ok).toBe(
+      false,
+    );
+  });
+
+  it("does not accept a star as a wildcard", () => {
+    // Node wants a numeric IP literal. `*` is a shell habit, not an address.
+    expect(isWildcardBind("*")).toBe(false);
+  });
+
+  // --- and the wildcards that do work --------------------------------------
+
+  it("accepts the two Node actually takes", () => {
+    expect(isWildcardBind("0.0.0.0")).toBe(true);
+    expect(isWildcardBind("::")).toBe(true);
+  });
+});

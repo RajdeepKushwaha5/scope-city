@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { publicOllamaHost } from "../src/setup-models.js";
+import { ollamaBaseUrl, publicOllamaHost } from "../src/ollama-host.js";
 
 /**
  * Which address TrueForge is told to reach Ollama at.
@@ -7,6 +7,11 @@ import { publicOllamaHost } from "../src/setup-models.js";
  * `OLLAMA_HOST` is where *this* process reaches Ollama. What gets registered is
  * where *TrueForge* has to reach it, and those are different machines the moment
  * the harness is in a container.
+ *
+ * Imported from `ollama-host.ts` rather than `setup-models.ts`, which is a CLI:
+ * it calls `main()` at the top level, so reaching one pure function through it
+ * would run the whole registration -- real `createOrUpdate` requests against a
+ * configured TrueForge, from a unit test.
  *
  * The bug this covers was created by the change that documented the override.
  * `.env.example` now ships `OLLAMA_PUBLIC_HOST=` as a blank placeholder, and a
@@ -60,6 +65,27 @@ describe("resolving the address the harness is given", () => {
     delete process.env.OLLAMA_PUBLIC_HOST;
     expect(publicOllamaHost("http://127.0.0.1:11434")).toBe(
       "http://127.0.0.1:11434",
+    );
+  });
+});
+
+describe("building the base URL", () => {
+  it("does not double a slash the host already ends with", () => {
+    // The registration stripped trailing slashes and the diagnostic did not, so
+    // `http://host:11434/` registered as `/v1` and printed as `//v1`. A message
+    // that disagrees with what it describes sends the reader after a difference
+    // that is not there.
+    expect(ollamaBaseUrl("http://host.docker.internal:11434/")).toBe(
+      "http://host.docker.internal:11434/v1",
+    );
+    expect(ollamaBaseUrl("http://host.docker.internal:11434///")).toBe(
+      "http://host.docker.internal:11434/v1",
+    );
+  });
+
+  it("leaves a host without one alone", () => {
+    expect(ollamaBaseUrl("http://127.0.0.1:11434")).toBe(
+      "http://127.0.0.1:11434/v1",
     );
   });
 });

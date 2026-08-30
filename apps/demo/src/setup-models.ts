@@ -20,6 +20,7 @@
 import "./load-env.js";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { REASONING_EFFORTS } from "@scope-city/harness";
+import { ollamaBaseUrl, publicOllamaHost } from "./ollama-host.js";
 import { isLoopbackHost } from "./reachability.js";
 
 /**
@@ -129,23 +130,6 @@ const SLOTS: readonly Slot[] = [
  * not work. It appeared to work only for someone who had already exported the
  * variable in their shell.
  */
-/**
- * The address to register, given the one this process uses.
- *
- * `??` was wrong here, and wrong in a way this PR created: `.env.example` now
- * ships `OLLAMA_PUBLIC_HOST=` as a documented blank placeholder, and a blank is
- * present rather than absent. So the common path -- copy the example, fill in
- * `OLLAMA_HOST`, leave the optional override alone -- registered the provider
- * at `/v1`, a relative URL that reaches nothing.
- *
- * An empty override means "no override", which is what the blank line in the
- * example is for.
- */
-export function publicOllamaHost(host: string): string {
-  const announced = (process.env.OLLAMA_PUBLIC_HOST ?? "").trim();
-  return announced === "" ? host : announced;
-}
-
 function localSlots(): readonly Slot[] {
   const host = process.env.OLLAMA_HOST ?? "";
   if (!host) return [];
@@ -181,7 +165,7 @@ function localSlots(): readonly Slot[] {
       envKey: "OLLAMA_API_KEY",
       keyOptional: true,
       contextLength: 32_768,
-      baseUrl: `${announced.replace(/\/+$/, "")}/v1`,
+      baseUrl: ollamaBaseUrl(announced),
       // 3b, not 7b. The default has to be the one that runs on the machine
       // most likely to be running it: 7b is 4.7 GB of weights, which does not
       // fit a 4 GB laptop GPU, and the failure is an out-of-memory from

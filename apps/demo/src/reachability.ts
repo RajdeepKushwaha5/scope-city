@@ -36,7 +36,13 @@ export interface Reachability {
 }
 
 /** Addresses that mean "every interface", so nothing announced is out of reach. */
-const WILDCARD = new Set(["0.0.0.0", "::", "*"]);
+/*
+ * `*` is deliberately absent. Node's `server.listen` wants a numeric IP literal
+ * for its host, so `SCOPE_PROXY_BIND=*` fails inside the listener -- and
+ * accepting it here meant the one check able to explain that waved it through
+ * first, leaving the operator with a startup error instead of a diagnosis.
+ */
+const WILDCARD = new Set(["0.0.0.0", "::"]);
 
 const LOOPBACK_V4 = "127.0.0.1";
 const LOOPBACK_V6 = "::1";
@@ -136,6 +142,25 @@ export function boundaryReachability(params: {
   const bindVar = params.names?.bind ?? "SCOPE_PROXY_BIND";
   const hostVar = params.names?.publicHost ?? "SCOPE_PROXY_PUBLIC_HOST";
   const open = `Set ${bindVar}=0.0.0.0 to accept those connections, or ${hostVar} to an address this listener answers on.`;
+
+  /*
+   * A bracketed bind cannot be listened on, whatever it means in a URL.
+   *
+   * Brackets are required in a URL authority and rejected by Node's
+   * `server.listen`, which takes the raw string and answers ENOTFOUND. The
+   * comparisons here strip them before comparing, so `SCOPE_PROXY_BIND=[::]`
+   * passed a check whose whole purpose is to catch a listener that will not
+   * exist.
+   */
+  const trimmedBind = bind.trim();
+  if (trimmedBind.startsWith("[") && trimmedBind.endsWith("]")) {
+    return {
+      ok: false,
+      reason:
+        `${bindVar}=${bind} cannot be listened on: brackets belong in a URL ` +
+        `authority, not in a bind address. Use ${trimmedBind.slice(1, -1)}.`,
+    };
+  }
 
   if (isWildcardBind(bind)) {
     return {

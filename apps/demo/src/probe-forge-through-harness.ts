@@ -35,6 +35,8 @@ import { missionSystemsAsync, forgeStatus } from "./systems.js";
 const PORT = Number(process.env.PROBE_PORT ?? 8794);
 const BIND = process.env.PROBE_BIND ?? "127.0.0.1";
 const PUBLIC_HOST = process.env.PROBE_PUBLIC_HOST ?? "127.0.0.1";
+/** Where this process reaches its own proxy. `0.0.0.0` is a bind, not an address. */
+const LOCAL_HOST = BIND === "0.0.0.0" ? "127.0.0.1" : BIND;
 const TURN_MS = Number(process.env.PROBE_TURN_MS ?? 120_000);
 
 const BRIEF = `You are reading one GitHub issue through the __SERVER__ server.
@@ -284,7 +286,11 @@ async function main(): Promise<void> {
     // Asked before the turn, so what the boundary showed is recorded whatever
     // the agent then does with it.
     visible = await officesVisibleThroughTheBoundary(
-      `http://${PUBLIC_HOST}:${PORT}/mission/${missionId}/mcp`,
+      // Reached locally, not through `PROBE_PUBLIC_HOST`. That name exists so
+      // a harness inside a container can find this process --
+      // `host.docker.internal` does not necessarily resolve from the host
+      // itself -- and this request starts here.
+      `http://${LOCAL_HOST}:${PORT}/mission/${missionId}/mcp`,
       token,
       deadline.signal,
     );

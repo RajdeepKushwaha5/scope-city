@@ -167,6 +167,38 @@ async function main(): Promise<void> {
    * before: the harness validates it anyway and will refuse it with a clearer
    * message than a guess made here.
    */
+  /*
+   * One pool for the life of the server, not one per mission.
+   *
+   * A cooldown is a memory: this key answered 429 forty seconds ago, so do not
+   * ask it again yet. Building the pool inside `runLiveMission` threw that
+   * memory away at the end of every mission, which made the cooldown useless in
+   * exactly the case it was written for -- two missions in a row.
+   *
+   * The demo is two missions in a row. An unscoped run and a scoped run,
+   * back to back, on free-tier keys: the first exhausts a key, the second
+   * starts a fresh pool that knows nothing, picks that same key first, waits
+   * for its 429, and only then rotates -- a visible stall that the first run
+   * had already learned how to avoid.
+   *
+   * A long-lived pool self-heals rather than accumulating grudges, because
+   * `restore` clears a model's cooldown the moment it succeeds again.
+   */
+  /*
+   * Undefined when discovery legitimately found nothing, because `ModelPool`
+   * refuses to be empty and this server has to start anyway.
+   *
+   * A machine with only a local model registered discovers no rotation
+   * candidates -- a true answer rather than a failure -- and the startup path
+   * above deliberately keeps going so the control plane can say so. Building
+   * the pool eagerly threw before the HTTP server bound, which took the one
+   * endpoint capable of explaining the problem down with it.
+   */
+  const pool =
+    models.length > 0
+      ? new ModelPool(models.map((model, priority) => ({ model, priority })))
+      : undefined;
+
   let effortsByModel: ReadonlyMap<string, readonly string[]> = new Map();
   try {
     effortsByModel = await driver.listModelCapabilities();
@@ -805,7 +837,15 @@ async function main(): Promise<void> {
         auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
-      const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
+      if (!pool) {
+        // Said here rather than by a crash at the first `pool.next`. The
+        // operator configured no rotation candidate; that is a setup problem
+        // with a name, not a mission that failed.
+        throw new Error(
+          "No model is configured. Register one with setup-models, or set SCOPE_MODELS.",
+        );
+      }
+
       let lastError: unknown;
 
       // Iterated live rather than over a snapshot of what was available at the
@@ -844,7 +884,10 @@ async function main(): Promise<void> {
       for (;;) {
         // A held session pins the choice. Anything else is picking a fresh key
         // for a fresh session.
-        const model = resume?.model ?? pool.next(Date.now());
+        // When this attempt began, carried to `restore` so a slow success
+        // cannot clear a cooldown recorded after it started.
+        const attemptStartedAt = Date.now();
+        const model = resume?.model ?? pool.next(attemptStartedAt);
 
         if (model === undefined) {
           const readyAt = pool.nextAvailableAt(Date.now());
@@ -1011,7 +1054,7 @@ async function main(): Promise<void> {
               result.message ?? `TrueForge ended the turn with status ${result.status}`,
             );
           }
-          pool.restore(model);
+          pool.restore(model, attemptStartedAt);
           retireMission(live, registry, "completed");
           return;
         } catch (error) {

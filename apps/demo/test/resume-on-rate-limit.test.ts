@@ -117,7 +117,12 @@ describe("a resumed session stays on its own model", () => {
     // An agent spec names its model at creation and cannot be re-pointed, so a
     // resumed session runs on the model it started with. Letting the loop
     // choose meant the pool credited and blamed a model the session never used.
-    expect(server).toContain("resume?.model ?? pool.next(Date.now())");
+    //
+    // Matched on the coalesce rather than its whole expression, which was
+    // pinning an argument that had nothing to do with model choice: passing
+    // the attempt's start time to `pool.next` -- so a slow success cannot
+    // clear a newer cooldown -- reflowed the line and failed this test.
+    expect(server).toMatch(/resume\?\.model \?\? pool\.next\(/);
     // Matched on the fields rather than the whole expression, which was
     // pinning the formatting: adding the translator to what a held session
     // carries reflowed the line and failed a test about model choice.

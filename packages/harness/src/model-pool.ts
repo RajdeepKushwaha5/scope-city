@@ -27,6 +27,15 @@ export type FailureKind =
 interface Cooling {
   readonly until: number;
   readonly kind: FailureKind;
+  /**
+   * When the penalty was recorded.
+   *
+   * Needed because one pool now serves every mission, so a success and a
+   * failure on the same model can be reported out of order: an attempt that
+   * started earlier and finished later would otherwise clear a cooldown set
+   * after it, handing the next mission a key that was rate-limited seconds ago.
+   */
+  readonly at: number;
 }
 
 /** How long a model sits out after each kind of refusal. */
@@ -79,11 +88,24 @@ export class ModelPool {
 
   /** Sidelines a model for a while, according to how it failed. */
   penalise(model: string, kind: FailureKind, now: number): void {
-    this.#cooling.set(model, { until: now + COOLDOWN_MS[kind], kind });
+    this.#cooling.set(model, { until: now + COOLDOWN_MS[kind], kind, at: now });
   }
 
-  /** Clears a model's cooldown after it succeeds again. */
-  restore(model: string): void {
+  /**
+   * Clears a cooldown the success is entitled to clear.
+   *
+   * `succeededAt` is when the successful attempt *began*, not when it was
+   * reported. With one pool serving every mission, a slow attempt can finish
+   * after a later one has already failed and penalised the same model -- and
+   * clearing that newer cooldown would hand the next mission a key known to be
+   * rate-limited, which is the memory this pool exists to keep.
+   *
+   * So a success only forgives a penalty older than itself. A newer one stands
+   * on the evidence that produced it.
+   */
+  restore(model: string, succeededAt: number = Number.POSITIVE_INFINITY): void {
+    const cooling = this.#cooling.get(model);
+    if (cooling && cooling.at > succeededAt) return;
     this.#cooling.delete(model);
   }
 

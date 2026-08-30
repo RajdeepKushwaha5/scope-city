@@ -328,21 +328,30 @@ async function main(): Promise<void> {
        * running. The cleanup below is the part that must happen; the cancel is
        * the part that would be nice to.
        */
-      await Promise.race([
-        driver.cancel(sessionId).catch((error: unknown) => {
-          // The timeout is the diagnosis; a failure to cancel is a footnote.
-          console.error(`  could not cancel ${sessionId}: ${String(error)}`);
-        }),
-        new Promise<void>((resolve) => {
-          const t = setTimeout(() => {
-            console.error(`  cancel of ${sessionId} did not answer in ${CANCEL_MS}ms`);
-            resolve();
-          }, CANCEL_MS);
-          // Node keeps a process alive for a pending timer, and this one exists
-          // only to stop waiting.
-          t.unref();
-        }),
-      ]);
+      let giveUp: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          driver.cancel(sessionId).catch((error: unknown) => {
+            // The timeout is the diagnosis; a failure to cancel is a footnote.
+            console.error(`  could not cancel ${sessionId}: ${String(error)}`);
+          }),
+          new Promise<void>((resolve) => {
+            giveUp = setTimeout(() => {
+              console.error(`  cancel of ${sessionId} did not answer in ${CANCEL_MS}ms`);
+              resolve();
+            }, CANCEL_MS);
+            // Node keeps a process alive for a pending timer, and this one
+            // exists only to stop waiting.
+            giveUp.unref();
+          }),
+        ]);
+      } finally {
+        // `unref()` stops the timer holding the process open; it does not stop
+        // the callback. Left armed, a cancel that answered in a second would
+        // still print "did not answer" ten seconds later, while the proxy was
+        // closing -- a false diagnostic about the one step that worked.
+        clearTimeout(giveUp);
+      }
     }
 
     await proxy.close();

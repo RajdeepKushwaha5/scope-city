@@ -8,7 +8,15 @@ import {
   type EffortLevel,
 } from "./CrewModal.js";
 
-const DEFAULT_ORDER = "Refund order #184 and notify its owner";
+/**
+ * The recording mission must name its irreversible ceiling.
+ *
+ * Without the amount, the intent compiler correctly drops `charge.refund`
+ * rather than inventing authority the operator never stated. That left the
+ * default button able to launch a lookup-and-email mission that could never
+ * reach the refund approval gate the demo is meant to show.
+ */
+export const DEFAULT_ORDER = "Refund order #184 and notify its owner, max $49";
 
 /**
  * One line naming the models a mission will actually run on.

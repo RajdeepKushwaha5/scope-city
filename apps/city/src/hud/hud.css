@@ -2200,35 +2200,14 @@ canvas.world:active {
   border-bottom: 2px solid var(--hud-amber);
 }
 
+/* The mark is an SVG now: it carries its own geometry, so this only has to
+   place it. The three coloured boxes it replaced -- a hat, a face and a coat --
+   did not resolve into a person at 32px and read as a failed image instead. */
 .dialogue-avatar {
   width: 32px;
   height: 32px;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  background: #030c14;
-  border: 1px solid var(--hud-amber);
-}
-
-.dialogue-avatar__hat {
-  width: 18px;
-  height: 4px;
-  background: var(--hud-amber);
-}
-
-.dialogue-avatar__face {
-  width: 10px;
-  height: 10px;
-  background: #ffedd5;
-  margin-top: 1px;
-}
-
-.dialogue-avatar__coat {
-  width: 20px;
-  height: 10px;
-  background: #1e3a8a;
-  margin-top: 1px;
+  flex: none;
+  display: block;
 }
 
 .dialogue-speaker__name {

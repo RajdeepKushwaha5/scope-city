@@ -62,10 +62,13 @@ let findings = 0;
 
 for (const pr of merged) {
   const reviews = ghPaged(`repos/${REPO}/issues/${pr.number}/comments?per_page=100`).filter(
-    (c) => c.user.login === BOT,
+    // `user` is null once an account is deleted or anonymised, and one such
+    // comment anywhere in the history would throw before any coverage was
+    // reported -- an audit that fails silent about the thing it audits.
+    (c) => c.user?.login === BOT,
   );
   const inline = ghPaged(`repos/${REPO}/pulls/${pr.number}/comments?per_page=100`).filter(
-    (c) => c.user.login === BOT && !c.in_reply_to_id,
+    (c) => c.user?.login === BOT && !c.in_reply_to_id,
   );
 
   findings += inline.length;

@@ -421,8 +421,12 @@ every branch reachable from a test.
   The **adversary** is a separate choice and takes the opposite one. It runs a
   single short prompt rather than an agent loop, so offloading part of it to
   system memory costs seconds instead of the mission, and a better attacker is
-  worth those seconds. It picks the largest model pulled locally unless
-  `ADVERSARY_MODEL` names one, which on this machine is `qwen2.5:7b`. That is
+  worth those seconds. Unless `ADVERSARY_MODEL` names one, it picks the largest
+  *eligible* model, which on this machine is `qwen2.5:7b`. Eligible is narrower
+  than pulled: discovery drops embedding models, which cannot hold a
+  conversation, and anything Ollama lists on loopback but runs in its cloud,
+  because the prompt carries a customer's ticket and has to stay on this
+  machine. That is
   the model in the console line in the screenshot above, on the same laptop the
   paragraph above says cannot run it as the mission model. Both are true, and
   they are different jobs.

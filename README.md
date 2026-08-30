@@ -629,10 +629,16 @@ Edit any entry and it names the first broken link. Delete entries from the end -
 the one edit that leaves every remaining hash individually valid -- and the head
 gives it away. It exits non-zero either way.
 
-This is tamper-evidence, not a signature. Nothing here is signed, so anyone able
-to rewrite the whole file can produce a consistent chain over whatever they like.
-What it gives you is a stable identity you can quote and compare against a copy
-someone else holds.
+The chain is tamper-evidence, and on its own that is all it is: anyone able to
+rewrite the whole file can produce a consistent chain over whatever they like.
+What it gives you by itself is a stable identity you can quote and compare
+against a copy someone else holds.
+
+The approvals inside it are signed, which is the part a rewriter cannot forge.
+[Below](#where-this-goes-and-what-it-is-not-yet) is what that does and does not
+prove. The record shipped with this repository was recorded before signing
+existed, so the verifier reports it as `(unsigned)` rather than quietly passing
+it, which is the behaviour you want from a verifier.
 
 ## Where this goes, and what it is not yet
 
@@ -694,9 +700,15 @@ the file.
 To check a record somebody hands you, you need the public half:
 
 ```bash
-node -e "import('@scope-city/mission').then(m=>console.log(m.operatorPublicKeyPem()))"
-SCOPE_OPERATOR_PUBLIC_KEY="$(cat operator.pub)" node scripts/verify-record.mjs <record.json>
+# on the machine that approved, export the public half
+node -e "import('@scope-city/mission').then(m=>console.log(m.operatorPublicKeyPem()))" > operator.pub
+
+# on any machine, with that file and the record
+SCOPE_OPERATOR_PUBLIC_KEY="$(cat operator.pub)" node scripts/verify-record.mjs record.json
 ```
+
+Send the key by some route other than the record. A public key travelling
+inside the file it verifies proves nothing.
 
 None of that is hard to see coming, and none of it changes the argument the
 project makes. It does change what you could deploy on Monday, and a submission

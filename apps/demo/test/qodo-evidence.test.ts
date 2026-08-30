@@ -148,7 +148,9 @@ describe("the Qodo evidence section", () => {
      * The ten are stable: a merged pull request does not acquire findings
      * later.
      */
-    const NO_FINDINGS = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100];
+    // #109 joined on 2026-08-30, found by `scripts/audit-qodo.mjs` rather than
+    // by a person: the section said ten, the audit said eleven.
+    const NO_FINDINGS = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100, 109];
 
     /*
      * The sentence that lists them, not the whole section, which also links

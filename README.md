@@ -674,7 +674,7 @@ merge would have falsified.
 This section said the opposite until an audit checked it properly, and the
 mistake is worth reading because it is the same class of mistake twice over.
 
-The check counted **inline review comments**. Ten pull requests have none, so
+The check counted **inline review comments**. Eleven pull requests have none, so
 the check reported them as having no Qodo review, and this section named them as
 exceptions and said "what they lack is the Qodo pass". They do not lack it.
 Qodo reviewed every one of them and had nothing to flag:
@@ -686,8 +686,9 @@ Qodo reviewed every one of them and had nothing to flag:
 [#76](https://github.com/RajdeepKushwaha5/scope-city/pull/76),
 [#85](https://github.com/RajdeepKushwaha5/scope-city/pull/85),
 [#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92),
-[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97) and
-[#100](https://github.com/RajdeepKushwaha5/scope-city/pull/100). #92 was
+[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97),
+[#100](https://github.com/RajdeepKushwaha5/scope-city/pull/100) and
+[#109](https://github.com/RajdeepKushwaha5/scope-city/pull/109). #92 was
 reviewed fifty-one minutes before it merged and #100 forty minutes before, so
 the story this section told -- that they were merged inside the window before a
 review lands -- was wrong about them as well.
@@ -699,15 +700,20 @@ actually being claimed. It exits non-zero if any merged pull request was
 unreviewed or reviewed only after it merged. On 2026-08-30:
 
 ```
-  merged pull requests   90
-  reviewed before merge  90
-  inline findings        444
-  reviewed, no findings  10: 28, 41, 46, 55, 56, 76, 85, 92, 97, 100
+  merged pull requests   96
+  reviewed before merge  96
+  inline findings        482
+  reviewed, no findings  11: 28, 41, 46, 55, 56, 76, 85, 92, 97, 100, 109
 ```
 
 The numbers move with every merge, which is why the script is here and the
-totals are not in the prose. The regression test names the ten by number,
+totals are not in the prose. The regression test names the eleven by number,
 because a merged pull request does not acquire findings later.
+
+#109 joined that list the day the script was written, and the script is how it
+was noticed: the count in this section said ten, the audit said eleven, and the
+disagreement is the whole reason the check exists. Every previous correction
+here was found by a person eventually; this one was found by running a command.
 
 Nothing here is generous to the project by accident. The claim that had to be
 corrected the first two times was too strong; this one was too weak, and it

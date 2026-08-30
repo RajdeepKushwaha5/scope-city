@@ -23,13 +23,14 @@ import {
 } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
+import { adversaryStatus, evidenceFor, localAdversary } from "./adversary.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
 import { controlPlaneSignpost } from "./signpost.js";
 import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
 import { missionSystemsAsync, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
-import { backtest, counterfactual } from "@scope-city/yard";
+import { backtest, counterfactual, runAdversary, withAdversary } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";
 import { MissionFeed, OperatorGateQueue } from "./live-feed.js";
 import { newProxyToken, runMission, type GateRequest } from "./mission-run.js";
@@ -89,7 +90,15 @@ interface LiveMission extends ManagedLiveMission {
   readonly book: CountersignBook;
   /** The most recent sandbox check, if the agent ran one. */
   verification?: { script: string; output: string; passed: boolean };
-  readonly report: ReturnType<typeof backtest>;
+  /**
+   * Mutable, uniquely among the scope fields, because the Yard answers twice.
+   *
+   * The mechanical probes are synchronous and land with the proposal. The local
+   * adversary takes about ten seconds, so it replaces this when it arrives --
+   * only while the mission is still proposed, which is the only window in which
+   * a pre-grant report means anything.
+   */
+  report: ReturnType<typeof backtest>;
   scope: ReturnType<typeof createFixtureMission>["scope"];
   readonly startedAt: number;
   sessionId?: string;
@@ -450,11 +459,10 @@ async function main(): Promise<void> {
       // operator is being asked about. Probing the proposed state would refuse
       // everything for `scope_not_active` and report a clean sheet that means
       // nothing.
-      const report = backtest({
-        scope: { ...derived.scope, state: "granted" },
-        registry: officeRegistry(),
-        now: Date.now(),
-      });
+      const proposed = { ...derived.scope, state: "granted" as const };
+      const offices = officeRegistry();
+
+      const report = backtest({ scope: proposed, registry: offices, now: Date.now() });
 
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
@@ -484,6 +492,66 @@ async function main(): Promise<void> {
       feed.append({ type: "scope.proposed", scope: derived.scope });
       feed.append({ type: "yard.report", report });
       feed.append({ type: "mission.status", status: "proposed" });
+
+      /*
+       * And then the probes a grammar cannot write, in the background.
+       *
+       * The mechanical probes above are the floor: deterministic, exhaustive
+       * over the shapes they know, and blind to the two things an attacker
+       * has -- what the job said, and what is written in the ticket. A local
+       * model gets both and writes calls of its own, which are then run through
+       * the same evaluator. It proposes; the evaluator disposes, so a confident
+       * wrong answer is a refusal like any other.
+       *
+       * Local is a requirement rather than a preference. The prompt carries the
+       * customer's ticket body -- including whatever an attacker wrote into it
+       * -- and asks how to attack them with it. Sending that to a hosted API to
+       * save an afternoon would be this project arguing against itself, so
+       * `localAdversary` refuses any endpoint not on this machine.
+       *
+       * Not awaited, because a model takes ten seconds or so and the operator
+       * should be reading the scope during them rather than watching a spinner.
+       * The second report arrives on the same feed the first one did, which is
+       * also what puts both of them in the record, in the order they happened.
+       *
+       * Never fatal. An adversary that cannot be reached leaves a `declined` in
+       * the second report and the decision proceeds on the mechanical result. A
+       * Yard that will not answer because a model is down is a Yard operators
+       * learn to skip.
+       */
+      if (adversaryStatus().live) {
+        void (async () => {
+          try {
+            const evidence = await evidenceFor({ scope: proposed, registry: offices, systems });
+            const merged = withAdversary(
+              report,
+              await runAdversary({
+                scope: proposed,
+                registry: offices,
+                job: order,
+                evidence,
+                adversary: localAdversary(),
+                now: Date.now(),
+              }),
+            );
+
+            // Gone, granted or denied while the model was thinking. Appending
+            // to a mission that has moved on would put a pre-grant report after
+            // the grant in the record, which is the one thing its ordering is
+            // supposed to mean.
+            const still = missions.get(id);
+            if (!still || still.status !== "proposed") return;
+
+            still.report = merged;
+            feed.append({ type: "yard.report", report: merged });
+          } catch (error) {
+            // The adversary swallows its own failures into `declined`; reaching
+            // here means something else broke, and it must not take the server
+            // with it.
+            console.error("adversary:", error instanceof Error ? error.message : error);
+          }
+        })();
+      }
 
       json(res, 200, {
         missionId: id,

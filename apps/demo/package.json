@@ -11,7 +11,8 @@
     "typecheck": "tsc --noEmit",
     "models": "tsx src/setup-models.ts",
     "probe:code-mode": "tsx src/probe-code-mode.ts",
-    "probe:forge-harness": "tsx src/probe-forge-through-harness.ts"
+    "probe:forge-harness": "tsx src/probe-forge-through-harness.ts",
+    "probe:adversary": "tsx src/probe-adversary.ts"
   },
   "dependencies": {
     "@scope-city/harness": "workspace:*",

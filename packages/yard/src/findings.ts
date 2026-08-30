@@ -46,6 +46,24 @@ export interface BacktestReport {
   readonly probesRun: number;
   /** True when nothing above `note` was found. */
   readonly clean: boolean;
+  /**
+   * What a local adversary added, when one ran.
+   *
+   * Optional because the mechanical probes are the floor and always run. Its
+   * absence means no adversary was configured; a `declined` inside it means one
+   * was and could not be reached. The two are different facts and the report
+   * does not blur them.
+   */
+  readonly adversary?: AdversaryReport;
+}
+
+/** Declared here rather than imported, so `findings.ts` depends on nothing. */
+export interface AdversaryReport {
+  readonly model: string;
+  readonly wrote: number;
+  readonly admitted: number;
+  readonly holes: number;
+  readonly declined?: string;
 }
 
 const ORDER: Record<Severity, number> = { critical: 0, warning: 1, note: 2 };

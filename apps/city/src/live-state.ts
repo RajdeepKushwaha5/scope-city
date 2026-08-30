@@ -287,14 +287,37 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
     // Logged as well as stored, so the findings land in THE RECORD in the order
     // they were produced -- before the first call -- rather than only appearing
     // in a panel that a viewer may never open.
-    const lines = feed.report.clean
-      ? [`YARD  ${feed.report.probesRun} probes, no holes`]
-      : [
-          `YARD  ${feed.report.probesRun} probes, ${feed.report.findings.length} finding(s)`,
-          ...feed.report.findings
-            .filter((finding) => finding.severity !== "note")
-            .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
-        ];
+    /*
+     * The Yard answers twice, and the second answer is the interesting one.
+     *
+     * The first report is the perturbation grammar: synchronous, deterministic,
+     * and blind to what the ticket says. The second arrives ten seconds later
+     * with a local model's attacks folded in, and it is logged as its own line
+     * rather than replacing the first -- so the record shows a scope that was
+     * probed mechanically and then attacked, in that order, before anyone
+     * granted anything.
+     */
+    const adversary = feed.report.adversary;
+    const attackLine = !adversary
+      ? []
+      : adversary.declined
+        ? [`YARD  local adversary did not run: ${adversary.declined}`]
+        : [
+            `YARD  ${adversary.model} wrote ${adversary.admitted} attack(s) on this machine, ` +
+              `${adversary.holes === 0 ? "none got through" : `${adversary.holes} got through`}`,
+          ];
+
+    const lines = [
+      ...(feed.report.clean
+        ? [`YARD  ${feed.report.probesRun} probes, no holes`]
+        : [
+            `YARD  ${feed.report.probesRun} probes, ${feed.report.findings.length} finding(s)`,
+            ...feed.report.findings
+              .filter((finding) => finding.severity !== "note")
+              .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
+          ]),
+      ...attackLine,
+    ];
 
     return lines.reduce<LiveCityState>(
       (acc, line) => addLog(acc, line, "plain", Date.now()),

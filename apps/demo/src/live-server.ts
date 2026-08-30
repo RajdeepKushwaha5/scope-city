@@ -24,6 +24,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
+import { boundarySummary, unreachableBoundary } from "./reachability.js";
 import { controlPlaneSignpost } from "./signpost.js";
 import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
@@ -209,6 +210,34 @@ async function main(): Promise<void> {
   SANDBOX_AVAILABLE.value = sandbox;
 
   console.log(systemsSummary());
+
+  /*
+   * Whether the harness can reach the boundary, decided before anything runs.
+   *
+   * Scope City hands TrueForge a URL and TrueForge connects to it from wherever
+   * it happens to be. Those are two machines' idea of "here" as soon as the
+   * harness is in a container, and announcing `host.docker.internal` while
+   * listening only on loopback produces the least useful error in the project:
+   * `ECONNREFUSED 192.168.65.254:8794`, inside TrueForge's own UI, half a minute
+   * later, naming a gateway address nobody typed.
+   *
+   * It cannot work, and it is knowable now, so it is refused now with the two
+   * variables that have to agree.
+   */
+  const unreachable = unreachableBoundary({
+    bind: PROXY_BIND,
+    publicHost: PROXY_PUBLIC_HOST,
+    harnessBaseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790",
+  });
+  if (unreachable) {
+    console.error(`
+  ${unreachable}
+`);
+    process.exit(2);
+  }
+  console.log(
+    boundarySummary({ bind: PROXY_BIND, publicHost: PROXY_PUBLIC_HOST, port: PROXY_PORT }),
+  );
 
   async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
     if (!SANDBOX) return false;

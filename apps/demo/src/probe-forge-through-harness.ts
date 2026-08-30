@@ -12,6 +12,7 @@ import { CountersignBook } from "@scope-city/mission";
 import type { Scope } from "@scope-city/scope";
 import { createFixtureMission } from "./fixture-mission.js";
 import { missionSystemsAsync, forgeStatus } from "./systems.js";
+import { unreachableBoundary } from "./reachability.js";
 
 /**
  * The arrow this project had never actually tested.
@@ -135,6 +136,26 @@ async function main(): Promise<void> {
       `The Forge is not configured (${forgeOn.reason}). ` +
         "Set FORGE_REPOSITORY=owner/repo and GITHUB_TOKEN.",
     );
+    process.exit(2);
+  }
+
+  /*
+   * The same check the city makes, for the same reason.
+   *
+   * This probe registers its endpoint with TrueForge and then waits for the
+   * harness to connect back. With the harness in a container and the proxy on
+   * loopback, the connection is refused and the failure arrives as an MCP
+   * transport error naming a Docker gateway address -- which reads like the
+   * boundary is broken rather than like two flags disagreeing.
+   */
+  const unreachable = unreachableBoundary({
+    bind: BIND,
+    publicHost: PUBLIC_HOST,
+    harnessBaseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790",
+    names: { bind: "PROBE_BIND", publicHost: "PROBE_PUBLIC_HOST" },
+  });
+  if (unreachable) {
+    console.error(unreachable);
     process.exit(2);
   }
 

@@ -113,40 +113,42 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/predate the workflow/i);
   });
 
-  it("does not claim a coverage it has not counted", () => {
+  it("claims the coverage the audit actually found, and names the ten", () => {
     /*
-     * This test used to require the sentence "every merged pull request carries
-     * a Qodo review", and that sentence was false: nine of the eighty-five did
-     * not, because they were merged inside the five minutes Qodo takes to post.
-     * So the test was holding an untrue claim in place, which is worse than not
-     * having tested it -- a reader would find the assertion and take it as
-     * evidence the claim had been checked.
+     * This test has now held two wrong claims in place, in opposite directions.
      *
-     * What is checkable from here is whether the section overstates. An
-     * unqualified "every ... carries a Qodo review" is the shape that went
-     * wrong, and naming the exceptions is what makes the rest believable. The
-     * count itself is verified against GitHub, not against this file, which is
-     * the whole reason the PR list is linked.
+     * First it required "every merged pull request carries a Qodo review" while
+     * nine did not, so the assertion was evidence for something false. It was
+     * then rewritten to forbid that sentence -- and that was wrong too, because
+     * the check behind the correction counted *inline review comments*. Ten
+     * pull requests have none, and every one of them was reviewed: Qodo posted
+     * a review and had nothing to flag. A review with no findings is not a
+     * missing review, and counting comments cannot tell them apart.
+     *
+     * So the sentence is required again, on the strength of an audit that reads
+     * the review Qodo posts on each pull request and compares its timestamp to
+     * the merge. What stays forbidden is a printed total, which goes stale on
+     * the next merge whether or not anyone edits the file.
      */
     const total = section.slice(section.indexOf("### The record"));
 
-    expect(
-      total,
-      "an unqualified coverage claim is the thing that went stale",
-    ).not.toMatch(/every merged pull request carries a Qodo review/i);
-    // And no printed total, which is the other way it goes stale: the count
-    // moves on the next merge whether or not anyone edits this file.
+    expect(total, "the audited claim, stated plainly").toMatch(
+      /every merged pull request carries a Qodo review, posted before it merged/i,
+    );
     expect(total, "a total here is false at the next merge").not.toMatch(/\d+ of the \d+/);
+
     /*
      * The set, not a membership test.
      *
-     * This started as alternation, so it passed while eight of the nine could
-     * be deleted. Tightened to a loop, it still only proved each expected one
-     * was present -- so the section could claim "all but nine" while naming
-     * eleven, and nothing here would notice. The claim is about a set, and only
-     * comparing sets checks a claim about a set.
+     * This started as alternation, so it passed while nine of the ten could be
+     * deleted. Tightened to a loop, it still only proved each expected one was
+     * present, so the section could name eleven and nothing here would notice.
+     * The claim is about a set, and only comparing sets checks it.
+     *
+     * The ten are stable: a merged pull request does not acquire findings
+     * later.
      */
-    const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97];
+    const NO_FINDINGS = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100];
 
     /*
      * The sentence that lists them, not the whole section, which also links
@@ -157,9 +159,11 @@ describe("the Qodo evidence section", () => {
      * raw text for it finds nothing and the slice silently covers everything.
      */
     const flat = total.replace(/\s+/g, " ");
-    const listStart = flat.indexOf("They are");
-    const listEnd = flat.indexOf("Every one of them", listStart);
-    expect(listStart, "the exception list has moved or gone").toBeGreaterThan(-1);
+    const listStart = flat.indexOf("had nothing to flag");
+    const listEnd = flat.indexOf("was reviewed fifty-one minutes", listStart);
+    expect(listStart, "the list of reviewed-but-unflagged PRs has moved or gone").toBeGreaterThan(
+      -1,
+    );
     expect(listEnd).toBeGreaterThan(listStart);
     const list = flat.slice(listStart, listEnd);
 
@@ -167,8 +171,8 @@ describe("the Qodo evidence section", () => {
       (a, b) => a - b,
     );
 
-    expect(named, "the exceptions named must be exactly the ones without a Qodo review").toEqual(
-      NO_QODO,
+    expect(named, "the PRs named must be exactly the ones Qodo reviewed without findings").toEqual(
+      NO_FINDINGS,
     );
     expect(total, "and the list is how a reader checks the rest").toContain("is%3Amerged");
   });

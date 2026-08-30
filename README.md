@@ -644,12 +644,18 @@ took four rounds and all four are in the thread.
 
 ### The record
 
-**Every merged pull request goes through review, and all but nine carry a Qodo
-one.** No total is printed here on purpose -- two have gone stale already, and
-the first draft of this very correction hard-coded a count of seventy-six out of
-eighty-five, which the next merge would have falsified. What does not go stale is which pull requests
-are the exceptions, because a merged PR does not acquire a review later. They
-are
+**Every merged pull request carries a Qodo review, posted before it merged.**
+No total of findings is printed here on purpose -- two have gone stale already,
+and the first draft of an earlier correction hard-coded a count that the next
+merge would have falsified.
+
+This section said the opposite until an audit checked it properly, and the
+mistake is worth reading because it is the same class of mistake twice over.
+
+The check counted **inline review comments**. Ten pull requests have none, so
+the check reported them as having no Qodo review, and this section named them as
+exceptions and said "what they lack is the Qodo pass". They do not lack it.
+Qodo reviewed every one of them and had nothing to flag:
 [#28](https://github.com/RajdeepKushwaha5/scope-city/pull/28),
 [#41](https://github.com/RajdeepKushwaha5/scope-city/pull/41),
 [#46](https://github.com/RajdeepKushwaha5/scope-city/pull/46),
@@ -657,16 +663,33 @@ are
 [#56](https://github.com/RajdeepKushwaha5/scope-city/pull/56),
 [#76](https://github.com/RajdeepKushwaha5/scope-city/pull/76),
 [#85](https://github.com/RajdeepKushwaha5/scope-city/pull/85),
-[#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92) and
-[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97). Every one of them
-was reviewed by Sourcery; what they lack is the Qodo pass.
+[#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92),
+[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97) and
+[#100](https://github.com/RajdeepKushwaha5/scope-city/pull/100). #92 was
+reviewed fifty-one minutes before it merged and #100 forty minutes before, so
+the story this section told -- that they were merged inside the window before a
+review lands -- was wrong about them as well.
 
-This section said "every one" until an audit counted them, which is the second
-time a claim here has outlived the fact behind it -- and the third was caught in
-review, on the PR fixing the second. Qodo posts about five minutes
-after a push, and most of those nine were merged inside that window -- #28 was
-open for one minute and #97 for three. Merging on a green CI check rather than on
-a completed review is the mistake, and it is mine.
+A review with no findings is not a missing review, and counting comments cannot
+tell the two apart. `node scripts/audit-qodo.mjs` reads the review Qodo posts on
+each pull request and compares its timestamp to the merge, which is the thing
+actually being claimed. It exits non-zero if any merged pull request was
+unreviewed or reviewed only after it merged. On 2026-08-30:
+
+```
+  merged pull requests   90
+  reviewed before merge  90
+  inline findings        444
+  reviewed, no findings  10: 28, 41, 46, 55, 56, 76, 85, 92, 97, 100
+```
+
+The numbers move with every merge, which is why the script is here and the
+totals are not in the prose. The regression test names the ten by number,
+because a merged pull request does not acquire findings later.
+
+Nothing here is generous to the project by accident. The claim that had to be
+corrected the first two times was too strong; this one was too weak, and it
+stayed up for a day because the check behind it measured the wrong thing.
 
 The [pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
 is how you check any of this rather than taking a number here on trust -- and a

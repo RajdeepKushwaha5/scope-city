@@ -15,6 +15,7 @@ import {
   postHouseSystem,
   recordsSystem,
 } from "@scope-city/mcp";
+import type { SystemDefinition } from "@scope-city/mcp";
 import { missionSystems } from "./systems.js";
 import type { Scope } from "@scope-city/scope";
 
@@ -43,7 +44,10 @@ export interface DerivedScope {
    * owed the reason. "No office in this city can do that" is a useless answer
    * when the truth is "you did not say how much".
    */
-  readonly dropped: readonly { readonly office: string; readonly reason: string }[];
+  readonly dropped: readonly {
+    readonly office: string;
+    readonly reason: string;
+  }[];
 }
 
 /**
@@ -92,10 +96,13 @@ const BOUNDS = {
  * *which fields* are read, which the resolver enforces, not from reading
  * somewhere else.
  */
-function localResolverIO(): ResolverIO {
-  const systems = missionSystems();
+function localResolverIO(
+  systems: readonly SystemDefinition[] = missionSystems(),
+): ResolverIO {
   const handlers = new Map(
-    systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
+    systems.flatMap((system) =>
+      system.offices.map((office) => [office.office, office] as const),
+    ),
   );
 
   return {
@@ -121,6 +128,15 @@ export async function deriveScopeFromJob(params: {
   readonly agent?: string;
   readonly now?: number;
   readonly io?: ResolverIO;
+  /**
+   * The systems to resolve against, when the caller has already connected them.
+   *
+   * A district behind somebody else's MCP server is not in `missionSystems()`,
+   * so without this the resolver reads a narrower world than the agent will get
+   * -- and "the scope was built from what is actually there" quietly stops
+   * being true for exactly the district that needed it most.
+   */
+  readonly systems?: readonly SystemDefinition[];
 }): Promise<DerivedScope> {
   const now = params.now ?? Date.now();
   const registry = BOUNDS.registry;
@@ -131,7 +147,11 @@ export async function deriveScopeFromJob(params: {
     bounds: BOUNDS,
   });
 
-  const resolution = await resolve({ envelope, registry, io: params.io ?? localResolverIO() });
+  const resolution = await resolve({
+    envelope,
+    registry,
+    io: params.io ?? localResolverIO(params.systems),
+  });
 
   const scope = compileScope({
     missionId: params.missionId,
@@ -166,6 +186,7 @@ export async function deriveScopeFromJob(params: {
 /** A short stable tag for a job string. Cosmetic; never a security boundary. */
 function scopeSuffix(job: string): string {
   let hash = 0;
-  for (let i = 0; i < job.length; i += 1) hash = (hash * 31 + job.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < job.length; i += 1)
+    hash = (hash * 31 + job.charCodeAt(i)) >>> 0;
   return hash.toString(36).slice(0, 6).toUpperCase();
 }

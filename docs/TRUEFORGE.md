@@ -414,8 +414,20 @@ Code Mode, running outside the msys shell and `pnpm dlx` all reproduce it, so it
 is not the Node version and not the shell.
 
 Compose works, and is the documented path for exactly this reason ("the whole
-stack under Compose, for when the agent is doing real work"). Two things are not
-obvious from the README:
+stack under Compose, for when the agent is doing real work").
+
+**Every command below runs in a TrueForge checkout, not in this repository.**
+Scope City has no Dockerfile and no `packages/trueforge`, so running them here
+fails on a missing build context and a missing `.env`. Clone it first and stay
+in its root for the whole section:
+
+```bash
+git clone https://github.com/truefoundry/trueforge.git
+cd trueforge
+git checkout v0.1.4          # the version this was run against
+```
+
+With that established, two things are not obvious from the README:
 
 - **The image is not published.** `docker compose up` alone fails on
   `pull access denied for truefoundry-server`. Build it first, and the build
@@ -428,8 +440,13 @@ obvious from the README:
   Without `--build-arg` the build fails closed on purpose: `APP_VERSION
   build-arg is required`.
 
-- **`packages/trueforge/.env` must exist**, because the compose file marks it
-  `required: true`. Copying `.env.example` is enough for a local run.
+- **`packages/trueforge/.env` must exist** -- that path is inside the TrueForge
+  checkout -- because the compose file marks it `required: true`. Copying the
+  example is enough for a local run:
+
+  ```bash
+  cp packages/trueforge/.env.example packages/trueforge/.env
+  ```
 
 - **Compose maps host 8791**, not 8790, to avoid colliding with a host `pnpm
   dev`. Scope City's own proxy defaults to 8791 too, so one of them has to move

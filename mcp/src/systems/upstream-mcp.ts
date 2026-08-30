@@ -1,5 +1,9 @@
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
-import { StdioClientTransport } from "@modelcontextprotocol/sdk/client/stdio.js";
+import {
+  StdioClientTransport,
+  getDefaultEnvironment,
+} from "@modelcontextprotocol/sdk/client/stdio.js";
+import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { OfficeHandler, SystemDefinition } from "./types.js";
 
 /**
@@ -60,6 +64,46 @@ export interface UpstreamOffice {
    * server given "7" answers with a schema error the operator cannot read.
    */
   readonly numericArgs?: readonly string[];
+  /**
+   * How to make a non-idempotent upstream write safe to retry.
+   *
+   * Most write APIs worth the name take an idempotency key. GitHub's
+   * `add_issue_comment` does not, so an ambiguous failure -- GitHub creates the
+   * comment, the response is lost -- leaves the proxy releasing its claim and a
+   * retry posting the same comment again, emailing every watcher twice.
+   *
+   * The boundary can supply what the upstream lacks. Stamp the operation key
+   * into the written text as an HTML comment, which GitHub renders as nothing,
+   * and before writing, read back what is already there and look for it. A
+   * retry of the same intended action finds its own marker and returns instead
+   * of writing; a genuinely new comment carries a different key and goes
+   * through.
+   *
+   * This is not a distributed transaction and does not pretend to be. It closes
+   * the window that matters here -- retry after an ambiguous failure -- and the
+   * cost of losing the race is the duplicate that happens today anyway.
+   */
+  readonly idempotency?: {
+    /** The declared argument whose text carries the marker. */
+    readonly markerIn: string;
+    /**
+     * The upstream tool that lists what has already been written, if it has one.
+     *
+     * Optional because plenty do not. `@modelcontextprotocol/server-github`
+     * 2025.4.8 can add a comment and cannot read comments back, so the Forge
+     * gets the marker and the in-process record and no read-back. When a server
+     * does offer one, reconciliation survives a restart as well.
+     */
+    readonly lookupTool?: string;
+    /** Fixed arguments for the lookup, e.g. the pinned owner and repo. */
+    readonly lookupArgs?: Readonly<Record<string, unknown>>;
+    /** Call arguments to forward to the lookup, mapped onto its names. */
+    readonly lookupArgMap?: Readonly<Record<string, string>>;
+    /** Where the items live in the lookup's flattened result. */
+    readonly itemsField?: string;
+    /** The field on each item to scan for the marker. */
+    readonly scanField: string;
+  };
 }
 
 export interface UpstreamMcpOptions {
@@ -100,15 +144,35 @@ export class UpstreamMcpError extends Error {
  * it as free text, which is exactly what it is.
  */
 export function flattenMcpResult(result: unknown): Record<string, unknown> {
+  /*
+   * `structuredContent` first, because a server that fills it means it.
+   *
+   * MCP lets a result carry structured data alongside the text blocks, and a
+   * server using it is handing over exactly the field-bearing object the
+   * projector wants. Reading only `content` turned those results into `{ text:
+   * "" }` -- an empty answer that looks like a server with nothing to say
+   * rather than a reader that did not look.
+   */
+  const structured = (result as { structuredContent?: unknown })
+    .structuredContent;
+  if (
+    typeof structured === "object" &&
+    structured !== null &&
+    !Array.isArray(structured)
+  ) {
+    return structured as Record<string, unknown>;
+  }
+
   const content = (result as { content?: unknown }).content;
   if (!Array.isArray(content)) return { text: "" };
 
   const text = content
-    .filter((block): block is { type: string; text: string } =>
-      typeof block === "object" &&
-      block !== null &&
-      (block as { type?: unknown }).type === "text" &&
-      typeof (block as { text?: unknown }).text === "string",
+    .filter(
+      (block): block is { type: string; text: string } =>
+        typeof block === "object" &&
+        block !== null &&
+        (block as { type?: unknown }).type === "text" &&
+        typeof (block as { text?: unknown }).text === "string",
     )
     .map((block) => block.text)
     .join("\n");
@@ -119,7 +183,11 @@ export function flattenMcpResult(result: unknown): Record<string, unknown> {
     const parsed: unknown = JSON.parse(text);
     // An array is not a field-bearing object, and neither is a bare number.
     // Wrapping keeps the projector's contract: it always receives a record.
-    if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+    if (
+      typeof parsed === "object" &&
+      parsed !== null &&
+      !Array.isArray(parsed)
+    ) {
       return parsed as Record<string, unknown>;
     }
     return { text, parsed };
@@ -137,7 +205,9 @@ export function mapArgs(
   const value = (name: string, raw: unknown): unknown => {
     if (!numeric.has(name)) return raw;
     const asNumber = typeof raw === "string" ? Number(raw) : raw;
-    return typeof asNumber === "number" && Number.isFinite(asNumber) ? asNumber : raw;
+    return typeof asNumber === "number" && Number.isFinite(asNumber)
+      ? asNumber
+      : raw;
   };
 
   const out: Record<string, unknown> = {};
@@ -146,69 +216,300 @@ export function mapArgs(
       if (ours in args) out[theirs] = value(ours, args[ours]);
     }
   } else {
-    for (const [name, raw] of Object.entries(args)) out[name] = value(name, raw);
+    for (const [name, raw] of Object.entries(args))
+      out[name] = value(name, raw);
   }
 
   // Last, and therefore not reachable by a caller that guessed the name.
-  for (const [name, fixed] of Object.entries(office.fixedArgs ?? {})) out[name] = fixed;
+  for (const [name, fixed] of Object.entries(office.fixedArgs ?? {}))
+    out[name] = fixed;
   return out;
 }
 
-export async function upstreamMcpSystem(options: UpstreamMcpOptions): Promise<UpstreamSystem> {
+/**
+ * The marker an operation leaves in what it writes, invisible where it lands.
+ *
+ * An HTML comment because GitHub renders one as nothing: the reader sees the
+ * agent's sentence, and the boundary sees a key it can recognise on a retry.
+ */
+/** GitHub's maximum page size, and a ceiling on how far back the scan reads. */
+/** An attempt that went out and never answered. Not safe to repeat. */
+const MAY_HAVE_LANDED = Symbol("may have landed");
+
+const LOOKUP_PAGE_SIZE = 100;
+const MAX_LOOKUP_PAGES = 10;
+
+export function idempotencyMarker(key: string): string {
+  return `<!-- scope-city:${key} -->`;
+}
+
+/** Whether a previous attempt at this exact operation already landed. */
+export function alreadyWritten(
+  items: unknown,
+  scanField: string,
+  marker: string,
+): boolean {
+  if (!Array.isArray(items)) return false;
+  return items.some((item) => {
+    const field = (item as Record<string, unknown> | null)?.[scanField];
+    return typeof field === "string" && field.includes(marker);
+  });
+}
+
+/**
+ * Every page of `tools/list`, not just the first.
+ *
+ * `tools/list` is cursor-paginated. Reading one page and calling it the tool
+ * set meant a server that advertised a configured tool on page two failed
+ * startup with "does not advertise" -- a refusal naming the wrong cause, about
+ * a tool that was there all along.
+ */
+async function listAllTools(client: Client): Promise<readonly Tool[]> {
+  const all: Tool[] = [];
+  let cursor: string | undefined;
+  do {
+    const page = await client.listTools(cursor === undefined ? {} : { cursor });
+    all.push(...page.tools);
+    cursor = page.nextCursor;
+  } while (cursor !== undefined);
+  return all;
+}
+
+export async function upstreamMcpSystem(
+  options: UpstreamMcpOptions,
+): Promise<UpstreamSystem> {
+  /*
+   * The child gets the SDK's safe default environment and nothing else.
+   *
+   * This spread `process.env` into it, which handed a third-party subprocess
+   * every credential this process holds: the Gemini keys, the Stripe key, the
+   * Daytona token, the SMTP settings. The office needs exactly one of those and
+   * the server is somebody else's code, fetched at startup.
+   *
+   * It is also the same mistake the whole project is about, made one layer
+   * down. A scope exists so an agent gets one charge instead of every charge;
+   * handing its upstream every secret instead of the one it needs is that
+   * failure with the word "environment" in front of it.
+   *
+   * `getDefaultEnvironment()` is the SDK's allowlist -- PATH, HOME and the
+   * platform necessities a process needs to run at all. `options.env` adds the
+   * one credential the district was configured with.
+   */
   const transport = new StdioClientTransport({
     command: options.command,
     args: [...(options.args ?? [])],
-    env: { ...(process.env as Record<string, string>), ...(options.env ?? {}) },
+    env: { ...getDefaultEnvironment(), ...(options.env ?? {}) },
   });
 
-  const client = new Client({ name: "scope-city", version: "1.0.0" }, { capabilities: {} });
-  await client.connect(transport);
-
-  const listed = await client.listTools();
-  const discovered = listed.tools.map((tool) => tool.name);
+  const client = new Client(
+    { name: "scope-city", version: "1.0.0" },
+    { capabilities: {} },
+  );
 
   /*
-   * Fail at startup, not at the first call.
+   * Every failure between here and the returned handle closes the child.
    *
-   * An office naming a tool the server does not advertise is a scope that
-   * grants something unreachable: the agent sees it in `tools/list`, calls it,
-   * and gets an error from three layers down. The operator granted authority
-   * over nothing and only finds out mid-mission.
+   * The caller only gets a `close()` once this function returns, so a rejection
+   * from `connect()`, discovery or validation used to leave the spawned
+   * third-party process and its pipes alive with nobody holding a handle to
+   * them. A startup that fails is exactly when a stray privileged subprocess is
+   * least likely to be noticed.
    */
-  const missing = options.offices.filter((office) => !discovered.includes(office.tool));
-  if (missing.length > 0) {
-    await client.close();
-    throw new UpstreamMcpError(
-      `${options.title} does not advertise ${missing.map((m) => m.tool).join(", ")}. ` +
-        `It offers: ${discovered.join(", ")}`,
+  let tools: readonly Tool[];
+  try {
+    await client.connect(transport);
+    tools = await listAllTools(client);
+
+    /*
+     * Fail at startup, not at the first call.
+     *
+     * An office naming a tool the server does not advertise is a scope that
+     * grants something unreachable: the agent sees it in `tools/list`, calls
+     * it, and gets an error from three layers down. The operator granted
+     * authority over nothing and only finds out mid-mission.
+     */
+    const discovered = tools.map((tool) => tool.name);
+    // A declared lookup tool is checked with the same strictness. An office
+    // that reconciles against a tool the server does not have is an office that
+    // silently stops reconciling.
+    const required = options.offices.flatMap((office) => [
+      office.tool,
+      ...(office.idempotency?.lookupTool
+        ? [office.idempotency.lookupTool]
+        : []),
+    ]);
+    const missing = [...new Set(required)].filter(
+      (name) => !discovered.includes(name),
     );
+    if (missing.length > 0) {
+      throw new UpstreamMcpError(
+        `${options.title} does not advertise ${missing.join(", ")}. ` +
+          `It offers: ${discovered.join(", ")}`,
+      );
+    }
+  } catch (error) {
+    // The startup error is what the operator needs; a failure to clean up after
+    // it is not allowed to replace it.
+    await client.close().catch(() => {});
+    throw error;
   }
 
-  const byName = new Map(listed.tools.map((tool) => [tool.name, tool]));
+  const byName = new Map(tools.map((tool) => [tool.name, tool]));
+
+  /*
+   * One record of attempted writes for the life of the connection.
+   *
+   * Keyed by the proxy's idempotency key, which identifies an intended action
+   * rather than an attempt at one. It is deliberately not persisted: it exists
+   * to answer a retry that arrives after an ambiguous failure, which is a
+   * within-process event. An office whose upstream can read its own writes back
+   * declares `lookupTool` as well, and that part does survive a restart.
+   */
+  const attempts = new Map<
+    string,
+    Record<string, unknown> | typeof MAY_HAVE_LANDED
+  >();
 
   const offices: OfficeHandler[] = options.offices.map((office) => {
     const tool = byName.get(office.tool)!;
     return {
       office: office.office,
       description: office.description ?? tool.description ?? office.office,
-      inputSchema: (tool.inputSchema ?? { type: "object" }) as Record<string, unknown>,
-      call: async (args) => {
+      inputSchema: (tool.inputSchema ?? { type: "object" }) as Record<
+        string,
+        unknown
+      >,
+      call: async (args, context) => {
+        let sent = mapArgs(args, office);
+
+        /*
+         * Read back before writing, when the office says its upstream cannot.
+         *
+         * Only reached when an idempotency key exists, which is the retry case
+         * the proxy hands down. The first attempt of a fresh operation pays one
+         * extra read; a retry pays it to avoid a duplicate that a human then
+         * has to go and delete.
+         */
+        const idem = office.idempotency;
+        if (idem && context?.idempotencyKey) {
+          const key = context.idempotencyKey;
+          const marker = idempotencyMarker(key);
+
+          /*
+           * What this process already tried, before asking anyone else.
+           *
+           * The failure in the finding is a retry inside one process: the call
+           * reaches GitHub, the response is lost, the proxy releases its claim,
+           * and the next attempt posts the comment again. The boundary saw both
+           * attempts, so the boundary can answer the second one.
+           *
+           * A completed attempt returns what it returned. An attempt that
+           * failed *ambiguously* -- the request went out and nothing came back
+           * -- is the case that must not be retried blindly: it is recorded as
+           * possibly-landed and the retry is refused, because a human deleting
+           * one duplicate comment is a worse outcome than an operator reading a
+           * message that says the call may already have gone through.
+           */
+          const attempted = attempts.get(key);
+          if (attempted === MAY_HAVE_LANDED) {
+            throw new UpstreamMcpError(
+              `${office.office} was already attempted with this key and may have gone through`,
+            );
+          }
+          if (attempted !== undefined) return attempted;
+          const lookup: Record<string, unknown> = {
+            ...(idem.lookupArgs ?? {}),
+          };
+          for (const [ours, theirs] of Object.entries(
+            idem.lookupArgMap ?? {},
+          )) {
+            if (ours in args) lookup[theirs] = sent[ours] ?? args[ours];
+          }
+          const lookupTool = idem.lookupTool;
+
+          /*
+           * Every page, because a busy issue puts the marker on page three.
+           *
+           * A scan that reads one page and concludes "not written yet" is a
+           * scan that duplicates on exactly the threads where a duplicate is
+           * most visible. Bounded, so a pathological thread cannot turn one
+           * comment into an unbounded read.
+           */
+          let found = false;
+          for (
+            let page = 1;
+            lookupTool && page <= MAX_LOOKUP_PAGES && !found;
+            page += 1
+          ) {
+            const existing = flattenMcpResult(
+              await client.callTool({
+                name: lookupTool,
+                arguments: { ...lookup, page, perPage: LOOKUP_PAGE_SIZE },
+              }),
+            );
+            const items = idem.itemsField
+              ? existing[idem.itemsField]
+              : existing.parsed;
+            found = alreadyWritten(items, idem.scanField, marker);
+            if (!Array.isArray(items) || items.length < LOOKUP_PAGE_SIZE) break;
+          }
+
+          if (found) {
+            // The action happened. Saying so is the whole point: reporting a
+            // failure here is what makes a caller retry into a duplicate.
+            const settled = { deduplicated: true, idempotencyKey: key };
+            attempts.set(key, settled);
+            return settled;
+          }
+
+          const text = sent[idem.markerIn];
+          if (typeof text === "string") {
+            sent = { ...sent, [idem.markerIn]: `${text}\n\n${marker}` };
+          }
+
+          // Recorded before the call, not after, because the case being
+          // defended against is the one where nothing comes back.
+          attempts.set(key, MAY_HAVE_LANDED);
+        }
+
         const result = await client.callTool({
           name: office.tool,
-          arguments: mapArgs(args, office),
+          arguments: sent,
         });
 
         // The upstream's own refusal, surfaced as a failure rather than
         // returned as data. A tool error that reaches the projector as a
         // result is an error the mission records as a successful call.
         if ((result as { isError?: boolean }).isError === true) {
+          /*
+           * The upstream's own words do not cross the boundary.
+           *
+           * A refusal is returned to the agent, and this used to put the
+           * foreign server's error text straight into it -- around the
+           * projector, which never sees a thrown error, and around the
+           * injection scan. A server could disclose whatever it liked through
+           * its error channel, or write an instruction there, and the one path
+           * that filters responses would not have been on it.
+           *
+           * The detail is worth keeping, so it is logged where the operator can
+           * read it and not returned. What the agent gets is that the call
+           * failed, which is all it can act on anyway.
+           */
           const flat = flattenMcpResult(result);
-          throw new UpstreamMcpError(
-            `${office.tool} failed: ${typeof flat.text === "string" ? flat.text : "upstream error"}`,
+          console.error(
+            `[upstream] ${options.title} ${office.tool} failed:`,
+            typeof flat.text === "string" ? flat.text : flat,
           );
+          throw new UpstreamMcpError(`${office.office} failed upstream`);
         }
 
-        return flattenMcpResult(result);
+        const flat = flattenMcpResult(result);
+        if (office.idempotency && context?.idempotencyKey) {
+          // The attempt is no longer ambiguous. A retry now gets this back
+          // rather than a refusal.
+          attempts.set(context.idempotencyKey, flat);
+        }
+        return flat;
       },
     };
   });
@@ -217,7 +518,7 @@ export async function upstreamMcpSystem(options: UpstreamMcpOptions): Promise<Up
     district: options.district,
     title: options.title,
     offices,
-    discovered,
+    discovered: tools.map((tool) => tool.name),
     close: () => client.close(),
   };
 }

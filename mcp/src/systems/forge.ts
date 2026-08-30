@@ -28,6 +28,9 @@ export interface ForgeOptions {
 
 export const FORGE_DISTRICT = "forge";
 
+/** The reviewed version of the upstream server. Never a floating tag. */
+export const SERVER_GITHUB_VERSION = "2025.4.8";
+
 /**
  * Which offices the Forge implements, as data.
  *
@@ -36,9 +39,15 @@ export const FORGE_DISTRICT = "forge";
  * subprocess or hold a token to find out. A district that can only answer that
  * question by connecting is a district the invariant quietly stops covering.
  */
-export const FORGE_OFFICES: readonly string[] = ["issue.get", "issue.comment", "issue.close"];
+export const FORGE_OFFICES: readonly string[] = [
+  "issue.get",
+  "issue.comment",
+  "issue.close",
+];
 
-export async function forgeSystem(options: ForgeOptions): Promise<UpstreamSystem> {
+export async function forgeSystem(
+  options: ForgeOptions,
+): Promise<UpstreamSystem> {
   const pinned = { owner: options.owner, repo: options.repo };
 
   return upstreamMcpSystem({
@@ -47,7 +56,23 @@ export async function forgeSystem(options: ForgeOptions): Promise<UpstreamSystem
     // `npx.cmd` on Windows: the shell resolves `npx`, and a spawned process
     // does not have one.
     command: process.platform === "win32" ? "npx.cmd" : "npx",
-    args: ["-y", "@modelcontextprotocol/server-github"],
+    /*
+     * Pinned, and it matters more here than almost anywhere else in the repo.
+     *
+     * This read `@modelcontextprotocol/server-github` with no version, so every
+     * startup fetched and executed whatever that name resolved to that day --
+     * and then handed it a GitHub token that can write. Mutable third-party
+     * code, fetched outside the lockfile, outside review, and given a
+     * credential. An upstream release changes behaviour silently; an upstream
+     * compromise takes the token.
+     *
+     * `SERVER_GITHUB_VERSION` is the version this was reviewed against. Moving
+     * it is a decision someone makes in a diff, which is the point.
+     */
+    args: [
+      "-y",
+      `@modelcontextprotocol/server-github@${SERVER_GITHUB_VERSION}`,
+    ],
     env: { GITHUB_PERSONAL_ACCESS_TOKEN: options.token },
     offices: [
       {
@@ -65,6 +90,23 @@ export async function forgeSystem(options: ForgeOptions): Promise<UpstreamSystem
         argMap: { issue_number: "issue_number", body: "body" },
         numericArgs: ["issue_number"],
         fixedArgs: pinned,
+        /*
+         * `add_issue_comment` takes no idempotency key, so the boundary carries
+         * one for it.
+         *
+         * Without this, an ambiguous failure -- GitHub creates the comment and
+         * the response is lost -- ends with the proxy releasing its claim and a
+         * retry posting the same comment again, emailing every watcher twice.
+         * The office stamps the operation key into the body as an HTML comment,
+         * which GitHub renders as nothing, and the boundary keeps a record of
+         * what it has already attempted under that key.
+         *
+         * No `lookupTool`: this server version can add a comment and cannot
+         * read comments back, so there is nothing to reconcile against. The
+         * marker is what makes a duplicate identifiable if one ever does get
+         * through, and what a later server version could scan for.
+         */
+        idempotency: { markerIn: "body", scanField: "body" },
       },
       {
         office: "issue.close",

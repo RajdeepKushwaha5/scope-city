@@ -167,6 +167,25 @@ async function main(): Promise<void> {
    * before: the harness validates it anyway and will refuse it with a clearer
    * message than a guess made here.
    */
+  /*
+   * One pool for the life of the server, not one per mission.
+   *
+   * A cooldown is a memory: this key answered 429 forty seconds ago, so do not
+   * ask it again yet. Building the pool inside `runLiveMission` threw that
+   * memory away at the end of every mission, which made the cooldown useless in
+   * exactly the case it was written for -- two missions in a row.
+   *
+   * The demo is two missions in a row. An unscoped run and a scoped run,
+   * back to back, on free-tier keys: the first exhausts a key, the second
+   * starts a fresh pool that knows nothing, picks that same key first, waits
+   * for its 429, and only then rotates -- a visible stall that the first run
+   * had already learned how to avoid.
+   *
+   * A long-lived pool self-heals rather than accumulating grudges, because
+   * `restore` clears a model's cooldown the moment it succeeds again.
+   */
+  const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
+
   let effortsByModel: ReadonlyMap<string, readonly string[]> = new Map();
   try {
     effortsByModel = await driver.listModelCapabilities();
@@ -805,7 +824,6 @@ async function main(): Promise<void> {
         auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
-      const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
 
       // Iterated live rather than over a snapshot of what was available at the

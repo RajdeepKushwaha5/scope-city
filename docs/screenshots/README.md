@@ -25,3 +25,23 @@ Two rules, so a screenshot never claims more than a run did:
 - Capture from a real mission or the shipped replay. Never stage a panel that a
   run did not produce.
 - No `.env`, no keys, no tokens, no personal information in frame.
+
+## How the demo GIF was made
+
+`docs/media/scope-city-demo.gif` is not a hand-held screen recording. It was
+captured by driving the real application in a real browser, so it can be
+remade whenever the interface changes.
+
+- `playwright-core` launched the installed Chrome against
+  `http://127.0.0.1:5180/` with `recordVideo`, drove the actual controls
+  (dismiss the intro, type the order, Dispatch, Grant twice, wait), and wrote a
+  1280x800 webm.
+- `ffmpeg-static` cut the useful window, sped it up six times, and produced a
+  palette-optimised GIF at 760px.
+
+Neither package is a dependency of this repository. They were installed outside
+it for the capture, so nothing here carries a browser driver it does not
+otherwise need.
+
+Only the speed was altered. The mission was real, the control plane was live,
+and the console text in the frame is what the run produced.

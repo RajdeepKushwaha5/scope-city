@@ -53,8 +53,24 @@ async function waitForAdversary(missionId, timeoutMs = 90_000) {
   const deadline = Date.now() + timeoutMs;
 
   while (Date.now() < deadline) {
-    const response = await fetch(`${BASE}/api/missions/${missionId}/record`);
-    const record = await response.json().catch(() => ({}));
+    const remaining = deadline - Date.now();
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), remaining);
+    let record;
+
+    try {
+      const response = await fetch(`${BASE}/api/missions/${missionId}/record`, {
+        signal: controller.signal,
+      });
+      record = await response.json();
+    } catch {
+      if (Date.now() >= deadline) return null;
+      await sleep(Math.min(1_000, deadline - Date.now()));
+      continue;
+    } finally {
+      clearTimeout(timer);
+    }
+
     const report = record.entries
       ?.filter((entry) => entry.event?.type === "yard.report")
       .at(-1)?.event?.report;
@@ -89,7 +105,9 @@ console.log(`  proposed: ${launched.body.scope.offices.length} offices, ` +
   `${launched.body.report.probesRun} probes, clean=${launched.body.report.clean}`);
 
 const adversary = await waitForAdversary(id);
-if (adversary) {
+if (adversary?.declined) {
+  console.log(`  adversary: unavailable (${adversary.declined})`);
+} else if (adversary) {
   console.log(`  adversary: ${adversary.model}, ${adversary.holes} hole(s) admitted`);
 } else {
   console.log("  adversary: no result before timeout; continuing with mechanical probes");

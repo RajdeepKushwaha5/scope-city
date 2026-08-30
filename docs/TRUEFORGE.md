@@ -1,7 +1,7 @@
 # TrueForge integration notes
 
 Everything here was read from the TrueForge docs or verified against a running
-instance. **If it is not in this file, do not assume it** — check first and add
+instance. **If it is not in this file, do not assume it**. Check first and add
 it, rather than coding against a guess.
 
 Last verified: 2026-08-30.
@@ -23,7 +23,7 @@ wrong costs a day.
 | **What we use** | `@truefoundry/trueforge-sdk` | `TrueForge` | The open-source agent harness. Required by the hackathon rules. |
 | Not this | `truefoundry_gateway_sdk` | `TrueFoundryGateway` | The hosted TrueFoundry platform (AI Gateway / MCP Gateway). Needs an account. |
 
-Server package: `@truefoundry/trueforge` — `npx @truefoundry/trueforge`, serves
+Server package: `@truefoundry/trueforge`, run as `npx @truefoundry/trueforge`, serves
 on `http://localhost:8790` in local mode (SQLite, single process).
 
 ## Client
@@ -40,7 +40,7 @@ const client = new TrueForge({
 ## Sessions and turns
 
 A **session** holds conversation context; a **turn** is one request/response
-cycle. Turns chain automatically — we do not track message history ourselves.
+cycle. Turns chain automatically, so we do not track message history ourselves.
 
 ```ts
 const { data: session } = await client.sessions.create({
@@ -78,7 +78,7 @@ the browser.
 | `model.message` | `id`, `threadId`; content may be absent | Seeds a streamed message |
 | `model.message.delta` | same `id`; streamed `content` and/or `toolCalls[]` | Merge text and reconstruct tool ID, office, and argument fragments |
 | `tool.response` | `threadId`, `toolCallId`, `content` | Agent finishes at an office |
-| `tool.approval_required` | `threadId`, sparse `toolCalls[]` containing `id`, `sourceEventId` | **The Gate** — look up the exact reconstructed call and pause |
+| `tool.approval_required` | `threadId`, sparse `toolCalls[]` containing `id`, `sourceEventId` | **The Gate**. Look up the exact reconstructed call and pause |
 | `tool.response_required` | `threadId`, `toolCalls[]` | Client-side tool execution |
 | `thread.created` | `threadId`, `title`, `parent`, `agentInfo` | **A second figure appears in the field** (subagent) |
 | `thread.done` | `threadId`, `state` | That figure leaves |
@@ -94,7 +94,7 @@ next JSON-argument fragment. The approval event does not repeat the name or
 arguments. `packages/harness/src/translate.ts` reconstructs and tests this
 binding; do not approve from the sparse event alone.
 
-## Approvals — this is a new turn, not a callback
+## Approvals are a new turn, not a callback
 
 When a tool needs approval the harness emits `tool.approval_required` **and
 pauses the turn**. You do not answer it inline. You resume by creating a *new
@@ -113,10 +113,10 @@ Two different mechanisms, and conflating them is the easiest mistake here:
 | Asks a human? | Yes | **Never** |
 | Fires when | Tool is in `require_approval_for_tools` | Call falls outside the granted scope |
 | Timing | **Before** the call reaches our proxy | When the call arrives at the proxy |
-| Survives a refresh? | Yes — the turn is paused server-side | N/A, decision is instant |
+| Survives a refresh? | Yes, the turn is paused server-side | N/A, decision is instant |
 
 So the countersign happens *upstream* of the proxy. Our proxy must **not** block
-an MCP request waiting for a human — an MCP call held open for minutes will time
+an MCP request waiting for a human. An MCP call held open for minutes will time
 out. `CountersignGate` in `@scope-city/proxy` is therefore a **verification**
 callback ("was this exact call countersigned?"), answered immediately by the
 server from the approval it already collected. It is not a prompt.
@@ -133,9 +133,9 @@ URL, which is how our proxy gets connected.
 
 Auth options:
 
-1. **No auth** — for public or network-trusted servers.
-2. **Header auth** — static headers carrying an API key or bearer token.
-3. **OAuth (Dynamic Client Registration)** — TrueForge acts as the OAuth client.
+1. **No auth**, for public or network-trusted servers.
+2. **Header auth**, static headers carrying an API key or bearer token.
+3. **OAuth (Dynamic Client Registration)**, where TrueForge acts as the OAuth client.
    Requires `PUBLIC_BASE_URL` to be set so it can redirect back.
 
 ## Sandbox
@@ -227,12 +227,12 @@ One sandbox script makes three calls. Measured against a live TrueForge:
 
 | From inside the script | What happened |
 | --- | --- |
-| `ticket.get tkt_184` — in scope | Allowed, **and still redacted and injection-scanned** |
-| `ticket.get tkt_999` — out of scope | `Refused: resource_not_in_scope. tkt_999 is not a granted ticket_ids` |
-| `charge.refund` — countersign required | `requires interactive handling and is not callable from sandbox` |
+| `ticket.get tkt_184`, in scope | Allowed, **and still redacted and injection-scanned** |
+| `ticket.get tkt_999`, out of scope | `Refused: resource_not_in_scope. tkt_999 is not a granted ticket_ids` |
+| `charge.refund`, countersign required | `requires interactive handling and is not callable from sandbox` |
 
 The boundary recorded `call.allowed`, `call.out_of_scope`, `response.redacted`
-and `response.injection_detected` — the same four things a direct tool call
+and `response.injection_detected`, the same four things a direct tool call
 produces. The refund never reached the proxy at all.
 
 Two things worth stating precisely.
@@ -256,7 +256,7 @@ which is exactly why this is probed rather than cited.
 
 Dynamic and parallel, **one level deep**, sharing the root's tools and sandbox.
 **User-defined named specialists are not supported.** Do not script an
-"adversarial prosecutor" subagent and claim the harness produced it — orchestrate
+"adversarial prosecutor" subagent and claim the harness produced it. Orchestrate
 our own turns server-side, and animate `thread.created` / `thread.done` where the
 harness genuinely spawns something.
 
@@ -329,30 +329,30 @@ Four TrueForge features are deliberately off. Listing them because "did not use
 it" and "used it and it was wrong for this" are different facts, and only one of
 them says the harness was understood.
 
-**Generative UI — off.** It lets the model draw into the operator's view.
+**Generative UI, off.** It lets the model draw into the operator's view.
 Everything here rests on the operator seeing what the *boundary* did rather than
 what the model says it did: every building, figure and held gate is a harness
 event or a proxy decision. Giving the model a channel to render its own account
 of the mission would put the one untrusted party in the room in charge of the
 display.
 
-**Clarifying questions — off**, and for a sharper reason. The Gate is the human
+**Clarifying questions, off**, and for a sharper reason. The Gate is the human
 interaction, and it is bound to one call's exact arguments: the operator answers
 "may this run" about a call they can read. A clarifying question is free text
 with nothing behind it, composed by a model that has just read a ticket written
 by a member of the public. An injected instruction that cannot reach a tool can
-still reach a person — *"confirm you want the customer list sent"* is a question,
+still reach a person. *"Confirm you want the customer list sent"* is a question,
 not a tool call, and it would arrive looking like the agent asking rather than
 the attacker.
 
-**Code mode — not used.** It is genuinely interesting here and the reason for
+**Code mode, not used.** It is genuinely interesting here and the reason for
 leaving it is worth stating: batching tool calls into code changes where the
 proxy sees them. The boundary works because every call crosses it individually
 and is evaluated against the scope; a batch that resolves several calls inside
 one execution is a different enforcement problem, not a harder version of the
 same one. Worth building on top of, not worth guessing at days from a deadline.
 
-**Skills — not used.** The mission brief is derived per-mission from the granted
+**Skills, not used.** The mission brief is derived per-mission from the granted
 scope, naming the exact offices and identifiers that scope allows. A static
 skill pack cannot do that, and a brief describing authority the agent does not
 hold is what sent an earlier version at a door it had no key to.

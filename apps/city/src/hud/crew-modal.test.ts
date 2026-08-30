@@ -24,9 +24,14 @@ describe("a card in the effort dialogue", () => {
     // took the row and the description wrapped onto a second row in the *image*
     // column, under the portrait and hard against the card's left edge. It read
     // as a caption that had come adrift, which is what it was.
+    //
+    // Anchored on the element rather than on the class name. The class moved
+    // into `EffortGauge` when the borrowed PNG portraits were replaced by a
+    // drawn one, so slicing from the class found the component's definition
+    // near the top of the file instead of the card near the bottom.
     const card = modal.slice(
-      modal.indexOf('className="crew-modal-v2__card-img"'),
-      modal.indexOf("</button>", modal.indexOf('className="crew-modal-v2__card-img"')),
+      modal.indexOf("<EffortGauge effort={level} />"),
+      modal.indexOf("</button>", modal.indexOf("<EffortGauge effort={level} />")),
     );
 
     expect(card).toContain("crew-modal-v2__card-text");

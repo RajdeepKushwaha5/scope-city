@@ -56,14 +56,59 @@ export function effortDescription(effort: EffortLevel): string {
   }
 }
 
+/** How many bars a level fills, of three. */
+export function effortBars(effort: EffortLevel): number {
+  return EFFORT_LEVELS.indexOf(effort) + 1;
+}
+
 /**
- * Built from `BASE_URL`, not written as `/crew/...`.
+ * The effort level, drawn rather than fetched.
  *
- * Judge mode is served from a repository subpath, where an absolute URL 404s.
- * The same reasoning as `RECORDING_URL` in App.tsx.
+ * This was three PNG portraits, and they were not ours: byte-identical copies
+ * of another project's crew art, renamed. They are gone, and nothing here
+ * replaces them with somebody else's anything.
+ *
+ * Drawn is also what the rest of the city does. Every building, road and boat
+ * on the map is generated at runtime from code, and these were the only bitmaps
+ * in the repository -- so an SVG of three bars is more consistent with the
+ * project than the portraits were, as well as being ours.
+ *
+ * Three bars, filling left to right, which says what the setting means: more
+ * thinking. A portrait never said that.
  */
-export function effortSpriteUrl(effort: EffortLevel): string {
-  return `${import.meta.env.BASE_URL}crew/effort-${effort}.png`;
+export function EffortGauge(props: { effort: EffortLevel }): React.JSX.Element {
+  const filled = effortBars(props.effort);
+
+  return (
+    <svg
+      className="crew-modal-v2__card-img"
+      viewBox="0 0 72 72"
+      width={72}
+      height={72}
+      // Decorative: the level is named in text beside it, and announcing the
+      // shape as well would read the same thing twice.
+      aria-hidden="true"
+      focusable="false"
+    >
+      {[0, 1, 2].map((i) => (
+        <rect
+          key={i}
+          x={10 + i * 18}
+          // Taller to the right, so the shape carries the meaning without
+          // relying on the fill alone -- which is what a viewer who cannot
+          // distinguish the two colours is left with.
+          y={44 - i * 14}
+          width={12}
+          height={18 + i * 14}
+          rx={2}
+          fill={i < filled ? "currentColor" : "none"}
+          stroke="currentColor"
+          strokeWidth={1.5}
+          opacity={i < filled ? 0.9 : 0.35}
+        />
+      ))}
+    </svg>
+  );
 }
 
 /** The next level in a direction, stopping at the ends rather than wrapping. */
@@ -257,13 +302,7 @@ export function CrewModal(props: {
                   setDraft(level);
                 }}
               >
-                <img
-                  className="crew-modal-v2__card-img"
-                  src={effortSpriteUrl(level)}
-                  alt=""
-                  width={72}
-                  height={72}
-                />
+                <EffortGauge effort={level} />
                 {/* One element in the text column, not two.
                     The card is a two-column grid and had three children, so the
                     description was placed by the grid rather than by anyone: it

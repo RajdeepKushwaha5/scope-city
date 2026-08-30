@@ -184,7 +184,20 @@ async function main(): Promise<void> {
    * A long-lived pool self-heals rather than accumulating grudges, because
    * `restore` clears a model's cooldown the moment it succeeds again.
    */
-  const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
+  /*
+   * Undefined when discovery legitimately found nothing, because `ModelPool`
+   * refuses to be empty and this server has to start anyway.
+   *
+   * A machine with only a local model registered discovers no rotation
+   * candidates -- a true answer rather than a failure -- and the startup path
+   * above deliberately keeps going so the control plane can say so. Building
+   * the pool eagerly threw before the HTTP server bound, which took the one
+   * endpoint capable of explaining the problem down with it.
+   */
+  const pool =
+    models.length > 0
+      ? new ModelPool(models.map((model, priority) => ({ model, priority })))
+      : undefined;
 
   let effortsByModel: ReadonlyMap<string, readonly string[]> = new Map();
   try {
@@ -824,6 +837,15 @@ async function main(): Promise<void> {
         auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
+      if (!pool) {
+        // Said here rather than by a crash at the first `pool.next`. The
+        // operator configured no rotation candidate; that is a setup problem
+        // with a name, not a mission that failed.
+        throw new Error(
+          "No model is configured. Register one with setup-models, or set SCOPE_MODELS.",
+        );
+      }
+
       let lastError: unknown;
 
       // Iterated live rather than over a snapshot of what was available at the
@@ -862,7 +884,10 @@ async function main(): Promise<void> {
       for (;;) {
         // A held session pins the choice. Anything else is picking a fresh key
         // for a fresh session.
-        const model = resume?.model ?? pool.next(Date.now());
+        // When this attempt began, carried to `restore` so a slow success
+        // cannot clear a cooldown recorded after it started.
+        const attemptStartedAt = Date.now();
+        const model = resume?.model ?? pool.next(attemptStartedAt);
 
         if (model === undefined) {
           const readyAt = pool.nextAvailableAt(Date.now());
@@ -1029,7 +1054,7 @@ async function main(): Promise<void> {
               result.message ?? `TrueForge ended the turn with status ${result.status}`,
             );
           }
-          pool.restore(model);
+          pool.restore(model, attemptStartedAt);
           retireMission(live, registry, "completed");
           return;
         } catch (error) {

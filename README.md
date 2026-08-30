@@ -1,16 +1,38 @@
 # Scope City
 
-**See where your agents can act.**
+**Scope City turns one human task into a temporary licence for an AI agent,
+attacks that licence locally before anyone signs it, and only then lets
+TrueForge execute inside it.**
 
-An isometric city where your connected systems are districts, an AI agent works
-in the field, and its authority is drawn on the map as city limits. Watch an
-attack go out of scope and stop at the line.
+That is the whole product in a sentence. The rest of this file is evidence for
+it.
+
+The city is how a person reads the licence: connected systems are districts,
+the tools inside them are buildings, the granted authority is drawn on the map
+as city limits, and an agent works in the field between them. An attack goes
+out of scope and stops at the line, where you can watch it.
 
 Built on [TrueForge](https://github.com/truefoundry/trueforge), the open-source
 agent harness.
 
 > **We don't give agents a bigger sandbox. We turn the environment into a
 > sandbox with walls.**
+
+### The three moves, in order
+
+1. **Compile.** A sentence an operator typed becomes a scope: named offices,
+   named resource ids, ceilings, a response filter, and ten minutes.
+2. **Attack.** Before a human is asked to approve it, the Yard probes that
+   scope mechanically, and a model **on this machine** reads the job and the
+   customer's ticket and writes attacks of its own. Every one is judged by the
+   same evaluator the proxy uses. The prompt contains the ticket body, so the
+   model is local by requirement rather than by preference.
+3. **Execute.** The operator grants. TrueForge runs the mission and reaches
+   nothing except through the proxy, which enforces the scope call by call and
+   stops for a human on anything irreversible.
+
+Guardrails first, then the agent — in that order, because the order is the
+point. The scope exists, and is attacked, before there is an agent to constrain.
 
 ---
 

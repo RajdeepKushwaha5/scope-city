@@ -10,6 +10,7 @@ import {
   officeRegistry,
   postHouseSystem,
   recordsSystem,
+  FORGE_OFFICES,
 } from "../src/index.js";
 
 const NOW = 1_700_000_000_000;
@@ -118,6 +119,11 @@ describe("the registry lines up with the systems", () => {
         ...postHouseSystem().offices,
       ].map((o) => o.office),
     );
+    // The Forge is behind GitHub's MCP server, so it cannot be started here --
+    // it needs a token and a subprocess. It declares its offices as data for
+    // exactly this reason: an opt-in district must not be a hole in the
+    // invariant that everything policed is implemented.
+    for (const office of FORGE_OFFICES) exposed.add(office);
 
     for (const spec of OFFICE_SPECS) {
       expect(exposed.has(spec.office), `${spec.office} is policed but unimplemented`).toBe(true);

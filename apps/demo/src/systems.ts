@@ -1,5 +1,6 @@
 import {
   exchequerSystem,
+  forgeSystem,
   githubRecordsSystem,
   mailpitSystem,
   postHouseSystem,
@@ -65,6 +66,68 @@ export function postHouseIsLive(): boolean {
   return MAILPIT_HOST !== "";
 }
 
+/** Whether the Forge is live, and when it is not, why not. */
+export interface ForgeStatus {
+  readonly live: boolean;
+  /** Always set. The reason it is off, or the repository it is on. */
+  readonly reason: string;
+}
+
+/**
+ * Whether the Forge is connected to GitHub's own MCP server, and why not.
+ *
+ * Off unless asked for. It starts a subprocess and holds a token, and a fresh
+ * clone must not need either to run the demo -- but when it is on, the boundary
+ * is being enforced over a server nobody here wrote, which is the only way to
+ * show it is a boundary rather than three careful implementations.
+ *
+ * A bare boolean made three quite different situations -- fixtures forced on,
+ * no repository named, no token -- indistinguishable at the call site. An
+ * operator who set one of the two variables and not the other got a Forge that
+ * was simply absent, with nothing anywhere saying which half was missing.
+ */
+export function forgeStatus(): ForgeStatus {
+  if (FIXTURES_ONLY) return { live: false, reason: "fixtures only" };
+  const repository = process.env.FORGE_REPOSITORY ?? "";
+  if (repository === "") return { live: false, reason: "no FORGE_REPOSITORY" };
+  if (GITHUB_TOKEN === "") return { live: false, reason: "no GITHUB_TOKEN" };
+  return { live: true, reason: repository };
+}
+
+/**
+ * The owner and repository the Forge is pinned to, or an error saying why not.
+ *
+ * Destructuring a `split("/")` accepted `owner/repo/extra` and quietly used the
+ * first two segments. These two values are the Forge's whole authority -- every
+ * office fixes them so the agent cannot choose a repository -- so a typo that
+ * silently resolves to a different repository is the one failure mode this must
+ * not have. Exactly two non-empty segments, or startup stops.
+ */
+export function parseForgeRepository(value: string): { owner: string; repo: string } {
+  const parts = value.split("/");
+  if (parts.length !== 2 || parts[0] === "" || parts[1] === "") {
+    throw new Error(`FORGE_REPOSITORY must look like "owner/repo", not "${value}"`);
+  }
+  return { owner: parts[0]!, repo: parts[1]! };
+}
+
+/**
+ * The systems, including any that have to be connected to rather than built.
+ *
+ * Separate from `missionSystems` because a district behind somebody else's MCP
+ * server cannot be constructed synchronously: it has to start the process, ask
+ * what tools exist, and refuse at startup if an office names one that does not.
+ * The synchronous list stays for the scripted paths, which have nothing to
+ * connect to and should not have to await anything.
+ */
+export async function missionSystemsAsync(): Promise<readonly SystemDefinition[]> {
+  const local = missionSystems();
+  if (!forgeStatus().live) return local;
+
+  const { owner, repo } = parseForgeRepository(process.env.FORGE_REPOSITORY ?? "");
+  return [...local, await forgeSystem({ owner, repo, token: GITHUB_TOKEN })];
+}
+
 /** True when Records is backed by a real GitHub Issues repository. */
 export function recordsIsLive(): boolean {
   if (FIXTURES_ONLY) return false;
@@ -94,5 +157,7 @@ export function systemsSummary(): string {
   if (FIXTURES_ONLY && (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")) {
     return "Systems: all fixtures — SCOPE_FIXTURES is set, so external credentials are ignored";
   }
-  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})`;
+  const forgeOn = forgeStatus();
+  const forge = forgeOn.live ? ` · The Forge (GitHub MCP, ${forgeOn.reason})` : "";
+  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})${forge}`;
 }

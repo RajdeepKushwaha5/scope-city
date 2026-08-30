@@ -8,10 +8,13 @@
   },
   "scripts": {
     "test": "vitest run",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "probe:upstream": "tsx src/probe-upstream.mts",
+    "probe:forge": "tsx src/probe-forge.mts"
   },
   "dependencies": {
-    "@scope-city/scope": "workspace:*"
+    "@scope-city/scope": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0"
   },
   "devDependencies": {
     "@types/node": "^24.0.0",

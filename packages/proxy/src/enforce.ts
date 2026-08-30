@@ -23,7 +23,18 @@ import { fingerprintCall } from "./fingerprint.js";
  */
 export type UpstreamCall = (
   call: Call,
-  context: { readonly idempotencyKey: string },
+  context: {
+    readonly idempotencyKey: string;
+    /**
+     * The mission the key belongs to.
+     *
+     * The key identifies an intended action; the mission says whose. The ledger
+     * has always namespaced by mission, and a system that deduplicates without
+     * this lets two missions posting the same comment to the same issue collide
+     * -- the second silently receiving the first one's result.
+     */
+    readonly missionId: string;
+  },
 ) => Promise<unknown>;
 
 /** Asks the operator and resolves once they decide. Injected for the same reason. */
@@ -190,7 +201,7 @@ export async function enforceCall(params: {
   // 4. execute
   let raw: unknown;
   try {
-    raw = await upstream(call, { idempotencyKey });
+    raw = await upstream(call, { idempotencyKey, missionId: scope.missionId });
   } catch (error) {
     release();
     const message = error instanceof Error ? error.message : String(error);

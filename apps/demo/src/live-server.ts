@@ -27,7 +27,7 @@ import { deriveScopeFromJob } from "./derive-scope.js";
 import { controlPlaneSignpost } from "./signpost.js";
 import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
-import { missionSystems, systemsSummary } from "./systems.js";
+import { missionSystemsAsync, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";
@@ -241,6 +241,20 @@ async function main(): Promise<void> {
       return false;
     }
   }
+  /*
+   * The systems, connected once, for every mission this process runs.
+   *
+   * The Forge was reachable only from its own probe: every mission built here
+   * composed the three synchronous districts, so nothing an operator could
+   * actually start went through the evaluator, projector, ledger and gate over
+   * a server nobody in this repo wrote -- the whole claim the district exists
+   * to support.
+   *
+   * Once, not per mission, because each connection spawns a subprocess and
+   * holds a token. Missions come and go against the same upstreams.
+   */
+  const systems = await missionSystemsAsync();
+
   const registry = new MissionRegistry();
   const proxyToken = newProxyToken();
   const missions = new Map<string, LiveMission>();
@@ -354,7 +368,7 @@ async function main(): Promise<void> {
         const scope = await unscopedScope({
           missionId: id,
           job: order,
-          systems: missionSystems(),
+          systems,
           now: Date.now(),
         });
 
@@ -366,6 +380,7 @@ async function main(): Promise<void> {
           book,
           emit: (event) => feed.append({ type: "proxy", event }),
           scope,
+          systems,
         });
         registry.register(fixture.mission);
 
@@ -401,7 +416,7 @@ async function main(): Promise<void> {
       // sentence cannot produce a usable scope, the right outcome is a 422 and
       // no mission at all, rather than a live agent holding authority nobody
       // examined.
-      const derived = await deriveScopeFromJob({ job: order, missionId: id });
+      const derived = await deriveScopeFromJob({ job: order, missionId: id, systems });
 
       if (derived.scope.offices.length === 0) {
         // Carry the reasons. A job that produced no scope because the operator
@@ -631,6 +646,7 @@ async function main(): Promise<void> {
         book: mission.book,
         emit: (event) => mission.feed.append({ type: "proxy", event }),
         scope: granted,
+        systems,
       });
 
       // Only now does the proxy know this mission exists.
@@ -1080,6 +1096,17 @@ async function main(): Promise<void> {
         server.closeAllConnections();
       }),
       proxy.close(),
+      /*
+       * The upstream subprocesses go with the server.
+       *
+       * A connected district holds a child process and its pipes. Nothing
+       * closed them, so every Ctrl+C left a third-party server running with a
+       * GitHub token in its environment and no parent left to stop it.
+       */
+      ...systems.map((system) => {
+        const closable = system as { close?: () => Promise<void> };
+        return closable.close ? closable.close().catch(() => undefined) : Promise.resolve();
+      }),
     ]);
   };
   process.once("SIGINT", () => void close().finally(() => process.exit(0)));

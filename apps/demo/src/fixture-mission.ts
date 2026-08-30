@@ -2,7 +2,7 @@ import { QuotaLedger } from "@scope-city/ledger";
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
-  officeRegistry,
+  grantableRegistry,
   postHouseSystem,
   recordsSystem,
   type SystemDefinition,
@@ -38,9 +38,18 @@ export function createFixtureMission(params: {
    * what the operator typed is the thing the derivation pipeline exists to stop.
    */
   scope?: Scope;
+  /**
+   * The systems behind the districts, when the caller has already built them.
+   *
+   * Defaults to `missionSystems()`, which is every district that can be
+   * constructed synchronously. A district behind somebody else's MCP server
+   * cannot be: it has to start a process and ask what tools exist, so the
+   * caller awaits `missionSystemsAsync()` and passes the result here.
+   */
+  systems?: readonly SystemDefinition[];
 }): FixtureMission {
   const now = params.now ?? Date.now();
-  const systems = missionSystems();
+  const systems = params.systems ?? missionSystems();
   const handlers = new Map(
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );
@@ -80,7 +89,16 @@ export function createFixtureMission(params: {
   const mission: Mission = {
     id: params.missionId,
     scope,
-    registry: officeRegistry(),
+    /*
+     * What this mission's systems implement, and nothing else.
+     *
+     * The registry is what the proxy validates calls against, so an office
+     * listed here with no handler behind it is a tool the agent can see, call,
+     * and be answered with "no system implements" from inside the boundary --
+     * past the evaluator, past the gate. `handlers` is built from the systems
+     * this mission was actually given, which is the only honest source.
+     */
+    registry: grantableRegistry([...handlers.keys()]),
     ledger: new QuotaLedger(),
     upstream: async (call, context) => {
       const handler = handlers.get(call.office);

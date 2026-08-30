@@ -11,10 +11,12 @@ import {
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
+  grantableRegistry,
   officeRegistry,
   postHouseSystem,
   recordsSystem,
 } from "@scope-city/mcp";
+import type { SystemDefinition } from "@scope-city/mcp";
 import { missionSystems } from "./systems.js";
 import type { Scope } from "@scope-city/scope";
 
@@ -43,7 +45,10 @@ export interface DerivedScope {
    * owed the reason. "No office in this city can do that" is a useless answer
    * when the truth is "you did not say how much".
    */
-  readonly dropped: readonly { readonly office: string; readonly reason: string }[];
+  readonly dropped: readonly {
+    readonly office: string;
+    readonly reason: string;
+  }[];
 }
 
 /**
@@ -77,6 +82,7 @@ export const LEASE_CEILING_MS = 30 * 60 * 1000;
  */
 const BOUNDS = {
   registry: officeRegistry(),
+
   alwaysCountersign: IRREVERSIBLE_OFFICES,
   maxAmountMinorCeiling: 50_000,
   maxCallsCeiling: 3,
@@ -92,10 +98,13 @@ const BOUNDS = {
  * *which fields* are read, which the resolver enforces, not from reading
  * somewhere else.
  */
-function localResolverIO(): ResolverIO {
-  const systems = missionSystems();
+function localResolverIO(
+  systems: readonly SystemDefinition[] = missionSystems(),
+): ResolverIO {
   const handlers = new Map(
-    systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
+    systems.flatMap((system) =>
+      system.offices.map((office) => [office.office, office] as const),
+    ),
   );
 
   return {
@@ -121,17 +130,43 @@ export async function deriveScopeFromJob(params: {
   readonly agent?: string;
   readonly now?: number;
   readonly io?: ResolverIO;
+  /**
+   * The systems to resolve against, when the caller has already connected them.
+   *
+   * A district behind somebody else's MCP server is not in `missionSystems()`,
+   * so without this the resolver reads a narrower world than the agent will get
+   * -- and "the scope was built from what is actually there" quietly stops
+   * being true for exactly the district that needed it most.
+   */
+  readonly systems?: readonly SystemDefinition[];
 }): Promise<DerivedScope> {
   const now = params.now ?? Date.now();
-  const registry = BOUNDS.registry;
+  /*
+   * Only the districts that are actually there.
+   *
+   * A derivation that can reach an office no system implements produces a
+   * scope an operator grants and an agent then fails at -- after the gate, with
+   * "no system implements". The Forge is absent unless configured, and a
+   * district that is present may implement only part of what it registers, so
+   * this follows the handlers rather than the district names.
+   */
+  const registry = params.systems
+    ? grantableRegistry(
+        params.systems.flatMap((system) => system.offices.map((office) => office.office)),
+      )
+    : BOUNDS.registry;
 
   const envelope = constrainEnvelope({
     job: params.job,
     raw: draftFromText(params.job),
-    bounds: BOUNDS,
+    bounds: { ...BOUNDS, registry },
   });
 
-  const resolution = await resolve({ envelope, registry, io: params.io ?? localResolverIO() });
+  const resolution = await resolve({
+    envelope,
+    registry,
+    io: params.io ?? localResolverIO(params.systems),
+  });
 
   const scope = compileScope({
     missionId: params.missionId,
@@ -166,6 +201,7 @@ export async function deriveScopeFromJob(params: {
 /** A short stable tag for a job string. Cosmetic; never a security boundary. */
 function scopeSuffix(job: string): string {
   let hash = 0;
-  for (let i = 0; i < job.length; i += 1) hash = (hash * 31 + job.charCodeAt(i)) >>> 0;
+  for (let i = 0; i < job.length; i += 1)
+    hash = (hash * 31 + job.charCodeAt(i)) >>> 0;
   return hash.toString(36).slice(0, 6).toUpperCase();
 }

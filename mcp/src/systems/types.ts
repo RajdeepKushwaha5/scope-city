@@ -24,7 +24,7 @@ export interface OfficeHandler {
    */
   readonly call: (
     args: Record<string, unknown>,
-    context?: { readonly idempotencyKey?: string },
+    context?: { readonly idempotencyKey?: string; readonly missionId?: string },
   ) => Promise<unknown>;
 }
 

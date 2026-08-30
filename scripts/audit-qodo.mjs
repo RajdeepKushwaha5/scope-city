@@ -27,10 +27,33 @@ function gh(args) {
   return JSON.parse(execFileSync("gh", args, { encoding: "utf8", maxBuffer: 64 * 1024 * 1024 }));
 }
 
-const merged = gh([
-  "pr", "list", "--repo", REPO, "--state", "merged", "--limit", "300",
-  "--json", "number,mergedAt",
-]).sort((a, b) => a.number - b.number);
+/**
+ * Every page, flattened.
+ *
+ * `gh api --paginate` writes one JSON document per page, so a single
+ * `JSON.parse` over its output throws the moment any list runs past a hundred
+ * items -- and it would throw on the busiest pull request, which is the one
+ * most worth auditing. `--slurp` wraps the pages in one array; this flattens
+ * it back into the list the caller asked for.
+ */
+function ghPaged(path) {
+  const pages = gh(["api", path, "--paginate", "--slurp"]);
+  return pages.flat();
+}
+
+/*
+ * Every merged pull request, not the most recent N.
+ *
+ * `gh pr list --limit 300` is a cap, and a capped population cannot support a
+ * claim about all of them: past three hundred merges the script would go on
+ * exiting zero while quietly skipping the oldest. The REST listing paginates to
+ * the end, and `merged_at` is what distinguishes a merged pull request from one
+ * that was simply closed.
+ */
+const merged = ghPaged(`repos/${REPO}/pulls?state=closed&per_page=100`)
+  .filter((pr) => pr.merged_at !== null)
+  .map((pr) => ({ number: pr.number, mergedAt: pr.merged_at }))
+  .sort((a, b) => a.number - b.number);
 
 const unreviewed = [];
 const afterMerge = [];
@@ -38,12 +61,12 @@ const noFindings = [];
 let findings = 0;
 
 for (const pr of merged) {
-  const reviews = gh([
-    "api", `repos/${REPO}/issues/${pr.number}/comments`, "--paginate",
-  ]).filter((c) => c.user.login === BOT);
-  const inline = gh([
-    "api", `repos/${REPO}/pulls/${pr.number}/comments`, "--paginate",
-  ]).filter((c) => c.user.login === BOT && !c.in_reply_to_id);
+  const reviews = ghPaged(`repos/${REPO}/issues/${pr.number}/comments?per_page=100`).filter(
+    (c) => c.user.login === BOT,
+  );
+  const inline = ghPaged(`repos/${REPO}/pulls/${pr.number}/comments?per_page=100`).filter(
+    (c) => c.user.login === BOT && !c.in_reply_to_id,
+  );
 
   findings += inline.length;
   const first = reviews[0]?.created_at;

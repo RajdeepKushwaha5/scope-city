@@ -42,6 +42,30 @@ async function post(path, body) {
   return { status: response.status, body: await response.json().catch(() => ({})) };
 }
 
+const sleep = (milliseconds) => new Promise((resolve) => setTimeout(resolve, milliseconds));
+
+/**
+ * Waits for the optional local adversary so the captured review shows the
+ * strongest Yard report available. The adversary is deliberately best-effort:
+ * an unavailable local model must not make record capture impossible.
+ */
+async function waitForAdversary(missionId, timeoutMs = 90_000) {
+  const deadline = Date.now() + timeoutMs;
+
+  while (Date.now() < deadline) {
+    const response = await fetch(`${BASE}/api/missions/${missionId}/record`);
+    const record = await response.json().catch(() => ({}));
+    const report = record.entries
+      ?.filter((entry) => entry.event?.type === "yard.report")
+      .at(-1)?.event?.report;
+
+    if (report?.adversary) return report.adversary;
+    await sleep(1_000);
+  }
+
+  return null;
+}
+
 const launched = await post("/api/missions", { order: ORDER });
 
 // A 409 carries a missionId too -- the *existing* mission's -- so checking only
@@ -64,10 +88,25 @@ console.log(`mission ${id}`);
 console.log(`  proposed: ${launched.body.scope.offices.length} offices, ` +
   `${launched.body.report.probesRun} probes, clean=${launched.body.report.clean}`);
 
+const adversary = await waitForAdversary(id);
+if (adversary) {
+  console.log(`  adversary: ${adversary.model}, ${adversary.holes} hole(s) admitted`);
+} else {
+  console.log("  adversary: no result before timeout; continuing with mechanical probes");
+}
+
 // The operator's decision, made explicitly and after the Yard has reported --
 // which is the whole point of the propose/grant split and has to appear in the
 // recording in that order.
-const granted = await post(`/api/missions/${id}/grant`);
+let granted = await post(`/api/missions/${id}/grant`);
+if (
+  granted.status === 409 &&
+  Array.isArray(granted.body.findings) &&
+  granted.body.error?.includes("Yard report has been updated")
+) {
+  console.log(`  review changed: ${granted.body.findings.length} new finding(s); acknowledging`);
+  granted = await post(`/api/missions/${id}/grant`);
+}
 if (granted.status !== 202) {
   console.error("grant failed:", granted.body.error);
   process.exit(1);

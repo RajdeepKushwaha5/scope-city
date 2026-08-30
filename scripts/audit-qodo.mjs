@@ -3,7 +3,7 @@
  * Whether every merged pull request was reviewed by Qodo before it merged.
  *
  * The check this replaces counted inline review comments, which is not the same
- * question. Ten pull requests have none, and every one of them was reviewed --
+ * question. Some pull requests have none, and every one of them was reviewed --
  * Qodo posted a review and had nothing to flag. Counting comments reported them
  * as unreviewed, and the README said so for a day.
  *

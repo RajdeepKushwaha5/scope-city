@@ -113,14 +113,14 @@ describe("the Qodo evidence section", () => {
     expect(section).toMatch(/predate the workflow/i);
   });
 
-  it("claims the coverage the audit actually found, and names the ten", () => {
+  it("claims the coverage the audit found, and names every exception", () => {
     /*
      * This test has now held two wrong claims in place, in opposite directions.
      *
      * First it required "every merged pull request carries a Qodo review" while
      * nine did not, so the assertion was evidence for something false. It was
      * then rewritten to forbid that sentence -- and that was wrong too, because
-     * the check behind the correction counted *inline review comments*. Ten
+     * the check behind the correction counted *inline review comments*. Some
      * pull requests have none, and every one of them was reviewed: Qodo posted
      * a review and had nothing to flag. A review with no findings is not a
      * missing review, and counting comments cannot tell them apart.
@@ -140,15 +140,19 @@ describe("the Qodo evidence section", () => {
     /*
      * The set, not a membership test.
      *
-     * This started as alternation, so it passed while nine of the ten could be
-     * deleted. Tightened to a loop, it still only proved each expected one was
+     * This started as alternation, so it passed while all but one of them
+     * could be deleted. Tightened to a loop, it still only proved each expected one was
      * present, so the section could name eleven and nothing here would notice.
      * The claim is about a set, and only comparing sets checks it.
      *
-     * The ten are stable: a merged pull request does not acquire findings
-     * later.
+     * The set is stable: a merged pull request does not acquire findings
+     * later. Its size is deliberately not repeated in prose here -- the last
+     * time it was, the number and the set disagreed, which is the drift this
+     * whole section exists to have stopped.
      */
-    const NO_FINDINGS = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100];
+    // #109 joined on 2026-08-30, found by `scripts/audit-qodo.mjs` rather than
+    // by a person: the section said ten, the audit said eleven.
+    const NO_FINDINGS = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100, 109];
 
     /*
      * The sentence that lists them, not the whole section, which also links

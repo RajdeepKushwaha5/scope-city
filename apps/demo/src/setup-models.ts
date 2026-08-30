@@ -20,6 +20,7 @@
 import "./load-env.js";
 import { TrueForge } from "@truefoundry/trueforge-sdk";
 import { REASONING_EFFORTS } from "@scope-city/harness";
+import { isLoopbackHost } from "./reachability.js";
 
 /**
  * The upstream Gemini model every slot points at.
@@ -132,6 +133,25 @@ function localSlots(): readonly Slot[] {
   const host = process.env.OLLAMA_HOST ?? "";
   if (!host) return [];
 
+  /*
+   * The address TrueForge is told, which is not always the one we use.
+   *
+   * `OLLAMA_HOST` is where *this* process reaches Ollama. What gets registered
+   * is where *TrueForge* has to reach it, and those are different machines the
+   * moment the harness is in a container: `127.0.0.1` inside it is the
+   * container, not this laptop.
+   *
+   * Registering the loopback address against a containerised harness produced
+   * the quietest failure in the project. Nothing errors. The provider saves,
+   * the model appears in the picker, the operator selects it and sends a
+   * message -- and no reply ever comes, because every request dies at connect
+   * inside a process whose logs nobody is reading. It looks like the model is
+   * broken. Gemini keeps working throughout, because a public HTTPS URL is the
+   * same address from everywhere, which makes the local model look like the
+   * thing at fault.
+   */
+  const announced = process.env.OLLAMA_PUBLIC_HOST ?? host;
+
   return [
     {
       provider: "local",
@@ -144,7 +164,7 @@ function localSlots(): readonly Slot[] {
       envKey: "OLLAMA_API_KEY",
       keyOptional: true,
       contextLength: 32_768,
-      baseUrl: `${host.replace(/\/+$/, "")}/v1`,
+      baseUrl: `${announced.replace(/\/+$/, "")}/v1`,
       // 3b, not 7b. The default has to be the one that runs on the machine
       // most likely to be running it: 7b is 4.7 GB of weights, which does not
       // fit a 4 GB laptop GPU, and the failure is an out-of-memory from
@@ -232,6 +252,38 @@ async function main(): Promise<void> {
   }
 
   console.log(`\n  Configured ${configured.length} model(s): ${configured.join(", ")}`);
+
+  /*
+   * Say where the local model was registered, and say it every time.
+   *
+   * The failure this prevents is silent on both sides: the provider saves, the
+   * model appears in TrueForge's picker, and every request to it dies at
+   * connect inside a container whose logs nobody is reading. The operator sees
+   * a model that never answers while Gemini keeps working, which points the
+   * blame at the model.
+   *
+   * There is no way to tell from here whether TrueForge is containerised -- a
+   * published port looks exactly like a local one -- so this does not guess. It
+   * states the address the harness was given and, when that address only means
+   * anything on this machine, names the variable that fixes it.
+   */
+  const announcedLocal = process.env.OLLAMA_PUBLIC_HOST ?? process.env.OLLAMA_HOST ?? "";
+  if (announcedLocal !== "") {
+    console.log(`\n  Local model: TrueForge will connect to ${announcedLocal}/v1`);
+    let announcedHost = "";
+    try {
+      announcedHost = new URL(announcedLocal).hostname;
+    } catch {
+      announcedHost = "";
+    }
+    if (announcedHost !== "" && isLoopbackHost(announcedHost)) {
+      console.log(
+        "  That address only exists on this machine. If TrueForge runs in Docker, set\n" +
+          "  OLLAMA_PUBLIC_HOST=http://host.docker.internal:11434 -- otherwise the model is\n" +
+          "  registered, appears in the picker, and never answers.",
+      );
+    }
+  }
   if (skipped.length > 0) {
     console.log(`  Not set: ${skipped.join(", ")}`);
     console.log("  One key works. More independent keys make the live demo resilient to rate limits.");

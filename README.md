@@ -33,9 +33,44 @@ agent harness.
 
 Guardrails first, then the agent, in that order. The order is the point. The scope exists, and is attacked, before there is an agent to constrain.
 
+```mermaid
+flowchart LR
+    A["Operator types<br/>one sentence"] --> B["COMPILE<br/>offices, ids, ceilings,<br/>expiry, response filter"]
+    B --> C["ATTACK<br/>mechanical probes +<br/>a local model writing<br/>its own attacks"]
+    C -->|"holes found"| B
+    C -->|"clean"| D{"Operator<br/>grants?"}
+    D -->|no| E["Nothing ran.<br/>No session, no call."]
+    D -->|yes| F["EXECUTE<br/>TrueForge, inside<br/>the scope"]
+
+    style B fill:#1e3a5f,stroke:#4a9eff,color:#fff
+    style C fill:#5f3a1e,stroke:#ff9e4a,color:#fff
+    style F fill:#1e5f2e,stroke:#4aff7e,color:#fff
+    style E fill:#3a3a3a,stroke:#888,color:#fff
+```
+
+
 ---
 
 ## See it working
+
+<!--
+  The demo video goes here, as the first thing under this heading:
+
+      https://www.youtube.com/watch?v=VIDEO_ID
+
+  and the screenshots below go in docs/screenshots/. See that folder's README
+  for what to capture. Both are deliberately absent rather than faked: a dead
+  link or a staged panel in the first screenful is worse than neither.
+-->
+
+<!-- Uncomment once docs/screenshots/city-wide.png exists:
+
+![Scope City](docs/screenshots/city-wide.png)
+
+*Districts are connected systems. Buildings are their MCP tools. The city limits
+are the authority one agent has been granted for one job.*
+
+-->
 
 | | |
 |---|---|
@@ -120,8 +155,41 @@ Then the whole thing is drawn as a city, so you can watch it hold.
 ## How it works
 
 TrueForge talks to the **scope proxy**, never to Stripe or your mail server. The
-agent therefore holds no credential at all, and every call is policed on four
-surfaces:
+agent therefore holds no credential at all.
+
+```mermaid
+flowchart LR
+    subgraph agent["the agent's world"]
+        TF["TrueForge<br/>agent + subagents<br/>sandbox + approval gate"]
+    end
+
+    subgraph boundary["Scope City"]
+        PX["scope proxy<br/>(MCP server)"]
+        SC[("the granted<br/>scope")]
+        LG[("quota ledger")]
+        RC[("hash-chained<br/>record")]
+    end
+
+    subgraph real["real systems"]
+        ST["Stripe<br/>test mode"]
+        MP["Mailpit<br/>SMTP"]
+        GH["GitHub's own<br/>MCP server"]
+    end
+
+    TF <-->|"MCP: only the offices<br/>the scope grants"| PX
+    PX --- SC
+    PX --- LG
+    PX --> RC
+    PX -->|"holds every credential"| ST
+    PX --> MP
+    PX --> GH
+
+    style boundary fill:#0d1b2a,stroke:#4a9eff,color:#fff
+    style TF fill:#1e3a5f,stroke:#4a9eff,color:#fff
+    style PX fill:#1e5f2e,stroke:#4aff7e,color:#fff
+```
+
+The agent never receives a key. Every call it makes is policed on four surfaces:
 
 | Surface | Enforcement |
 |---|---|
@@ -129,6 +197,27 @@ surfaces:
 | `tools/call` request | Resource ids, amount ceilings in integer minor units, call budgets, expiry, exact-call fingerprint. |
 | `tools/call` response | Projected and redacted to the fields the scope allows, size-capped, scanned for instruction-shaped text. |
 | Quota ledger | Atomic compare-and-consume, idempotency keys, replay protection. |
+
+What one call goes through, in order:
+
+```mermaid
+flowchart TD
+    IN["tools/call arrives"] --> EV{"in the scope?<br/>office, ids, ceiling,<br/>budget, expiry"}
+    EV -->|no| REF["REFUSED<br/>and recorded"]
+    EV -->|yes| CL{"quota claim<br/>(atomic)"}
+    CL -->|"already spent"| REF
+    CL -->|claimed| GT{"irreversible?"}
+    GT -->|yes| HU["THE GATE<br/>a human countersigns<br/>this exact call"]
+    HU -->|refused| REL["claim released"]
+    HU -->|approved| UP
+    GT -->|no| UP["call the real system"]
+    UP --> PR["project the response:<br/>allowed fields only,<br/>size-capped, scanned"]
+    PR --> OUT["back to the agent"]
+
+    style REF fill:#5f1e1e,stroke:#ff4a4a,color:#fff
+    style HU fill:#5f3a1e,stroke:#ff9e4a,color:#fff
+    style PR fill:#1e5f2e,stroke:#4aff7e,color:#fff
+```
 
 The response surface matters as much as the request surface. An allowed
 `charge.get` can legitimately return a customer's entire payment history, and
@@ -163,7 +252,37 @@ makes it *safe* is the one that was there already.
 | Fires when | The action is irreversible | The call falls outside the scope |
 | On the map | A gate rises, ceremony, a stamp | The agent stops dead at the line |
 
+```mermaid
+sequenceDiagram
+    participant A as Agent
+    participant P as Scope proxy
+    participant H as Human
+    participant S as Stripe
+
+    Note over A,S: a call outside the scope
+    A->>P: charge.refund ch_999
+    P-->>A: refused (resource_not_in_scope)
+    Note right of P: nobody was asked.<br/>the tool was never<br/>in tools/list either.
+
+    Note over A,S: a call inside it, but irreversible
+    A->>P: charge.refund ch_184, $49
+    P->>H: THE GATE: approve this exact call?
+    H-->>P: countersigned
+    P->>S: refund
+    S-->>P: ok
+    P-->>A: projected fields only
+```
+
 That contrast is the whole thesis, rendered.
+
+<!-- Uncomment once docs/screenshots/gate.png and refused.png exist:
+
+| The Gate holding | A refusal at the line |
+|---|---|
+| ![The Gate](docs/screenshots/gate.png) | ![Refused](docs/screenshots/refused.png) |
+| An irreversible call, stopped for a human, showing the exact charge and amount being approved. | A call outside the scope. Nobody was asked, because the tool was never in `tools/list`. |
+
+-->
 
 ## How TrueForge is used
 

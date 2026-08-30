@@ -31,8 +31,7 @@ agent harness.
    nothing except through the proxy, which enforces the scope call by call and
    stops for a human on anything irreversible.
 
-Guardrails first, then the agent — in that order, because the order is the
-point. The scope exists, and is attacked, before there is an agent to constrain.
+Guardrails first, then the agent, in that order. The order is the point. The scope exists, and is attacked, before there is an agent to constrain.
 
 ---
 
@@ -43,31 +42,31 @@ point. The scope exists, and is attacked, before there is an agent to constrain.
 | **Watch a real mission replay** | `pnpm --filter @scope-city/city dev` → **Replay a real run**. No keys, no backend. It is a hash-chained record of a session that happened, not an animation. |
 | **Check that record yourself** | [One command](#checking-the-record-yourself), run against the same file the UI replays. An independent verifier, not the code that wrote it. |
 | **Run a live mission** | [Running it](#running-it). Needs TrueForge, one model key, and a Stripe **test** key. |
-| **See the boundary in front of a server we did not write** | `pnpm --filter @scope-city/demo probe:forge-harness` — GitHub's own MCP server offers 26 tools; the scope grants one, and one is all `tools/list` returns. |
+| **See the boundary in front of a server we did not write** | `pnpm --filter @scope-city/demo probe:forge-harness`. GitHub's own MCP server offers 26 tools. The scope grants one, and one is all `tools/list` returns. |
 
 ---
 
 ## Index
 
 **What is this?**
-- [The problem](#the-problem) — why broad access is the default, and why that is wrong
+- [The problem](#the-problem): why broad access is the default, and why that is wrong
 - [What Scope City does](#what-scope-city-does)
-- [How it works](#how-it-works) — the four surfaces every call crosses
+- [How it works](#how-it-works): the four surfaces every call crosses
 - [Architecture](#how-it-works) and [repository layout](#repository-layout)
 
 **How the hackathon's three pieces are used**
-- [How TrueForge is used](#how-trueforge-is-used) — five load-bearing capabilities, with evidence for each
+- [How TrueForge is used](#how-trueforge-is-used): five load-bearing capabilities, with evidence for each
 - [TrueForge, TrueFoundry, and what we did not use](#trueforge-truefoundry-and-what-we-did-not-use)
-- [Qodo Code Review Evidence](#qodo-code-review-evidence) — every finding quoted from its thread, and a script that proves the coverage claim
+- [Qodo Code Review Evidence](#qodo-code-review-evidence): every finding quoted from its thread, and a script that proves the coverage claim
 
 **Does it work?**
-- [Verifying the claim](#verifying-the-claim) — the safety claim is a test suite
+- [Verifying the claim](#verifying-the-claim): the safety claim is a test suite
 - [Delegation](#delegation-and-the-thing-that-nearly-stopped-it), [code mode](#the-agent-can-write-code-the-boundary-does-not-care), [checking the record](#checking-the-record-yourself)
-- [Where this goes, and what it is not yet](#where-this-goes-and-what-it-is-not-yet) — the honest limits
+- [Where this goes, and what it is not yet](#where-this-goes-and-what-it-is-not-yet): the honest limits
 
 **Can I run it?**
-- [Requirements](#requirements) · [Quick start](#quick-start--live-mission) · [Real systems, and fixtures](#real-systems-and-fixtures)
-- [Judge mode — no install, no credentials](#judge-mode--no-install-no-credentials)
+- [Requirements](#requirements) · [Quick start](#quick-start-a-live-mission) · [Real systems, and fixtures](#real-systems-and-fixtures)
+- [Judge mode: no install, no credentials](#judge-mode-no-install-no-credentials)
 
 ---
 
@@ -79,7 +78,7 @@ which one this project is built on.
 | | What it is | Used here |
 |---|---|---|
 | **TrueForge** | TrueFoundry's **open-source agent harness**. `@truefoundry/trueforge`, run locally, SQLite or Compose. | **Yes, centrally.** It runs the agent, the subagents, the sandbox and the approval gate. See [How TrueForge is used](#how-trueforge-is-used). |
-| **TrueFoundry platform** | The hosted product — AI Gateway, MCP Gateway, `truefoundry_gateway_sdk`. Needs an account. | **No, deliberately.** A judge must be able to clone this and run it with no TrueFoundry account. |
+| **TrueFoundry platform** | The hosted product: AI Gateway, MCP Gateway, `truefoundry_gateway_sdk`. Needs an account. | **No, deliberately.** A judge must be able to clone this and run it with no TrueFoundry account. |
 | **Qodo** | AI code review on every pull request. | **Yes, on every PR.** See [Qodo Code Review Evidence](#qodo-code-review-evidence). |
 
 The distinction matters beyond bookkeeping. This project's claim is that an
@@ -100,7 +99,7 @@ and email anyone.
 
 The industry's two answers are both weak. **Prompt guardrails** ask the model
 nicely and hope; prompt injection defeats them routinely. **Static tool
-allowlists** are configured once and forever — too tight and the agent is
+allowlists** are configured once and forever. Too tight and the agent is
 useless, too loose and one poisoned support ticket reaches everything.
 
 And when something does go wrong, nobody can answer the simplest question:
@@ -110,7 +109,7 @@ strings and IAM consoles. It is invisible until it is a postmortem.
 ## What Scope City does
 
 You state a job. The agent proposes the minimum reach it needs. That proposal is
-probed, then shown to you as a **scope** — one order, one charge, one amount, one
+probed, then shown to you as a **scope**: one order, one charge, one amount, one
 recipient, ten minutes. You grant it. From that moment the agent cannot exceed it,
 because the tools outside it are not denied to the agent, they are **absent**.
 
@@ -132,7 +131,7 @@ surfaces:
 | Quota ledger | Atomic compare-and-consume, idempotency keys, replay protection. |
 
 The response surface matters as much as the request surface. An allowed
-`charge.get` can legitimately return a customer's entire payment history —
+`charge.get` can legitimately return a customer's entire payment history, and
 filtering *what you may call* without filtering *what comes back* leaks exactly
 the data you thought you had fenced off.
 
@@ -150,7 +149,7 @@ an instruction is not a boundary.
 
 What holds regardless is the scope. Quota is claimed atomically per mission,
 ceilings are per office, and an irreversible call raises the same gate whichever
-thread makes it — so a child that tried to act would meet exactly the
+thread makes it, so a child that tried to act would meet exactly the
 enforcement the root meets. The delegation is chosen from offices the registry
 proves are non-mutating, which makes a child acting unlikely; the boundary that
 makes it *safe* is the one that was there already.
@@ -160,7 +159,7 @@ makes it *safe* is the one that was there already.
 | | The Gate | The city limits |
 |---|---|---|
 | Mechanism | TrueForge `tool.approval_required` | The scope proxy |
-| Asks a human? | Yes — klaxon, countersign | **Never** |
+| Asks a human? | Yes, with a klaxon and a countersign | **Never** |
 | Fires when | The action is irreversible | The call falls outside the scope |
 | On the map | A gate rises, ceremony, a stamp | The agent stops dead at the line |
 
@@ -174,18 +173,18 @@ are load-bearing, and removing any one of them leaves no product:
 | Capability | Where it is used | Evidence |
 |---|---|---|
 | **Real tools over MCP** | The scope proxy is an MCP server registered with `registerMcpServer`. Every office the agent can call is served through it, and the scope decides what appears in `tools/list`. | Stripe test mode, GitHub Issues, and Mailpit are all reached this way. `mcp/src/systems/` |
-| **Sandboxed code** | The agent must check the arithmetic before a human is asked to approve anything irreversible — a sandbox that exists to earn the approval rather than to satisfy a checklist. | `yard.opened` and two `yard.verified` events in the shipped recording |
+| **Sandboxed code** | The agent must check the arithmetic before a human is asked to approve anything irreversible. The sandbox exists to earn the approval rather than to satisfy a checklist. | `yard.opened` and two `yard.verified` events in the shipped recording |
 | **Human approval gates** | `requireApprovalForTools` raises The Gate. The countersign is bound to the exact call's arguments, so an approval cannot be reused for a different one. | `gate.raised` → `gate.cleared` in the recording; `packages/mission/src/countersign-book.ts` |
 | **Subagents** | `dynamicSubAgents` is enabled and the brief describes two independent read-only assignments. A live run produced six child threads titled "Source investigator" and "Target verifier", drawn on the map as separate figures. | `packages/scope/src/delegation.ts`, and the measurements in [docs/TRUEFORGE.md](docs/TRUEFORGE.md) |
 | **Session persistence** | A turn paused at The Gate survives the browser going away. The event log replays from any cursor, so a reconnecting client rebuilds the whole mission including the pending approval and its exact arguments. | `packages/mission/src/event-log.ts`; verified end to end, see [docs/TRUEFORGE.md](docs/TRUEFORGE.md#reconnection-verified) |
 
 Eleven harness event types are translated into what the city draws
 (`packages/harness/src/translate.ts`). Every figure, every lit building and
-every held gate is an event from TrueForge or a decision from the proxy — none
+every held gate is an event from TrueForge or a decision from the proxy. None
 of it is on a timer.
 
-Four other capabilities are deliberately off — generative UI, clarifying
-questions, code mode and skills — and
+Four other capabilities are deliberately off: generative UI, clarifying
+questions, code mode and skills.
 [docs/TRUEFORGE.md](docs/TRUEFORGE.md#capabilities-considered-and-not-used) says
 why for each. The short version: generative UI would let the model draw its own
 account of the mission into the operator's view, and clarifying questions are an
@@ -204,15 +203,15 @@ mechanisms.
 packages/
   scope/     scope schema, request evaluator, response projector  (pure)
   ledger/    atomic quota claims, idempotency, replay protection  (pure)
-  proxy/     the enforcing MCP proxy — decide → claim → countersign → execute → project
+  proxy/     the enforcing MCP proxy: decide, claim, countersign, execute, project
   harness/   TrueForge SDK driver, event translation, model rotation
   mission/   countersign binding, mission brief, replayable event log
 apps/
   demo/      live control API, SSE replay, fixture mission, TrueForge setup
-  city/      clean-room React + Canvas isometric city and operator HUD
+  city/      the React + Canvas isometric city and operator HUD
 mcp/         the demo MCP servers (ticket, payments, mail)
 docs/
-  TRUEFORGE.md   verified notes on the harness API — read before integrating
+  TRUEFORGE.md   verified notes on the harness API, worth reading first
 ```
 
 The scope and ledger packages are the security substrate and have no I/O:
@@ -223,7 +222,7 @@ every branch reachable from a test.
 
 ### Requirements
 
-- **Linux or macOS** for the TrueForge server. On Windows use WSL2 — the
+- **Linux or macOS** for the TrueForge server. On Windows use WSL2, because the
   standalone server segfaults on `win32`.
 - **Node.js 22 LTS**, pnpm 11.10. There is an `.nvmrc` pinned to
   22.13.0 -- a bare `22` would let `nvm use` select an already-installed 22.0-22.12,
@@ -283,15 +282,15 @@ every branch reachable from a test.
   reached only the authorised recipient" is something a viewer opens rather than
   something the demo asserts.
 - **The sandbox is optional, and needs a Daytona key.** TrueForge 0.1.4 accepts
-  exactly one sandbox provider — the manifest's `type` enum has a single member,
-  `daytona` — so there is no local provider on this version and installing
+  exactly one sandbox provider. The manifest's `type` enum has a single member,
+  `daytona`, so there is no local provider on this version and installing
   `bwrap`, `socat` or `ripgrep` does nothing for it. Set `DAYTONA_API_KEY` and
   `SCOPE_SANDBOX=true` and the control plane configures the provider at boot.
 
   **Scope the key to three permissions: Sandboxes, Snapshots, Volumes.** A key
-  scoped to Sandboxes alone is refused — TrueForge's validation reaches
+  scoped to Sandboxes alone is refused, because TrueForge's validation reaches
   further, and Daytona answers 403 on `/api/volumes`, which surfaces as
-  "Daytona rejected the API key — check the credentials" and sends you to
+  "Daytona rejected the API key, check the credentials" and sends you to
   check a credential that works. Those three are what a working key needs;
   verified by probing each endpoint, with `api-keys` still 403 on the key that
   configures successfully. There is no reason to grant more than that, least
@@ -301,7 +300,7 @@ every branch reachable from a test.
   unavailable and the mission brief omits its verification step, rather than
   asking the agent for working it has no way to produce.
 
-### Quick start — live mission
+### Quick start: a live mission
 
 ```bash
 pnpm install
@@ -348,7 +347,7 @@ pnpm seed:github
 
 The Exchequer talks to **Stripe test mode** when `STRIPE_API_KEY` is set. A
 refund issued there is genuinely irreversible in the test ledger, which is the
-property the gate exists to protect — a demo whose "irreversible action" is a
+property the gate exists to protect. A demo whose "irreversible action" is a
 counter in memory is asking to be taken on faith.
 
 ```bash
@@ -357,29 +356,29 @@ node scripts/seed-stripe.mjs   # creates the charges the demo refunds
 
 Scope the key to **Charges and Refunds: write** and **Payment Intents: read**,
 and nothing else. That is the entire surface the Exchequer uses. It is worth
-doing properly: our first attempt looked correct — the two permissions we
-wanted were set — and probing what the key could actually reach found write
+doing properly. Our first attempt looked correct, because the two permissions
+we wanted were set, and probing what the key could actually reach found write
 access to payouts, transfers and top-ups, inherited from a group toggle. Stated
 permissions and actual reach are different things, which is the same argument
 the Yard makes about the agent.
 
 Post House remains a fixture. `SCOPE_FIXTURES=true` forces every
 district to its fixture regardless of what is configured, so the whole demo
-runs with no accounts at all — and the test suite sets it, so no test can reach
+runs with no accounts at all, and the test suite sets it, so no test can reach
 a payment API by accident.
 
 The clearly labelled **Offline security replays** in the UI need no network or
 credentials either.
 
-## Judge mode — no install, no credentials
+## Judge mode: no install, no credentials
 
 The city is a static build. Deploying `apps/city` gives a public URL with no
 sign-in, no backend, and no keys, and the **Replay a real run** button plays a
 mission that actually happened.
 
 That recording is not a script. It is what the control plane produced during a
-live TrueForge session — the derivation, the Yard's 46 probes, the gates, the
-countersigns, the quota — and it is hash-chained, so anyone doubting the order
+live TrueForge session: the derivation, the Yard's 46 probes, the gates, the
+countersigns, the quota. It is hash-chained, so anyone doubting the order
 of events can check it:
 
 ```bash
@@ -408,9 +407,9 @@ pnpm test        # no network
 
 The tests that matter most:
 
-- `packages/scope` — boundaries, expiry, integer-minor-unit amounts, deny-by-default
-- `packages/ledger` — the ten-way race where evaluate() would say yes to all of them
-- `packages/proxy` — the poisoned ticket refused end to end, and the countersign
+- `packages/scope`: boundaries, expiry, integer-minor-unit amounts, deny-by-default
+- `packages/ledger`: the ten-way race where evaluate() would say yes to all of them
+- `packages/proxy`: the poisoned ticket refused end to end, and the countersign
 ### Delegation, and the thing that nearly stopped it
 
 Subagents spawn and the map draws them, titled from the brief. For a while a
@@ -569,13 +568,13 @@ thread on the linked PR, and each fix is in the PR that answers it.
 | Were findings ever declined? | Yes, with the trade written into the thread rather than ignored. | [Findings dismissed, and why](#findings-dismissed-and-why) |
 | Did the process ever fail? | Yes. Two PRs merged with six findings unread because a script filtered on the wrong bot login. It is disclosed here, not hidden. | [Where the reasoning lives](#where-the-reasoning-lives) |
 
-The findings below are the ones worth reading, not a complete list — the
+The findings below are the ones worth reading, not a complete list. The
 complete list is the [pull request
 list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged).
 
 ### The banner that lied about its own run
 
-**Finding** ([#27](https://github.com/RajdeepKushwaha5/scope-city/pull/27)) — *"Clean
+**Finding** ([#27](https://github.com/RajdeepKushwaha5/scope-city/pull/27)): *"Clean
 run never finishes."* The scenario banner promised *"the job finishes inside its
 scope"*, but `CLEAN_JOB` ends by raising a gate and waiting for a countersign.
 
@@ -583,7 +582,7 @@ This one is worth reading the thread for. The banner exists to state what a run 
 show **before** it shows it, so that a run doing something else is visibly a failed
 run. Qodo caught that component making exactly the error it was built to expose.
 
-**Fix** ([#30](https://github.com/RajdeepKushwaha5/scope-city/pull/30)) — every claim
+**Fix** ([#30](https://github.com/RajdeepKushwaha5/scope-city/pull/30)): every claim
 rewritten from the script that actually runs, and a regression test that reads the
 endings out of `useMission.ts` rather than asserting them from memory. Qodo then found
 the correction was *also* wrong for the recorded run (it holds at the gate, then plays
@@ -592,19 +591,19 @@ vacuously. Both fixed in the same PR.
 
 ### Evidence the code could no longer produce
 
-**Finding** ([#24](https://github.com/RajdeepKushwaha5/scope-city/pull/24)) —
+**Finding** ([#24](https://github.com/RajdeepKushwaha5/scope-city/pull/24)):
 *"Recovery stops before lease."* `save-recording.mjs` waited 15 minutes against a lease
 of up to 30, so it could abandon a mission that was still legally running and then
 refuse to save it for not having completed.
 
-**Fix** ([#32](https://github.com/RajdeepKushwaha5/scope-city/pull/32)) — the bound now
+**Fix** ([#32](https://github.com/RajdeepKushwaha5/scope-city/pull/32)): the bound now
 comes from the mission's own granted scope instead of a constant. Qodo's follow-up
 noted the first scope in a record is the *proposed* one and grant recomputes the
 expiry; the scan now looks for `scope.granted` specifically.
 
 ### A selector that changed nothing
 
-**Finding** ([#35](https://github.com/RajdeepKushwaha5/scope-city/pull/35)) — *"Crew
+**Finding** ([#35](https://github.com/RajdeepKushwaha5/scope-city/pull/35)): *"Crew
 choice never dispatches."* A model picker set React state and rendered a portrait, and
 `onLaunch(order.trim())` carried neither the choice nor the effort.
 
@@ -612,7 +611,7 @@ For this project that is more than a dead control: a UI stating a capability the
 does not have is the gap between stated and actual authority that the rest of Scope
 City argues against.
 
-**Fix** — the fictional model identities are gone. What remains is real and verified
+**Fix**: the fictional model identities are gone. What remains is real and verified
 end to end: the effort is declared on each slot in `setup-models.ts`, travels through
 `POST /api/missions` into `model.params.reasoningEffort`, and TrueForge refuses an
 unsupported value rather than ignoring it.
@@ -625,17 +624,17 @@ effort=banana  -> 422 Reasoning effort "banana" is not supported by model "gemin
 
 ### A security bug in the code written to prevent security bugs
 
-**Finding** ([#44](https://github.com/RajdeepKushwaha5/scope-city/pull/44)) —
+**Finding** ([#44](https://github.com/RajdeepKushwaha5/scope-city/pull/44)):
 *"Recipient permits smtp injection."* The Post House builds an SMTP envelope by
 writing the recipient into a command line. A recipient containing CRLF ends that
 line and starts another, so one extra `RCPT TO` is a silent second recipient.
 
 The mission scope already refuses a recipient it did not grant, and a granted one
 would not contain a newline. So the scope was holding this. It should not have been
-the only thing holding it — and it is exactly the class of mistake this project
+the only thing holding it, and it is exactly the class of mistake this project
 exists to argue about, found in the project's own code.
 
-**Fix** (same PR) — addresses are rejected for newlines, nulls and angle brackets,
+**Fix** (same PR): addresses are rejected for newlines, nulls and angle brackets,
 and the refusal was verified against a real Mailpit: the attempt is refused and no
 attacker address reaches the inbox. Qodo's follow-up rounds on the same PR then
 found that a refused connection leaked the mail server's address to the agent, that
@@ -643,7 +642,7 @@ reads could hang forever, and that accepted mail was being reported as failed.
 
 ### Five faults in a fix, four of them mine to have caught
 
-**Finding** ([#48](https://github.com/RajdeepKushwaha5/scope-city/pull/48)) — a
+**Finding** ([#48](https://github.com/RajdeepKushwaha5/scope-city/pull/48)): a
 change that holds a rate-limited session instead of discarding its work drew
 *"Resume uses wrong model"*, *"Status counts as progress"*, *"Retained session
 leaks"*, *"Second limit discards session"* and *"Resume drops event state"* across
@@ -654,13 +653,13 @@ deleted so it could never be reused, which left the replay guard blind to precis
 the gates that had been used. A resumed session replaying that approval would have
 asked the operator to authorise **a refund that had already been made**.
 
-**Fix** (same PR) — the book keeps bare ids of spent verdicts. A tombstone is not an
+**Fix** (same PR): the book keeps bare ids of spent verdicts. A tombstone is not an
 authorisation and cannot become one, so a replayed call still has nothing to proceed
 on; it answers only *"has the operator already dealt with this"*.
 
 ### The published site claimed a backend it does not have
 
-**Finding** ([#62](https://github.com/RajdeepKushwaha5/scope-city/pull/62)) —
+**Finding** ([#62](https://github.com/RajdeepKushwaha5/scope-city/pull/62)):
 *"Unhealthy control plane stays absent"* and *"Body timeouts misclassified"*, on a
 fix for a bug the deployment config had been hiding: `vercel.json` rewrites unknown
 paths to `index.html`, so the deployed city answers `GET /api/health` with 200 and a
@@ -668,7 +667,7 @@ page. The probe checked only `response.ok`, and offered live missions on the one
 a judge visits.
 
 Qodo then caught the correction overshooting. The health route answers **503** when
-the harness is unwell — a control plane with something to report — and returning
+the harness is unwell, which is a control plane with something to report, and returning
 early on any non-2xx would have hidden the controls exactly then. The test asserting
 otherwise passed because it faked a 200 the server never sends.
 
@@ -695,21 +694,21 @@ Every **High** finding on the pull requests cited in this section now carries a
 reply saying what was done and why. Start with these:
 
 - **[A component making the error it exists to expose](https://github.com/RajdeepKushwaha5/scope-city/pull/27#discussion_r3885951235)**
-  — the scenario banner promised the clean job "finishes inside its scope" while
+  The scenario banner promised the clean job "finishes inside its scope" while
   the script it describes stops at the Gate.
 - **[Two findings that contradicted each other](https://github.com/RajdeepKushwaha5/scope-city/pull/60#discussion_r3885956166)**
-  — one asked for non-ASCII letters to continue an identifier, the next for the
+  One asked for non-ASCII letters to continue an identifier, the next for the
   opposite so 退款订单184 still parses. Both cannot hold, which was the signal
   the rule was aimed at the wrong question.
 - **[A security bug in the code written to prevent security bugs](https://github.com/RajdeepKushwaha5/scope-city/pull/44#discussion_r3885954296)**
-  — SMTP injection through a recipient, refused against a real Mailpit rather
+  SMTP injection through a recipient, refused against a real Mailpit rather
   than by reading the code.
 - **[Safe against reuse, unsafe against re-asking](https://github.com/RajdeepKushwaha5/scope-city/pull/48#discussion_r3885957729)**
-  — deleting a consumed countersign blinded the replay guard to exactly the
+  Deleting a consumed countersign blinded the replay guard to exactly the
   gates that had been used, so a resumed session would have asked a human to
   authorise a refund that had already happened.
 - **[A finding declined, with the trade written down](https://github.com/RajdeepKushwaha5/scope-city/pull/33#discussion_r3885957801)**
-  — two findings on the same line pulling opposite ways; forty pixels of dead
+  Two findings on the same line pulling opposite ways; forty pixels of dead
   strip between panels is a better price than a scrollbar Firefox cannot drag.
 
 The process is reliable from
@@ -722,7 +721,7 @@ week the script used to check for outstanding findings filtered on the login
 and reported zero every time, so
 [#78](https://github.com/RajdeepKushwaha5/scope-city/pull/78) and
 [#79](https://github.com/RajdeepKushwaha5/scope-city/pull/79) were merged with
-six findings unread between them — after the threads were supposedly being
+six findings unread between them, after the threads were supposedly being
 answered as reviews arrived. They were fixed in
 [#83](https://github.com/RajdeepKushwaha5/scope-city/pull/83), and the mistake is
 stated there and in each of the six threads.
@@ -798,7 +797,7 @@ and third rounds on the same PR rather than first passes.
 Three commits predate the workflow: the scope evaluator, the quota ledger and the
 proxy enforcement pipeline were pushed directly on the first morning, before the
 review process was set up. Every change to those files since has gone through a
-reviewed PR — the injection-detector fix in
+reviewed PR. The injection-detector fix in
 [#61](https://github.com/RajdeepKushwaha5/scope-city/pull/61) and the id-boundary fix
 in [#60](https://github.com/RajdeepKushwaha5/scope-city/pull/60) are both in that
 code. Saying so here rather than leaving it to be discovered.
@@ -819,7 +818,7 @@ Full attribution, including the artwork, is in [ATTRIBUTION.md](ATTRIBUTION.md).
 
 ## Licence
 
-MIT — see [LICENSE](LICENSE).
+MIT. See [LICENSE](LICENSE).
 
 Asset and font licences are recorded in [ATTRIBUTION.md](ATTRIBUTION.md).
 

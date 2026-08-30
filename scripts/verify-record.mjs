@@ -32,7 +32,7 @@
  * identity -- the head -- that you can quote and compare against a copy someone
  * else holds.
  */
-import { createHash } from "node:crypto";
+import { createHash, createPublicKey, verify } from "node:crypto";
 import { readFileSync } from "node:fs";
 
 const path = process.argv[2];
@@ -212,12 +212,141 @@ for (let i = record.entries.length - 1; i >= 0; i -= 1) {
   }
 }
 
+/*
+ * The signatures, checked with nothing but `node:crypto`.
+ *
+ * Not imported from `packages/mission`, for the same reason the hashing is
+ * written out again above: verifying a record with the code that signed it
+ * would let one bug cancel another.
+ *
+ * Three things are derived here rather than believed:
+ *
+ * **The fingerprint.** Checking a signature against `event.fingerprint` proves
+ * only that somebody once signed that string. A rewritten record could pair a
+ * genuine signature with any call it liked and keep the original fingerprint
+ * beside it. So the fingerprint is recomputed from the `gate.raised` this
+ * approval answers and the sealed scope, exactly as the proxy computes it, and
+ * a mismatch fails.
+ *
+ * **The operator.** `event.operator` is a label in the same untrusted file. The
+ * id printed is derived from the key that actually verified.
+ *
+ * **Coverage.** One valid signature among several approvals is not a signed
+ * record, so every approved gate is accounted for and `signature valid` is
+ * reserved for the case where all of them verify.
+ */
+
+/** Must match `normalise` in `packages/proxy/src/fingerprint.ts`. */
+function normaliseArgs(value) {
+  if (value === null || typeof value !== "object") return value;
+  if (Array.isArray(value)) return value.map(normaliseArgs);
+  const entries = Object.entries(value)
+    .filter(([, v]) => v !== undefined)
+    .sort(([a], [b]) => (a < b ? -1 : a > b ? 1 : 0));
+  return Object.fromEntries(entries.map(([k, v]) => [k, normaliseArgs(v)]));
+}
+
+/** Must match `fingerprintCall` in `packages/proxy/src/fingerprint.ts`. */
+function fingerprintOf(scope, office, args) {
+  return createHash("sha256")
+    .update(
+      JSON.stringify({
+        missionId: scope.missionId,
+        scopeId: scope.scopeId,
+        scopeVersion: scope.version,
+        office,
+        args: normaliseArgs(args),
+        resourceVersion: null,
+        expiresAt: scope.expiresAt,
+      }),
+    )
+    .digest("hex");
+}
+
+/** The short operator id, derived from a key rather than read from the record. */
+function idOf(publicKey) {
+  const der = publicKey.export({ format: "der", type: "spki" });
+  const hex = der.subarray(der.length - 32).toString("hex");
+  return `${hex.slice(0, 8)}\u2026${hex.slice(-4)}`;
+}
+
+const approvals = worldEvents.filter((e) => e.type === "gate.cleared" && e.approved);
+const raisedById = new Map(
+  worldEvents.filter((e) => e.type === "gate.raised").map((e) => [e.toolCallId, e]),
+);
+
+// The key may be handed in for a full check. Without it a signature can be seen
+// and not checked, which is its own state rather than success or failure.
+const rawKey = (process.env.SCOPE_OPERATOR_PUBLIC_KEY ?? "").replace(/\n/g, "\n").trim();
+let operatorKey;
+try {
+  operatorKey = rawKey ? createPublicKey(rawKey) : undefined;
+} catch {
+  operatorKey = undefined;
+}
+const derivedOperator = operatorKey ? idOf(operatorKey) : "";
+
+function checkApproval(event) {
+  if (!event.signature) return { state: "unsigned" };
+  if (event.algorithm !== "ed25519") return { state: "bad", why: "unsupported algorithm" };
+  if (typeof event.fingerprint !== "string") {
+    return { state: "bad", why: "no fingerprint recorded" };
+  }
+
+  const raised = raisedById.get(event.toolCallId);
+  if (!raised || typeof raised.office !== "string") {
+    return { state: "bad", why: "no raised gate to check the fingerprint against" };
+  }
+
+  const expected = fingerprintOf(record.scope, raised.office, raised.args ?? {});
+  if (expected !== event.fingerprint) {
+    return { state: "bad", why: "signed fingerprint does not describe the call it answers" };
+  }
+
+  if (!operatorKey) return { state: "unchecked" };
+
+  let ok = false;
+  try {
+    ok = verify(
+      null,
+      Buffer.from(event.fingerprint, "utf8"),
+      operatorKey,
+      Buffer.from(event.signature, "base64"),
+    );
+  } catch {
+    ok = false;
+  }
+  return ok ? { state: "valid" } : { state: "bad", why: "signature does not verify" };
+}
+
+const sigResults = approvals.map(checkApproval);
+const badSigs = sigResults.filter((r) => r.state === "bad");
+const validSigs = sigResults.filter((r) => r.state === "valid").length;
+const unsignedSigs = sigResults.filter((r) => r.state === "unsigned").length;
+const uncheckedSigs = sigResults.filter((r) => r.state === "unchecked").length;
+const signedApprovals = approvals.filter((e) => e.signature);
+
+let countersignNote = "";
+if (approvals.length === 0) {
+  countersignNote = "";
+} else if (badSigs.length > 0) {
+  countersignNote = `  SIGNATURE INVALID: ${[...new Set(badSigs.map((b) => b.why))].join("; ")}`;
+} else if (unsignedSigs === approvals.length) {
+  countersignNote = "  (unsigned)";
+} else if (unsignedSigs > 0) {
+  countersignNote = `  only ${approvals.length - unsignedSigs} of ${approvals.length} signed`;
+} else if (uncheckedSigs > 0) {
+  countersignNote = "  signed, unverified (set SCOPE_OPERATOR_PUBLIC_KEY to check)";
+} else if (validSigs === approvals.length) {
+  countersignNote = `  signature valid, operator key ${derivedOperator}`;
+}
+
 console.log(`\n  chain intact, head ${record.head.slice(0, 16)}…`);
 console.log(`\n  what it attests to`);
 console.log(`    ended            ${status}`);
 console.log(`    threads          ${threads.size}${threads.size > 1 ? " (subagents ran)" : ""}`);
 console.log(`    gates raised     ${count("gate.raised")}`);
-console.log(`    countersigned    ${worldEvents.filter((e) => e.type === "gate.cleared" && e.approved).length}`);
+console.log(`    countersigned    ${approvals.length}${countersignNote}`);
 console.log(`    refused at gate  ${worldEvents.filter((e) => e.type === "gate.cleared" && !e.approved).length}`);
 console.log(`    left unanswered  ${unanswered}`);
 console.log(`    sandbox checks   ${count("yard.verified")}`);
@@ -233,8 +362,16 @@ console.log(
   `\n  The chain covers the entries and the sealed scope. It does not cover the` +
     `\n  record's top-level job, timestamps, algorithm or lossy flag, which sit` +
     `\n  outside it -- so those are reported above from the scope where possible.` +
-    `\n\n  Tamper-evidence, not a signature: nothing here is signed, so anyone able` +
-    `\n  to rewrite the whole file can produce a consistent chain. Compare the head` +
-    `\n  against another copy to confirm you are both holding the same record.\n`,
+    `\n\n  The chain is tamper-evidence: anyone able to rewrite the whole file can` +
+    `\n  produce a consistent one. Compare the head against another copy to confirm` +
+    `\n  you are both holding the same record.` +
+    (signedApprovals.length
+      ? `\n\n  The approvals above are signed, which the chain cannot be: a signature` +
+        `\n  cannot be produced without the key and covers the exact call, so it can` +
+        `\n  neither be invented nor moved. It attests that the holder of that key` +
+        `\n  approved, not that a particular person did.\n`
+      : `\n\n  Nothing here is signed, so an approval is a line the writer made about` +
+        `\n  its own behaviour. Records written by a build with an operator key carry` +
+        `\n  a signature over each approved call.\n`),
 );
 

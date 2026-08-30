@@ -1,124 +1,214 @@
 import { describe, expect, it } from "vitest";
 import {
+  addressFamily,
+  boundaryReachability,
   boundarySummary,
   isLoopbackHost,
-  unreachableBoundary,
+  isWildcardBind,
+  urlHost,
 } from "../src/reachability.js";
 
 /**
- * The error this exists to stop, quoted so nobody has to guess what it looked
- * like:
+ * The error this exists to stop, quoted so nobody has to guess what it was:
  *
  *     Failed to connect to remote MCP server 'scope-city-forge-mtfb6vyc':
  *     connect ECONNREFUSED 192.168.65.254:8794
  *
  * It appeared inside TrueForge's UI, half a minute after the mission started,
- * naming a Docker gateway address nobody had typed. The cause was two
- * environment variables disagreeing, and it was knowable before anything
- * started.
+ * naming a Docker gateway address nobody had typed. The cause was two settings
+ * disagreeing, and it was knowable before anything started.
  */
 describe("catching a boundary the harness cannot reach", () => {
-  const local = "http://127.0.0.1:8791";
+  /*
+   * Every test above the line is a pairing that certainly cannot work. The
+   * guard is deliberately one-directional: it refuses what it is sure about and
+   * stays quiet about the rest, because a guard that refuses on a suspicion is
+   * a guard people learn to switch off.
+   */
 
   it("refuses to announce a host it is not listening for", () => {
     // The exact case that produced the ECONNREFUSED: the container resolves
-    // `host.docker.internal` to the host gateway, connects, and finds nothing
-    // listening on that interface because the proxy took loopback only.
-    const reason = unreachableBoundary({
+    // `host.docker.internal`, connects to the host, and finds nothing listening
+    // on the interface it reached, because the proxy took loopback only.
+    const verdict = boundaryReachability({
       bind: "127.0.0.1",
       publicHost: "host.docker.internal",
-      harnessBaseUrl: local,
     });
 
-    expect(reason).toBeDefined();
-    expect(reason).toContain("SCOPE_PROXY_BIND=0.0.0.0");
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain("SCOPE_PROXY_BIND=0.0.0.0");
   });
 
-  it("names both ways out rather than only the one it prefers", () => {
-    // An operator running the harness on this machine should move the public
-    // host, not open the bind. Offering only "bind to everything" would teach
-    // the wider setting as the fix for a narrower problem.
-    const reason = unreachableBoundary({
+  it("does not treat the two loopback families as one listener", () => {
+    // Both are loopback and they are not the same socket: a v6-only listener
+    // does not answer a v4 connection. Pooling them as "loopback" passed this.
+    expect(
+      boundaryReachability({ bind: "::1", publicHost: "127.0.0.1" }).ok,
+    ).toBe(false);
+    expect(
+      boundaryReachability({ bind: "127.0.0.1", publicHost: "::1" }).ok,
+    ).toBe(false);
+  });
+
+  it("does not treat a specific interface as though it were a wildcard", () => {
+    // A bind of 192.168.1.10 listens there and nowhere else, so announcing
+    // .11 promises a socket that does not exist. Every non-loopback bind used
+    // to be waved through as if it were 0.0.0.0.
+    const verdict = boundaryReachability({
+      bind: "192.168.1.10",
+      publicHost: "192.168.1.11",
+    });
+
+    expect(verdict.ok).toBe(false);
+    expect(verdict.reason).toContain("nowhere else");
+  });
+
+  it("names the settings the reader can actually change", () => {
+    // The city reads SCOPE_PROXY_BIND and the probes read PROBE_BIND. Naming
+    // the wrong one sends the reader to edit a variable with no effect on the
+    // process that just refused to start.
+    const verdict = boundaryReachability({
       bind: "127.0.0.1",
       publicHost: "host.docker.internal",
-      harnessBaseUrl: local,
-    })!;
-
-    expect(reason).toContain("SCOPE_PROXY_BIND=0.0.0.0");
-    expect(reason).toContain("SCOPE_PROXY_PUBLIC_HOST=127.0.0.1");
-  });
-
-  it("catches the mirror image, where the harness is the one elsewhere", () => {
-    // Same symptom, different fix: everything is loopback and correct with
-    // itself, and the harness is on another host entirely.
-    const reason = unreachableBoundary({
-      bind: "127.0.0.1",
-      publicHost: "127.0.0.1",
-      harnessBaseUrl: "https://trueforge.example.test",
+      names: { bind: "PROBE_BIND", publicHost: "PROBE_PUBLIC_HOST" },
     });
 
-    expect(reason).toBeDefined();
-    expect(reason).toContain("trueforge.example.test");
+    expect(verdict.reason).toContain("PROBE_BIND=0.0.0.0");
+    expect(verdict.reason).toContain("PROBE_PUBLIC_HOST=127.0.0.1");
+    expect(verdict.reason).not.toContain("SCOPE_PROXY_");
   });
 
-  // --- and the pairings that do work ---------------------------------------
+  // --- and the pairings it must not refuse ---------------------------------
 
   it("says nothing when everything is on this machine", () => {
     expect(
-      unreachableBoundary({
-        bind: "127.0.0.1",
-        publicHost: "127.0.0.1",
-        harnessBaseUrl: local,
-      }),
-    ).toBeUndefined();
+      boundaryReachability({ bind: "127.0.0.1", publicHost: "127.0.0.1" }).ok,
+    ).toBe(true);
   });
 
   it("says nothing when the proxy listens on every interface", () => {
-    // The setup that actually works against a containerised harness, proven by
-    // an HTTP 401 from inside the container: reachable, and demanding its token.
+    // The arrangement that actually works against a containerised harness,
+    // proven by an HTTP 401 from inside the container: reachable, and asking
+    // for its token.
     expect(
-      unreachableBoundary({
+      boundaryReachability({
         bind: "0.0.0.0",
         publicHost: "host.docker.internal",
-        harnessBaseUrl: local,
-      }),
-    ).toBeUndefined();
+      }).ok,
+    ).toBe(true);
+    expect(
+      boundaryReachability({ bind: "::", publicHost: "host.docker.internal" })
+        .ok,
+    ).toBe(true);
   });
 
-  it("leaves an unparseable harness URL to the client that will report it", () => {
-    // Two error messages about one mistake is worse than one.
+  it("does not guess a family for a name that could be either", () => {
+    // `localhost` resolves to whichever family the system prefers, often ::1 on
+    // a dual-stack machine. Calling it IPv4 would invent a mismatch and refuse
+    // a setup that works.
     expect(
-      unreachableBoundary({
-        bind: "127.0.0.1",
-        publicHost: "127.0.0.1",
-        harnessBaseUrl: "not a url",
-      }),
-    ).toBeUndefined();
+      boundaryReachability({ bind: "localhost", publicHost: "127.0.0.1" }).ok,
+    ).toBe(true);
+    expect(
+      boundaryReachability({ bind: "::1", publicHost: "localhost" }).ok,
+    ).toBe(true);
+  });
+
+  it("does not infer where the harness runs from the URL used to reach it", () => {
+    /*
+     * An earlier version took a non-loopback `TRUEFORGE_BASE_URL` to mean the
+     * harness was on another machine, and exited 2. But a TrueForge on *this*
+     * machine is routinely reached through its LAN address or DNS name, and
+     * that setup works: a loopback boundary is reachable from a local harness
+     * however the client addresses its API.
+     *
+     * A client's endpoint is not an execution host, so this no longer looks at
+     * one. The signature not accepting a base URL is the assertion.
+     */
+    expect(
+      boundaryReachability({ bind: "127.0.0.1", publicHost: "127.0.0.1" }).ok,
+    ).toBe(true);
   });
 });
 
-describe("recognising an address that only answers to itself", () => {
-  it("knows the loopback forms a harness is actually configured with", () => {
+describe("recognising the shape of an address", () => {
+  it("does not mistake the route into a container for loopback", () => {
+    // Local in the colloquial sense and not in the one that matters: it is the
+    // host gateway, reached across the container's network.
+    expect(isLoopbackHost("host.docker.internal")).toBe(false);
+    expect(isLoopbackHost("192.168.65.254")).toBe(false);
+    expect(isLoopbackHost("0.0.0.0")).toBe(false);
+  });
+
+  it("does not call a specific interface a wildcard", () => {
+    expect(isWildcardBind("192.168.1.10")).toBe(false);
+    expect(isWildcardBind("127.0.0.1")).toBe(false);
+  });
+
+  it("only claims a family when the host states one", () => {
+    expect(addressFamily("localhost")).toBe("name");
+    expect(addressFamily("host.docker.internal")).toBe("name");
+  });
+
+  // --- and what it does recognise ------------------------------------------
+
+  it("knows the loopback forms a harness is configured with", () => {
     expect(isLoopbackHost("127.0.0.1")).toBe(true);
     expect(isLoopbackHost("localhost")).toBe(true);
     expect(isLoopbackHost("[::1]")).toBe(true);
     expect(isLoopbackHost("LocalHost")).toBe(true);
   });
 
-  it("does not mistake the route into a container for loopback", () => {
-    // Local in the colloquial sense and not in the one that matters: it is the
-    // host gateway, reached across the container's network.
-    expect(isLoopbackHost("host.docker.internal")).toBe(false);
-    expect(isLoopbackHost("0.0.0.0")).toBe(false);
-    expect(isLoopbackHost("192.168.65.254")).toBe(false);
+  it("knows the wildcards", () => {
+    expect(isWildcardBind("0.0.0.0")).toBe(true);
+    expect(isWildcardBind("::")).toBe(true);
+    expect(isWildcardBind("")).toBe(true);
+  });
+
+  it("reads the families from literals", () => {
+    expect(addressFamily("127.0.0.1")).toBe("v4");
+    expect(addressFamily("::1")).toBe("v6");
+    expect(addressFamily("[::1]")).toBe("v6");
+  });
+});
+
+describe("putting a host into a URL", () => {
+  it("brackets an IPv6 literal", () => {
+    /*
+     * `http://::1:8791/` is not a URL -- the colons are read as a port
+     * separator. Every boundary URL here is assembled by interpolation, so a
+     * guard that accepted a bare `::1` passed a setup that could never have
+     * registered with the harness.
+     */
+    expect(urlHost("::1")).toBe("[::1]");
+    expect(`http://${urlHost("::1")}:8791`).toBe("http://[::1]:8791");
+    expect(() => new URL(`http://${urlHost("::1")}:8791/mcp`)).not.toThrow();
+  });
+
+  it("does not double-bracket one that already is", () => {
+    expect(urlHost("[::1]")).toBe("[::1]");
+  });
+
+  it("leaves names and IPv4 alone", () => {
+    expect(urlHost("host.docker.internal")).toBe("host.docker.internal");
+    expect(urlHost("127.0.0.1")).toBe("127.0.0.1");
   });
 });
 
 describe("stating the arrangement at startup", () => {
+  it("does not call a specific interface every interface", () => {
+    // Saying "every interface" of 192.168.1.10 describes a listener answering
+    // on one address as though it answered on all of them.
+    expect(
+      boundarySummary({
+        bind: "192.168.1.10",
+        publicHost: "192.168.1.10",
+        port: 8791,
+      }),
+    ).toContain("this interface only");
+  });
+
   it("says which interface, and what the harness was told", () => {
-    // Three ports and two notions of localhost. The difference between a
-    // working setup and the ECONNREFUSED above is invisible until it fails, so
-    // it is printed while it still costs nothing to read.
     const line = boundarySummary({
       bind: "0.0.0.0",
       publicHost: "host.docker.internal",
@@ -137,23 +227,5 @@ describe("stating the arrangement at startup", () => {
         port: 8791,
       }),
     ).toContain("this machine only");
-  });
-});
-
-describe("naming the settings the reader can actually change", () => {
-  it("uses the caller's variable names", () => {
-    // The city reads SCOPE_PROXY_BIND and the probes read PROBE_BIND. A message
-    // naming the wrong one sends the reader to edit a variable that has no
-    // effect on the process that just refused to start.
-    const reason = unreachableBoundary({
-      bind: "127.0.0.1",
-      publicHost: "host.docker.internal",
-      harnessBaseUrl: "http://127.0.0.1:8791",
-      names: { bind: "PROBE_BIND", publicHost: "PROBE_PUBLIC_HOST" },
-    })!;
-
-    expect(reason).toContain("PROBE_BIND=0.0.0.0");
-    expect(reason).toContain("PROBE_PUBLIC_HOST=127.0.0.1");
-    expect(reason).not.toContain("SCOPE_PROXY_");
   });
 });

@@ -129,6 +129,23 @@ const SLOTS: readonly Slot[] = [
  * not work. It appeared to work only for someone who had already exported the
  * variable in their shell.
  */
+/**
+ * The address to register, given the one this process uses.
+ *
+ * `??` was wrong here, and wrong in a way this PR created: `.env.example` now
+ * ships `OLLAMA_PUBLIC_HOST=` as a documented blank placeholder, and a blank is
+ * present rather than absent. So the common path -- copy the example, fill in
+ * `OLLAMA_HOST`, leave the optional override alone -- registered the provider
+ * at `/v1`, a relative URL that reaches nothing.
+ *
+ * An empty override means "no override", which is what the blank line in the
+ * example is for.
+ */
+export function publicOllamaHost(host: string): string {
+  const announced = (process.env.OLLAMA_PUBLIC_HOST ?? "").trim();
+  return announced === "" ? host : announced;
+}
+
 function localSlots(): readonly Slot[] {
   const host = process.env.OLLAMA_HOST ?? "";
   if (!host) return [];
@@ -150,7 +167,7 @@ function localSlots(): readonly Slot[] {
    * same address from everywhere, which makes the local model look like the
    * thing at fault.
    */
-  const announced = process.env.OLLAMA_PUBLIC_HOST ?? host;
+  const announced = publicOllamaHost(host);
 
   return [
     {
@@ -267,7 +284,10 @@ async function main(): Promise<void> {
    * states the address the harness was given and, when that address only means
    * anything on this machine, names the variable that fixes it.
    */
-  const announcedLocal = process.env.OLLAMA_PUBLIC_HOST ?? process.env.OLLAMA_HOST ?? "";
+  // The same resolution the registration used. Printing a different value from
+  // the one that was registered would make the diagnostic worse than silence.
+  const ollamaHost = process.env.OLLAMA_HOST ?? "";
+  const announcedLocal = ollamaHost === "" ? "" : publicOllamaHost(ollamaHost);
   if (announcedLocal !== "") {
     console.log(`\n  Local model: TrueForge will connect to ${announcedLocal}/v1`);
     let announcedHost = "";

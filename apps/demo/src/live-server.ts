@@ -24,7 +24,7 @@ import {
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
-import { boundarySummary, unreachableBoundary } from "./reachability.js";
+import { boundaryReachability, boundarySummary, urlHost } from "./reachability.js";
 import { controlPlaneSignpost } from "./signpost.js";
 import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
@@ -97,6 +97,37 @@ interface LiveMission extends ManagedLiveMission {
 }
 
 async function main(): Promise<void> {
+  /*
+   * First, before the driver exists.
+   *
+   * Scope City hands TrueForge a URL and TrueForge connects to it from wherever
+   * it is. Those are two machines' idea of "here" as soon as the harness is in
+   * a container, and announcing `host.docker.internal` while listening only on
+   * loopback produces the least useful error in the project: `ECONNREFUSED
+   * 192.168.65.254:8794`, inside TrueForge's own UI, half a minute later,
+   * naming a gateway address nobody typed.
+   *
+   * This check reads two environment strings and nothing else, so there is no
+   * reason for it to run after model discovery and sandbox resolution -- and
+   * good reason for it not to. Running it later meant an impossible boundary
+   * still issued remote requests and could persist a sandbox provider before
+   * exiting, and a throw from `hasSandboxProvider()` could stop the diagnosis
+   * being printed at all. The one check certain of its answer went last.
+   */
+  const reachable = boundaryReachability({
+    bind: PROXY_BIND,
+    publicHost: PROXY_PUBLIC_HOST,
+  });
+  if (!reachable.ok) {
+    console.error(`
+  ${reachable.reason}
+`);
+    process.exit(2);
+  }
+  console.log(
+    boundarySummary({ bind: PROXY_BIND, publicHost: PROXY_PUBLIC_HOST, port: PROXY_PORT }),
+  );
+
   const driver = new HarnessDriver();
 
   // Discovered once at boot rather than per mission.
@@ -210,34 +241,6 @@ async function main(): Promise<void> {
   SANDBOX_AVAILABLE.value = sandbox;
 
   console.log(systemsSummary());
-
-  /*
-   * Whether the harness can reach the boundary, decided before anything runs.
-   *
-   * Scope City hands TrueForge a URL and TrueForge connects to it from wherever
-   * it happens to be. Those are two machines' idea of "here" as soon as the
-   * harness is in a container, and announcing `host.docker.internal` while
-   * listening only on loopback produces the least useful error in the project:
-   * `ECONNREFUSED 192.168.65.254:8794`, inside TrueForge's own UI, half a minute
-   * later, naming a gateway address nobody typed.
-   *
-   * It cannot work, and it is knowable now, so it is refused now with the two
-   * variables that have to agree.
-   */
-  const unreachable = unreachableBoundary({
-    bind: PROXY_BIND,
-    publicHost: PROXY_PUBLIC_HOST,
-    harnessBaseUrl: process.env.TRUEFORGE_BASE_URL ?? "http://127.0.0.1:8790",
-  });
-  if (unreachable) {
-    console.error(`
-  ${unreachable}
-`);
-    process.exit(2);
-  }
-  console.log(
-    boundarySummary({ bind: PROXY_BIND, publicHost: PROXY_PUBLIC_HOST, port: PROXY_PORT }),
-  );
 
   async function resolveSandbox(harness: HarnessDriver): Promise<boolean> {
     if (!SANDBOX) return false;
@@ -824,7 +827,7 @@ async function main(): Promise<void> {
 
   async function runLiveMission(live: LiveMission, book: CountersignBook): Promise<void> {
     const proxyName = "scope-city-live";
-    const proxyUrl = `http://${PROXY_PUBLIC_HOST}:${PROXY_PORT}/mission/${live.id}/mcp`;
+    const proxyUrl = `http://${urlHost(PROXY_PUBLIC_HOST)}:${PROXY_PORT}/mission/${live.id}/mcp`;
     try {
       await driver.registerMcpServer({
         type: "remote",

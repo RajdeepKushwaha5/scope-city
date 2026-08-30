@@ -398,3 +398,45 @@ Kept honest so nothing unproven reaches the demo:
       bwrap/socat/ripgrep route does not exist on this version. Verified by
       reading `SandboxProviderManifest` in the running instance's OpenAPI
       document, after installing those binaries achieved nothing.
+
+## Standalone will not start on Windows; Compose will
+
+`npx @truefoundry/trueforge` dies on this machine every time, immediately after
+
+```
+warn Removing leftover Code Mode socket parent
+warn Local sandbox fallback is unavailable (win32)
+```
+
+with a segfault on Node 23.2 and a silent exit on a portable Node 22.13. It
+never binds its port. Deleting the stale `tf_cms` socket directory, disabling
+Code Mode, running outside the msys shell and `pnpm dlx` all reproduce it, so it
+is not the Node version and not the shell.
+
+Compose works, and is the documented path for exactly this reason ("the whole
+stack under Compose, for when the agent is doing real work"). Two things are not
+obvious from the README:
+
+- **The image is not published.** `docker compose up` alone fails on
+  `pull access denied for truefoundry-server`. Build it first, and the build
+  requires a version:
+
+  ```bash
+  docker build -t truefoundry-server:latest --build-arg APP_VERSION=0.1.4 .
+  ```
+
+  Without `--build-arg` the build fails closed on purpose: `APP_VERSION
+  build-arg is required`.
+
+- **`packages/trueforge/.env` must exist**, because the compose file marks it
+  `required: true`. Copying `.env.example` is enough for a local run.
+
+- **Compose maps host 8791**, not 8790, to avoid colliding with a host `pnpm
+  dev`. Scope City's own proxy defaults to 8791 too, so one of them has to move
+  -- the probes take `PROBE_PORT`.
+
+The consequence worth knowing before wiring anything: **the harness is now in a
+container, so `127.0.0.1` is the container**. An MCP server running on the host
+has to be registered as `host.docker.internal`, and bound to `0.0.0.0` rather
+than loopback, or the harness registers a URL it can never reach and every tool
+call fails with a connection error that looks like a boundary refusal.

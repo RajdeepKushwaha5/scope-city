@@ -413,9 +413,19 @@ every branch reachable from a test.
   mission.ended   done
   ```
 
-  `qwen2.5:7b` does not fit that machine: 4.7 GB of weights against 4 GB of
-  VRAM, and the failure arrives as a 500 carrying llama-server's own
-  out-of-memory. So the default is the model that runs, not the bigger one.
+  `qwen2.5:7b` is the wrong choice for the *mission* on that machine: 4.7 GB of
+  weights against 4 GB of VRAM, so a run that holds the model across a long
+  agent loop arrives as a 500 carrying llama-server's own out-of-memory. The
+  default is the model that finishes, not the bigger one.
+
+  The **adversary** is a separate choice and takes the opposite one. It runs a
+  single short prompt rather than an agent loop, so offloading part of it to
+  system memory costs seconds instead of the mission, and a better attacker is
+  worth those seconds. It picks the largest model pulled locally unless
+  `ADVERSARY_MODEL` names one, which on this machine is `qwen2.5:7b`. That is
+  the model in the console line in the screenshot above, on the same laptop the
+  paragraph above says cannot run it as the mission model. Both are true, and
+  they are different jobs.
 
   It is registered but never discovered automatically, because rotation treats
   models as interchangeable and a 7B on a laptop is not interchangeable with a

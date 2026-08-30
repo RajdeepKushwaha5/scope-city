@@ -35,6 +35,8 @@ import { missionSystemsAsync, forgeStatus } from "./systems.js";
 const PORT = Number(process.env.PROBE_PORT ?? 8794);
 const BIND = process.env.PROBE_BIND ?? "127.0.0.1";
 const PUBLIC_HOST = process.env.PROBE_PUBLIC_HOST ?? "127.0.0.1";
+/** How long a cancel gets before cleanup stops waiting for it. */
+const CANCEL_MS = Number(process.env.PROBE_CANCEL_MS ?? 10_000);
 /** Where this process reaches its own proxy. `0.0.0.0` is a bind, not an address. */
 const LOCAL_HOST = BIND === "0.0.0.0" ? "127.0.0.1" : BIND;
 const TURN_MS = Number(process.env.PROBE_TURN_MS ?? 120_000);
@@ -316,10 +318,31 @@ async function main(): Promise<void> {
      * after this and not before.
      */
     if (timedOut) {
-      await driver.cancel(sessionId).catch((error: unknown) => {
-        // The timeout is the diagnosis; a failure to cancel is a footnote to it.
-        console.error(`  could not cancel ${sessionId}: ${String(error)}`);
-      });
+      /*
+       * Cancelling gets its own, much shorter, deadline.
+       *
+       * `HarnessDriver` requests carry a ten-minute timeout, so awaiting a
+       * cancel against a TrueForge that has stopped answering would hold the
+       * probe open for ten more minutes past the deadline it just missed --
+       * with the proxy still listening and the token-bearing subprocess still
+       * running. The cleanup below is the part that must happen; the cancel is
+       * the part that would be nice to.
+       */
+      await Promise.race([
+        driver.cancel(sessionId).catch((error: unknown) => {
+          // The timeout is the diagnosis; a failure to cancel is a footnote.
+          console.error(`  could not cancel ${sessionId}: ${String(error)}`);
+        }),
+        new Promise<void>((resolve) => {
+          const t = setTimeout(() => {
+            console.error(`  cancel of ${sessionId} did not answer in ${CANCEL_MS}ms`);
+            resolve();
+          }, CANCEL_MS);
+          // Node keeps a process alive for a pending timer, and this one exists
+          // only to stop waiting.
+          t.unref();
+        }),
+      ]);
     }
 
     await proxy.close();

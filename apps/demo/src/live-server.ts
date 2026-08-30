@@ -27,7 +27,7 @@ import { deriveScopeFromJob } from "./derive-scope.js";
 import { controlPlaneSignpost } from "./signpost.js";
 import { isWorkEvent, shouldKeepSession } from "./resume-policy.js";
 
-import { missionSystems, systemsSummary } from "./systems.js";
+import { missionSystems, missionSystemsAsync, systemsSummary } from "./systems.js";
 import { unscopedScope } from "./unscoped.js";
 import { backtest, counterfactual } from "@scope-city/yard";
 import { officeRegistry } from "@scope-city/mcp";

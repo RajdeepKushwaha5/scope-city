@@ -6,6 +6,7 @@ import {
   recordsSystem,
   stripeSystem,
   type SystemDefinition,
+  forgeSystem,
 } from "@scope-city/mcp";
 
 /**
@@ -74,6 +75,41 @@ export function recordsIsLive(): boolean {
   return GITHUB_TOKEN !== "";
 }
 
+/**
+ * True when the Forge is connected to GitHub's own MCP server.
+ *
+ * Off unless asked for. It starts a subprocess and holds a token, and a fresh
+ * clone must not need either to run the demo -- but when it is on, the boundary
+ * is being enforced over a server nobody here wrote, which is the only way to
+ * show it is a boundary rather than three careful implementations.
+ */
+export function forgeIsLive(): boolean {
+  if (FIXTURES_ONLY) return false;
+  return process.env.FORGE_REPOSITORY !== undefined && GITHUB_TOKEN !== "";
+}
+
+/**
+ * The systems, including any that have to be connected to rather than
+ * constructed.
+ *
+ * Separate from `missionSystems` because a district behind somebody else's MCP
+ * server cannot be built synchronously: it has to start the process, ask what
+ * tools exist, and refuse at startup if an office names one that does not. The
+ * synchronous list stays for the scripted paths, which have nothing to connect
+ * to and should not have to await anything.
+ */
+export async function missionSystemsAsync(): Promise<readonly SystemDefinition[]> {
+  const local = missionSystems();
+  if (!forgeIsLive()) return local;
+
+  const [owner, repo] = (process.env.FORGE_REPOSITORY ?? "").split("/");
+  if (!owner || !repo) {
+    throw new Error('FORGE_REPOSITORY must look like "owner/repo"');
+  }
+
+  return [...local, await forgeSystem({ owner, repo, token: GITHUB_TOKEN })];
+}
+
 export function missionSystems(): readonly SystemDefinition[] {
   return [
     recordsIsLive()
@@ -94,5 +130,6 @@ export function systemsSummary(): string {
   if (FIXTURES_ONLY && (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")) {
     return "Systems: all fixtures — SCOPE_FIXTURES is set, so external credentials are ignored";
   }
-  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})`;
+  const forge = forgeIsLive() ? ` · The Forge (GitHub MCP, ${process.env.FORGE_REPOSITORY})` : "";
+  return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})${forge}`;
 }

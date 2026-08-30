@@ -38,9 +38,18 @@ export function createFixtureMission(params: {
    * what the operator typed is the thing the derivation pipeline exists to stop.
    */
   scope?: Scope;
+  /**
+   * The systems behind the districts, when the caller has already built them.
+   *
+   * Defaults to `missionSystems()`, which is every district that can be
+   * constructed synchronously. A district behind somebody else's MCP server
+   * cannot be: it has to start a process and ask what tools exist, so the
+   * caller awaits `missionSystemsAsync()` and passes the result here.
+   */
+  systems?: readonly SystemDefinition[];
 }): FixtureMission {
   const now = params.now ?? Date.now();
-  const systems = missionSystems();
+  const systems = params.systems ?? missionSystems();
   const handlers = new Map(
     systems.flatMap((system) => system.offices.map((office) => [office.office, office] as const)),
   );

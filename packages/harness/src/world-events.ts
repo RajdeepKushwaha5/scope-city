@@ -25,7 +25,27 @@ export type WorldEvent =
       readonly args: unknown;
       readonly at: number;
     }
-  | { readonly type: "gate.cleared"; readonly toolCallId: string; readonly approved: boolean; readonly at: number }
+  | {
+      readonly type: "gate.cleared";
+      readonly toolCallId: string;
+      readonly approved: boolean;
+      /**
+       * The operator's signature over the call fingerprint, when one was made.
+       *
+       * The chain already proves this entry was not edited. This proves the
+       * holder of a key approved *this* call, which the chain cannot: a record
+       * that attests only to its own honesty is as trustworthy as whatever
+       * wrote it. Optional because a denial has nothing to attest to and an
+       * unconfigured instance has no key, and the verifier reports which case
+       * it found rather than treating absence as failure.
+       */
+      readonly signature?: string;
+      readonly operator?: string;
+      readonly algorithm?: "ed25519";
+      /** The fingerprint the signature covers, so a verifier need not recompute it. */
+      readonly fingerprint?: string;
+      readonly at: number;
+    }
   /**
    * The Gate came down with nobody having answered it.
    *

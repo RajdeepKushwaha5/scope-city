@@ -212,12 +212,60 @@ for (let i = record.entries.length - 1; i >= 0; i -= 1) {
   }
 }
 
+/*
+ * The signatures, checked with nothing but `node:crypto`.
+ *
+ * Deliberately not imported from `packages/mission`, for the same reason the
+ * hashing is written out again above: verifying a record with the code that
+ * signed it would let one bug cancel another. Ed25519 signs the message
+ * directly, so the algorithm argument is null and the message is the
+ * fingerprint bytes.
+ */
+const approvals = worldEvents.filter((e) => e.type === "gate.cleared" && e.approved);
+
+function checkSignature(event, publicKeyPem) {
+  if (!event.signature || !event.fingerprint) return "unsigned";
+  if (event.algorithm !== "ed25519") return `unknown algorithm ${event.algorithm}`;
+  if (!publicKeyPem) return "no public key supplied";
+  try {
+    const ok = verify(
+      null,
+      Buffer.from(event.fingerprint, "utf8"),
+      createPublicKey(publicKeyPem),
+      Buffer.from(event.signature, "base64"),
+    );
+    return ok ? "valid" : "INVALID";
+  } catch (error) {
+    return `INVALID (${error.message})`;
+  }
+}
+
+// The public key may be handed in for a full check. Without it the signatures
+// are reported as present and unverified, which is the honest state: this tool
+// can see that an approval was signed and cannot say by whom.
+const publicKeyPem = (process.env.SCOPE_OPERATOR_PUBLIC_KEY ?? "").replace(/\\n/g, "\n");
+
+const signedApprovals = approvals.filter((e) => e.signature);
+const sigResults = signedApprovals.map((e) => checkSignature(e, publicKeyPem));
+const operators = [...new Set(signedApprovals.map((e) => e.operator).filter(Boolean))];
+
+let countersignNote = "";
+if (approvals.length === 0 || signedApprovals.length === 0) {
+  countersignNote = approvals.length ? "  (unsigned)" : "";
+} else if (sigResults.some((r) => r.startsWith("INVALID"))) {
+  countersignNote = "  SIGNATURE INVALID";
+} else if (sigResults.every((r) => r === "valid")) {
+  countersignNote = `  signature valid, operator key ${operators.join(", ")}`;
+} else {
+  countersignNote = `  signed by ${operators.join(", ")}, unverified (set SCOPE_OPERATOR_PUBLIC_KEY)`;
+}
+
 console.log(`\n  chain intact, head ${record.head.slice(0, 16)}…`);
 console.log(`\n  what it attests to`);
 console.log(`    ended            ${status}`);
 console.log(`    threads          ${threads.size}${threads.size > 1 ? " (subagents ran)" : ""}`);
 console.log(`    gates raised     ${count("gate.raised")}`);
-console.log(`    countersigned    ${worldEvents.filter((e) => e.type === "gate.cleared" && e.approved).length}`);
+console.log(`    countersigned    ${approvals.length}${countersignNote}`);
 console.log(`    refused at gate  ${worldEvents.filter((e) => e.type === "gate.cleared" && !e.approved).length}`);
 console.log(`    left unanswered  ${unanswered}`);
 console.log(`    sandbox checks   ${count("yard.verified")}`);
@@ -233,8 +281,16 @@ console.log(
   `\n  The chain covers the entries and the sealed scope. It does not cover the` +
     `\n  record's top-level job, timestamps, algorithm or lossy flag, which sit` +
     `\n  outside it -- so those are reported above from the scope where possible.` +
-    `\n\n  Tamper-evidence, not a signature: nothing here is signed, so anyone able` +
-    `\n  to rewrite the whole file can produce a consistent chain. Compare the head` +
-    `\n  against another copy to confirm you are both holding the same record.\n`,
+    `\n\n  The chain is tamper-evidence: anyone able to rewrite the whole file can` +
+    `\n  produce a consistent one. Compare the head against another copy to confirm` +
+    `\n  you are both holding the same record.` +
+    (signedApprovals.length
+      ? `\n\n  The approvals above are signed, which the chain cannot be: a signature` +
+        `\n  cannot be produced without the key and covers the exact call, so it can` +
+        `\n  neither be invented nor moved. It attests that the holder of that key` +
+        `\n  approved, not that a particular person did.\n`
+      : `\n\n  Nothing here is signed, so an approval is a line the writer made about` +
+        `\n  its own behaviour. Records written by a build with an operator key carry` +
+        `\n  a signature over each approved call.\n`),
 );
 

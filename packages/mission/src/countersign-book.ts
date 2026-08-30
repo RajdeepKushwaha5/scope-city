@@ -1,5 +1,6 @@
 import type { Scope } from "@scope-city/scope";
 import { fingerprintCall } from "@scope-city/proxy";
+import type { CountersignSignature, OperatorSigner } from "./operator-key.js";
 
 /**
  * Where the two halves of an approval meet.
@@ -29,10 +30,42 @@ export interface PendingCountersign {
 }
 
 export type Verdict =
-  | { readonly status: "approved"; readonly at: number }
+  | {
+      readonly status: "approved";
+      readonly at: number;
+      /**
+       * The operator's signature over the call fingerprint.
+       *
+       * Present when a signer was supplied. Absent means nobody could sign, not
+       * that the approval is weaker in some unstated way, and the verifier says
+       * which it is rather than treating a missing signature as a failure.
+       */
+      readonly signed?: CountersignSignature;
+    }
   | { readonly status: "denied"; readonly reason?: string; readonly at: number };
 
 export class CountersignBook {
+  /**
+   * Who signs an approval, if anyone.
+   *
+   * Optional because the book is used by tests and offline replays that have no
+   * business holding a key, and because a signature is an addition to the
+   * record rather than a condition of the gate working. Nothing in the
+   * enforcement path reads it: `check` still decides on verdict, approval and
+   * fingerprint alone, exactly as before. The signature is for the reader of
+   * the record, not for the proxy.
+   */
+  readonly #signer?: OperatorSigner;
+
+  constructor(signer?: OperatorSigner) {
+    this.#signer = signer;
+  }
+
+  /** The key these approvals are signed with, for the record's header. */
+  get operator(): string | undefined {
+    return this.#signer?.operator;
+  }
+
   readonly #pending = new Map<string, PendingCountersign>();
   readonly #verdicts = new Map<string, Verdict>();
   /**
@@ -105,11 +138,37 @@ export class CountersignBook {
     return [...this.#pending.values()];
   }
 
-  /** Records the operator's decision. Returns false if nothing was waiting. */
+  /**
+   * Records the operator's decision, signing an approval when there is a key.
+   *
+   * The signature covers the fingerprint of the call *as it was raised*, which
+   * is the same string the approval is already bound to. That is deliberate: it
+   * means one value carries both properties. An approval cannot be moved to a
+   * different call, because the fingerprint would not match; and it cannot be
+   * fabricated by whatever wrote the record, because the signature would not
+   * verify.
+   *
+   * A denial is not signed. There is nothing to attest to: the call did not
+   * happen, and `gate.cleared { approved: false }` is already a control that
+   * fired rather than a claim about authority.
+   */
   settle(toolCallId: string, verdict: Verdict): boolean {
-    if (!this.#pending.has(toolCallId)) return false;
-    this.#verdicts.set(toolCallId, verdict);
+    const entry = this.#pending.get(toolCallId);
+    if (!entry) return false;
+
+    const signed =
+      verdict.status === "approved" && this.#signer && verdict.signed === undefined
+        ? { ...verdict, signed: this.#signer.sign(entry.fingerprint) }
+        : verdict;
+
+    this.#verdicts.set(toolCallId, signed);
     return true;
+  }
+
+  /** The signature on a decided approval, for the record to carry. */
+  signatureFor(toolCallId: string): CountersignSignature | undefined {
+    const verdict = this.#verdicts.get(toolCallId);
+    return verdict?.status === "approved" ? verdict.signed : undefined;
   }
 
   /**

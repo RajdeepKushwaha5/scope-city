@@ -44,3 +44,12 @@ export {
   type ProofVerdict,
   type SandboxProof,
 } from "./proof.js";
+
+export {
+  newOperatorKeyBase64,
+  operatorId,
+  operatorSigner,
+  verifyCountersign,
+  type CountersignSignature,
+  type OperatorSigner,
+} from "./operator-key.js";

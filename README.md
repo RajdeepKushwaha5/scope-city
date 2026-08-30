@@ -609,7 +609,7 @@ node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
     ended            completed
     threads          3 (subagents ran)
     gates raised     1
-    countersigned    1
+    countersigned    1  (unsigned)
     refused at gate  0
     left unanswered  0
     sandbox checks   2
@@ -665,11 +665,23 @@ from `tools/list` rather than a diagram. Districts are six hand-placed plots, so
 a seventh system has nowhere to go until the layout is solved rather than
 authored.
 
-**There is no tenancy and no operator identity.** The control plane trusts
-whoever can reach it. The proxy authenticates the *harness* with a per-mission
-bearer token, which is the boundary that matters for enforcement, but "which
-human approved this" is a name in a record rather than an authenticated
-identity.
+**There is no tenancy, and operator identity is a key rather than a person.**
+The control plane trusts whoever can reach it. The proxy authenticates the
+*harness* with a per-mission bearer token, which is the boundary that matters
+for enforcement.
+
+Approvals are now signed. Each countersign carries an Ed25519 signature over
+the fingerprint of the call it authorised, so the record no longer has to be
+taken on its own word: `verify-record.mjs` checks it with the public half and
+prints `signature valid, operator key 9e18b2d1…61fa`. That closes the gap where
+`approved: true` was a line the writer made about its own behaviour, and it
+cannot be moved to another call because the fingerprint is part of what was
+signed.
+
+What it does not prove is *which person*. A key in a `.env` on the same machine
+attests that the process holding it approved; binding that to a human needs
+OIDC or a hardware token. The verifier says which of those it found rather than
+letting a green line imply the stronger claim.
 
 None of that is hard to see coming, and none of it changes the argument the
 project makes. It does change what you could deploy on Monday, and a submission

@@ -20,6 +20,7 @@ import {
   CountersignBook,
   missionBrief,
   type CityFeedEvent,
+  operatorSigner,
 } from "@scope-city/mission";
 import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
@@ -166,6 +167,23 @@ async function main(): Promise<void> {
   }
   console.log(
     boundarySummary({ bind: PROXY_BIND, publicHost: PROXY_PUBLIC_HOST, port: PROXY_PORT }),
+  );
+
+  /*
+   * One operator key for the life of the process.
+   *
+   * Every approval this instance records is signed with it, so a reader can
+   * check that the same operator approved a whole mission and can tell two
+   * instances apart. Generated when `SCOPE_OPERATOR_KEY` is unset, and said out
+   * loud when that happens: a signature from a key that dies with the process
+   * is a weaker claim than one from a key somebody kept, and the difference
+   * must not be silent.
+   */
+  const { signer: operator, ephemeral: operatorIsEphemeral } = operatorSigner();
+  console.log(
+    operatorIsEphemeral
+      ? `Operator key: ${operator.operator} (generated for this run; set SCOPE_OPERATOR_KEY to keep one)`
+      : `Operator key: ${operator.operator} (from SCOPE_OPERATOR_KEY)`,
   );
 
   const driver = new HarnessDriver();
@@ -493,7 +511,7 @@ async function main(): Promise<void> {
 
         const feed = new MissionFeed();
         const gates = new OperatorGateQueue();
-        const book = new CountersignBook();
+        const book = new CountersignBook(operator);
         const fixture = createFixtureMission({
           missionId: id,
           book,
@@ -576,7 +594,7 @@ async function main(): Promise<void> {
 
       const feed = new MissionFeed();
       const gates = new OperatorGateQueue();
-      const book = new CountersignBook();
+      const book = new CountersignBook(operator);
 
       // Proposed, and nothing else.
       //
@@ -772,9 +790,35 @@ async function main(): Promise<void> {
       //
       // A proof is consumed by the decision it justified, and by nothing else.
       if (spendsProof) mission.verification = undefined;
+      /*
+       * The approval goes into the record with the operator's signature on it.
+       *
+       * The chain already proves this entry was not reordered or edited. It
+       * cannot prove a human authorised the call, because until now the record
+       * was the only witness to itself: `approved: true` was a line the process
+       * wrote about its own behaviour. The signature covers the fingerprint the
+       * approval was already bound to, so one value now carries both properties
+       * -- it cannot be moved to a different call, and it cannot be fabricated
+       * by whatever wrote the log.
+       */
+      const signed = mission.book.signatureFor(toolCallId);
+      const pending = mission.book.pending(toolCallId);
       mission.feed.append({
         type: "world",
-        event: { type: "gate.cleared", toolCallId, approved, at: Date.now() },
+        event: {
+          type: "gate.cleared",
+          toolCallId,
+          approved,
+          ...(signed
+            ? {
+                signature: signed.signature,
+                operator: signed.operator,
+                algorithm: signed.algorithm,
+                ...(pending ? { fingerprint: pending.fingerprint } : {}),
+              }
+            : {}),
+          at: Date.now(),
+        },
       });
       json(res, 200, { accepted: true });
       return;

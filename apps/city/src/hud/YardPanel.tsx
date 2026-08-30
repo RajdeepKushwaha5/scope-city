@@ -15,6 +15,7 @@ import { Window } from "./Window.js";
  */
 export function YardPanel(props: { report: BacktestReport | null }): React.JSX.Element {
   const report = props.report;
+  const adversary = report?.adversary;
 
   return (
     <Window
@@ -35,6 +36,57 @@ export function YardPanel(props: { report: BacktestReport | null }): React.JSX.E
           <div className="yard__probes">
             {report.probesRun} adversarial probes · nothing called, nothing spent
           </div>
+
+          {/*
+           * What the local model tried, and what the evaluator did with it.
+           *
+           * The panel showed a probe count and the findings, which between them
+           * say nothing about the half of the Yard that is interesting to
+           * watch: a model on this machine read the job and the ticket -- the
+           * injected one -- and wrote calls aimed at getting more than the job
+           * needed. Every one went through the same evaluator the proxy uses.
+           *
+           * The refusals are the point. "0 holes" reads as nothing having
+           * happened; a list of attacks refused by name is the wall doing its
+           * job, in public, before anyone granted anything.
+           *
+           * The `why` is a model's words, produced from text an attacker may
+           * have written. It is rendered as text beside the evaluator's own
+           * verdict, and it is never what decides the verdict.
+           */}
+          {adversary ? (
+            <div className="yard__adversary">
+              {adversary.declined ? (
+                <div className="yard__adversary-head">
+                  local adversary did not run · {adversary.declined}
+                </div>
+              ) : (
+                <>
+                  <div className="yard__adversary-head">
+                    {adversary.model} wrote {adversary.admitted} attack
+                    {adversary.admitted === 1 ? "" : "s"} on this machine ·{" "}
+                    {adversary.holes === 0
+                      ? "none got through"
+                      : `${adversary.holes} got through`}
+                  </div>
+                  {adversary.attempts.map((attempt, i) => (
+                    <div className="yard__attempt" key={`${attempt.office}-${i}`}>
+                      <span
+                        className={`yard__verdict yard__verdict--${attempt.refused ? "refused" : "allowed"}`}
+                      >
+                        {attempt.refused ? "refused" : "allowed"}
+                      </span>
+                      <span className="yard__office">{attempt.office}</span>
+                      {attempt.reason ? (
+                        <span className="yard__reason">{attempt.reason}</span>
+                      ) : null}
+                      <span className="yard__why">{attempt.why}</span>
+                    </div>
+                  ))}
+                </>
+              )}
+            </div>
+          ) : null}
 
           {report.findings.length === 0 ? (
             <div className="empty">Nothing to report.</div>

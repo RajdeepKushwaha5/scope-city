@@ -11,6 +11,7 @@ import {
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
+  grantableRegistry,
   officeRegistry,
   postHouseSystem,
   recordsSystem,
@@ -145,11 +146,14 @@ export async function deriveScopeFromJob(params: {
    *
    * A derivation that can reach an office no system implements produces a
    * scope an operator grants and an agent then fails at -- after the gate, with
-   * "no system implements". The Forge is absent unless configured, so the
-   * registry follows what connected.
+   * "no system implements". The Forge is absent unless configured, and a
+   * district that is present may implement only part of what it registers, so
+   * this follows the handlers rather than the district names.
    */
   const registry = params.systems
-    ? officeRegistry([...new Set(params.systems.map((system) => system.district))])
+    ? grantableRegistry(
+        params.systems.flatMap((system) => system.offices.map((office) => office.office)),
+      )
     : BOUNDS.registry;
 
   const envelope = constrainEnvelope({

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolverSafeFields } from "@scope-city/scope";
-import { OFFICE_SPECS, officeRegistry } from "../src/registry.js";
+import { OFFICE_SPECS, grantableRegistry, officeRegistry } from "../src/registry.js";
 
 /**
  * The free-text classification is a security control, not documentation.
@@ -79,38 +79,45 @@ describe("office free-text classification", () => {
 
 describe("what an operator can be offered", () => {
   /*
-   * Grantable has to mean implemented.
+   * Grantable has to mean implemented, and by office rather than by district.
    *
-   * Records, the Exchequer and the Post House are always there -- fixtures with
-   * no key, the real thing with one -- so every registered office had a handler
-   * and this never came up. The Forge is the first district that can simply be
-   * absent, and a registry that still lists its offices hands an operator a
-   * scope over `issue.close` that fails at the first call, after the grant and
-   * after the gate, with "no system implements".
+   * Filtering by district would say "the Exchequer connected, so every
+   * Exchequer office is grantable" -- and `stripeSystem()` implements a subset
+   * of what the district registers, so a live Stripe run could derive a scope
+   * holding `customer.list` and fail at the first call. The handlers know which
+   * offices exist; district names only know which ones were declared.
    */
 
-  it("does not offer an office whose district did not connect", () => {
-    const grantable = officeRegistry(["records", "exchequer", "post-house"]);
+  it("does not offer an office nothing implements", () => {
+    const grantable = grantableRegistry(["ticket.get", "charge.get"]);
     expect(grantable.has("issue.get")).toBe(false);
-    expect(grantable.has("issue.comment")).toBe(false);
-    expect(grantable.has("issue.close")).toBe(false);
+    expect(grantable.has("charge.refund")).toBe(false);
   });
 
-  it("offers nothing at all when nothing connected", () => {
-    expect(officeRegistry([]).size).toBe(0);
+  it("does not offer the rest of a district that is only partly implemented", () => {
+    // The concrete case: the Exchequer is connected and `customer.list` still
+    // has nothing behind it.
+    const grantable = grantableRegistry(["charge.get", "charge.refund"]);
+    expect(grantable.has("charge.get")).toBe(true);
+    expect(grantable.has("customer.list")).toBe(false);
+  });
+
+  it("offers nothing at all when nothing is implemented", () => {
+    // Absent configuration denies. There is deliberately no argument-less form
+    // of this function, because "no list" must never read as "allow all".
+    expect(grantableRegistry([]).size).toBe(0);
   });
 
   // --- and what it does offer ---------------------------------------------
 
-  it("offers the Forge once its district is there", () => {
-    const grantable = officeRegistry(["records", "exchequer", "post-house", "forge"]);
-    expect(grantable.has("issue.get")).toBe(true);
-    expect(grantable.has("charge.refund")).toBe(true);
+  it("offers exactly the offices it was given", () => {
+    const grantable = grantableRegistry(["issue.get", "mail.send"]);
+    expect([...grantable.keys()].sort()).toEqual(["issue.get", "mail.send"]);
   });
 
-  it("offers every office when the caller does not say", () => {
-    // The specs and the docs both want the whole registry, and every test
-    // above this file's own does too.
+  it("keeps the whole registry for the callers that mean the whole registry", () => {
+    // The docs, the invariant tests and the offline fixtures are not enforcing
+    // anything with it.
     expect(officeRegistry().size).toBe(OFFICE_SPECS.length);
   });
 });

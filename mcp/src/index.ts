@@ -2,6 +2,7 @@ export {
   IRREVERSIBLE_OFFICES,
   MUTATING_OFFICES,
   OFFICE_SPECS,
+  grantableRegistry,
   officeRegistry,
 } from "./registry.js";
 

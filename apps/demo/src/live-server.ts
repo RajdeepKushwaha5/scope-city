@@ -1,8 +1,4 @@
-import {
-  createServer,
-  type IncomingMessage,
-  type ServerResponse,
-} from "node:http";
+import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import "./load-env.js";
 import {
   HarnessDriver,
@@ -25,11 +21,7 @@ import {
   missionBrief,
   type CityFeedEvent,
 } from "@scope-city/mission";
-import {
-  MissionRegistry,
-  newMissionId,
-  startProxyHttp,
-} from "@scope-city/proxy";
+import { MissionRegistry, newMissionId, startProxyHttp } from "@scope-city/proxy";
 import { createFixtureMission } from "./fixture-mission.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
 import { controlPlaneSignpost } from "./signpost.js";
@@ -82,11 +74,7 @@ const POOL_WAIT_BUDGET_MS = 4 * 60 * 1000;
  * several keys were registered, this fell back to one hard-coded model, and a
  * rate limit ended the mission with two untouched keys sitting right there.
  */
-const PINNED_MODELS = (
-  process.env.SCOPE_MODEL ??
-  process.env.SCOPE_MODELS ??
-  ""
-)
+const PINNED_MODELS = (process.env.SCOPE_MODEL ?? process.env.SCOPE_MODELS ?? "")
   .split(",")
   .map((model) => model.trim())
   .filter(Boolean);
@@ -126,8 +114,7 @@ async function main(): Promise<void> {
   // server that came up and reported harness trouble through /api/health, and
   // an unhandled rejection here would replace that with a process that exits
   // before it can tell anyone why.
-  let source: "pinned" | "discovered" | "fallback default" | "none discovered" =
-    "pinned";
+  let source: "pinned" | "discovered" | "fallback default" | "none discovered" = "pinned";
   let found: readonly string[] = PINNED_MODELS;
   // Discovery answering "nothing to rotate onto" is a different fact from
   // discovery not answering at all, and only one of them justifies a guess.
@@ -165,8 +152,7 @@ async function main(): Promise<void> {
    * because a control plane that cannot boot cannot tell anyone what is wrong,
    * but it says the pool is empty rather than inventing one.
    */
-  const models =
-    found.length > 0 ? found : discovered ? [] : ["gemini-a/flash-a"];
+  const models = found.length > 0 ? found : discovered ? [] : ["gemini-a/flash-a"];
 
   /*
    * What each model will accept, discovered once alongside the names.
@@ -195,14 +181,13 @@ async function main(): Promise<void> {
     if (supported === undefined) return wanted;
     return supported.includes(wanted) ? wanted : undefined;
   };
-  if (found.length === 0)
-    source = discovered ? "none discovered" : "fallback default";
+  if (found.length === 0) source = discovered ? "none discovered" : "fallback default";
 
   console.log(
     models.length > 0
       ? `Models: ${models.join(", ")} (${source})`
       : `Models: none. Discovery found nothing to rotate onto -- an opt-in ` +
-          `provider is registered but not chosen. Set SCOPE_MODELS to name it.`,
+        `provider is registered but not chosen. Set SCOPE_MODELS to name it.`,
   );
 
   // Whether a sandbox is actually available, settled once at boot.
@@ -260,10 +245,10 @@ async function main(): Promise<void> {
    * The systems, connected once, for every mission this process runs.
    *
    * The Forge was reachable only from its own probe: every mission built here
-   * still composed the three synchronous districts, so nothing an operator
-   * could actually start went through the evaluator, projector, ledger and gate
-   * over a server nobody in this repo wrote -- which is the whole claim the
-   * district was added to support.
+   * composed the three synchronous districts, so nothing an operator could
+   * actually start went through the evaluator, projector, ledger and gate over
+   * a server nobody in this repo wrote -- the whole claim the district exists
+   * to support.
    *
    * Once, not per mission, because each connection spawns a subprocess and
    * holds a token. Missions come and go against the same upstreams.
@@ -289,14 +274,8 @@ async function main(): Promise<void> {
     });
   });
 
-  async function route(
-    req: IncomingMessage,
-    res: ServerResponse,
-  ): Promise<void> {
-    const url = new URL(
-      req.url ?? "/",
-      `http://${req.headers.host ?? "127.0.0.1"}`,
-    );
+  async function route(req: IncomingMessage, res: ServerResponse): Promise<void> {
+    const url = new URL(req.url ?? "/", `http://${req.headers.host ?? "127.0.0.1"}`);
 
     /*
      * The root says what this port is, because someone will open it.
@@ -306,10 +285,7 @@ async function main(): Promise<void> {
      * runs on a different port, and a bare 404 gives no way to work that out.
      * A signpost costs nothing and saves the guess.
      */
-    if (
-      req.method === "GET" &&
-      (url.pathname === "/" || url.pathname === "/api")
-    ) {
+    if (req.method === "GET" && (url.pathname === "/" || url.pathname === "/api")) {
       json(res, 200, controlPlaneSignpost(CITY_DEV_PORT));
       return;
     }
@@ -319,9 +295,7 @@ async function main(): Promise<void> {
       json(res, harness.ok ? 200 : 503, {
         ok: harness.ok,
         harness,
-        activeMissions: [...missions.values()].filter(
-          (mission) => mission.status === "running",
-        ).length,
+        activeMissions: [...missions.values()].filter((mission) => mission.status === "running").length,
         /*
          * Which models this server will actually rotate over.
          *
@@ -346,9 +320,7 @@ async function main(): Promise<void> {
       const body = await readJson(req);
       const order = typeof body.order === "string" ? body.order.trim() : "";
       if (!order || order.length > 500) {
-        json(res, 400, {
-          error: "order must contain between 1 and 500 characters",
-        });
+        json(res, 400, { error: "order must contain between 1 and 500 characters" });
         return;
       }
 
@@ -370,23 +342,16 @@ async function main(): Promise<void> {
       const effort = parsed.effort ?? "";
 
       const active = [...missions.values()].find(
-        (mission) =>
-          mission.status === "starting" || mission.status === "running",
+        (mission) => mission.status === "starting" || mission.status === "running",
       );
       if (active) {
-        json(res, 409, {
-          error: "a mission is already active",
-          missionId: active.id,
-        });
+        json(res, 409, { error: "a mission is already active", missionId: active.id });
         return;
       }
 
       const health = await driver.reachable();
       if (!health.ok) {
-        json(res, 503, {
-          error: "TrueForge is not reachable",
-          detail: health.reason,
-        });
+        json(res, 503, { error: "TrueForge is not reachable", detail: health.reason });
         return;
       }
 
@@ -430,11 +395,7 @@ async function main(): Promise<void> {
           // The Yard still runs, and this is the most useful thing it ever
           // reports: every probe it fires is *allowed*, so the findings are the
           // shape of the blast radius rather than a clean sheet.
-          report: backtest({
-            scope,
-            registry: officeRegistry(),
-            now: Date.now(),
-          }),
+          report: backtest({ scope, registry: officeRegistry(), now: Date.now() }),
           startedAt: Date.now(),
           status: "starting",
         };
@@ -445,12 +406,7 @@ async function main(): Promise<void> {
         feed.append({ type: "mission.status", status: "starting" });
         void runLiveMission(live, book).catch(() => undefined);
 
-        json(res, 202, {
-          missionId: id,
-          status: live.status,
-          scope,
-          mode: "unscoped",
-        });
+        json(res, 202, { missionId: id, status: live.status, scope, mode: "unscoped" });
         return;
       }
 
@@ -460,11 +416,7 @@ async function main(): Promise<void> {
       // sentence cannot produce a usable scope, the right outcome is a 422 and
       // no mission at all, rather than a live agent holding authority nobody
       // examined.
-      const derived = await deriveScopeFromJob({
-        job: order,
-        missionId: id,
-        systems,
-      });
+      const derived = await deriveScopeFromJob({ job: order, missionId: id, systems });
 
       if (derived.scope.offices.length === 0) {
         // Carry the reasons. A job that produced no scope because the operator
@@ -478,9 +430,7 @@ async function main(): Promise<void> {
               : "no office in this city can do that",
           detail:
             derived.dropped.length > 0
-              ? derived.dropped
-                  .map((d) => `${d.office}: ${d.reason}`)
-                  .join("; ")
+              ? derived.dropped.map((d) => `${d.office}: ${d.reason}`).join("; ")
               : "Nothing in the request matched a system the city can reach.",
           job: order,
         });
@@ -547,9 +497,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    const match = url.pathname.match(
-      /^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire|grant|deny|counterfactual)$/,
-    );
+    const match = url.pathname.match(/^\/api\/missions\/([^/]+)\/(events|decisions|cancel|record|expire|grant|deny|counterfactual)$/);
     if (!match) {
       json(res, 404, { error: "not found" });
       return;
@@ -568,8 +516,7 @@ async function main(): Promise<void> {
 
     if (req.method === "POST" && match[2] === "decisions") {
       const body = await readJson(req);
-      const toolCallId =
-        typeof body.toolCallId === "string" ? body.toolCallId : "";
+      const toolCallId = typeof body.toolCallId === "string" ? body.toolCallId : "";
       // Set only if this decision is checked against a proof, so the clear
       // below cannot touch a proof belonging to a different pending gate.
       let spendsProof = false;
@@ -630,12 +577,7 @@ async function main(): Promise<void> {
         spendsProof = verdict.ok;
       }
 
-      if (
-        !mission.gates.decide(toolCallId, {
-          approved,
-          ...(reason ? { reason } : {}),
-        })
-      ) {
+      if (!mission.gates.decide(toolCallId, { approved, ...(reason ? { reason } : {}) })) {
         json(res, 409, { error: "that gate is not waiting" });
         return;
       }
@@ -677,10 +619,7 @@ async function main(): Promise<void> {
         (other) => other.status === "starting" || other.status === "running",
       );
       if (running) {
-        json(res, 409, {
-          error: "a mission is already active",
-          missionId: running.id,
-        });
+        json(res, 409, { error: "a mission is already active", missionId: running.id });
         return;
       }
 
@@ -716,26 +655,15 @@ async function main(): Promise<void> {
       mission.scope = granted;
       mission.status = "starting";
       mission.expiryTimer = setTimeout(
-        () =>
-          void expireLiveMission(mission, registry, (sid) =>
-            driver.cancel(sid),
-          ),
+        () => void expireLiveMission(mission, registry, (sid) => driver.cancel(sid)),
         Math.max(0, granted.expiresAt - Date.now()),
       );
 
-      mission.feed.append({
-        type: "scope.granted",
-        scope: granted,
-        at: grantedAt,
-      });
+      mission.feed.append({ type: "scope.granted", scope: granted, at: grantedAt });
       mission.feed.append({ type: "mission.status", status: "starting" });
       void runLiveMission(mission, mission.book).catch(() => undefined);
 
-      json(res, 202, {
-        missionId: mission.id,
-        status: mission.status,
-        scope: granted,
-      });
+      json(res, 202, { missionId: mission.id, status: mission.status, scope: granted });
       return;
     }
 
@@ -865,10 +793,7 @@ async function main(): Promise<void> {
     json(res, 405, { error: "method not allowed" });
   }
 
-  async function runLiveMission(
-    live: LiveMission,
-    book: CountersignBook,
-  ): Promise<void> {
+  async function runLiveMission(live: LiveMission, book: CountersignBook): Promise<void> {
     const proxyName = "scope-city-live";
     const proxyUrl = `http://${PROXY_PUBLIC_HOST}:${PROXY_PORT}/mission/${live.id}/mcp`;
     try {
@@ -877,15 +802,10 @@ async function main(): Promise<void> {
         name: proxyName,
         url: proxyUrl,
         description: "Scope City live mission boundary",
-        auth: {
-          type: "header",
-          headers: { Authorization: `Bearer ${proxyToken}` },
-        },
+        auth: { type: "header", headers: { Authorization: `Bearer ${proxyToken}` } },
       });
 
-      const pool = new ModelPool(
-        models.map((model, priority) => ({ model, priority })),
-      );
+      const pool = new ModelPool(models.map((model, priority) => ({ model, priority })));
       let lastError: unknown;
 
       // Iterated live rather than over a snapshot of what was available at the
@@ -983,50 +903,49 @@ async function main(): Promise<void> {
               status: "running",
               detail: `${model} resumed; the session kept its work`,
             });
-          } else
-            attemptSessionId = await driver.createSession(
-              missionAgentSpec({
-                model,
-                proxyName,
-                // From the scope, not a constant.
-                //
-                // The scope decides what stops for a human; passing a fixed list
-                // meant the comparison run -- whose whole point is that nothing
-                // stops to ask -- still raised a TrueForge approval for every
-                // irreversible office. It demonstrated the opposite of what it
-                // claimed, which is worse than not demonstrating it.
-                gatedTools: [...live.scope.countersignRequired],
+          } else attemptSessionId = await driver.createSession(
+            missionAgentSpec({
+              model,
+              proxyName,
+              // From the scope, not a constant.
+              //
+              // The scope decides what stops for a human; passing a fixed list
+              // meant the comparison run -- whose whole point is that nothing
+              // stops to ask -- still raised a TrueForge approval for every
+              // irreversible office. It demonstrated the opposite of what it
+              // claimed, which is worse than not demonstrating it.
+              gatedTools: [...live.scope.countersignRequired],
+              sandbox,
+              // The operator's choice, carried from the dispatch panel. Absent
+              // unless they made one, or unless the chosen model refuses one.
+              ...(() => {
+                const effort = effortFor(model, live.reasoningEffort);
+                return effort ? { reasoningEffort: effort } : {};
+              })(),
+              // Stated rather than derived, because the effort above may have
+              // been dropped for this model and the budget must not go with it.
+              //
+              // They are two settings that share an input: the effort is the
+              // provider's, the budget is ours. Letting the spec infer the
+              // budget from the filtered effort gave every local-model run the
+              // high ceiling however the operator had set it, while the brief
+              // below went on promising the smaller number -- the run
+              // contradicting its own instructions.
+              iterationLimit: iterationLimitFor(live.reasoningEffort),
+              // The comparison run is briefed as an ordinary integration is,
+              // without our framing about untrusted content or limited reach.
+              instructions: missionBrief({
+                scope: live.scope,
                 sandbox,
-                // The operator's choice, carried from the dispatch panel. Absent
-                // unless they made one, or unless the chosen model refuses one.
-                ...(() => {
-                  const effort = effortFor(model, live.reasoningEffort);
-                  return effort ? { reasoningEffort: effort } : {};
-                })(),
-                // Stated rather than derived, because the effort above may have
-                // been dropped for this model and the budget must not go with it.
-                //
-                // They are two settings that share an input: the effort is the
-                // provider's, the budget is ours. Letting the spec infer the
-                // budget from the filtered effort gave every local-model run the
-                // high ceiling however the operator had set it, while the brief
-                // below went on promising the smaller number -- the run
-                // contradicting its own instructions.
+                // The same number the spec is built with, from the same
+                // function and the same input, so the brief cannot promise a
+                // budget the run does not get.
                 iterationLimit: iterationLimitFor(live.reasoningEffort),
-                // The comparison run is briefed as an ordinary integration is,
-                // without our framing about untrusted content or limited reach.
-                instructions: missionBrief({
-                  scope: live.scope,
-                  sandbox,
-                  // The same number the spec is built with, from the same
-                  // function and the same input, so the brief cannot promise a
-                  // budget the run does not get.
-                  iterationLimit: iterationLimitFor(live.reasoningEffort),
-                  registry: officeRegistry(),
-                  plain: live.scope.scopeId === "NO-SCOPE",
-                }),
+                registry: officeRegistry(),
+                plain: live.scope.scopeId === "NO-SCOPE",
               }),
-            );
+            }),
+          );
           live.sessionId = attemptSessionId;
           if (isTerminalMissionStatus(live.status)) {
             await driver.cancel(attemptSessionId).catch(() => undefined);
@@ -1056,9 +975,7 @@ async function main(): Promise<void> {
             decide: (gate: GateRequest) => live.gates.wait(gate),
             onRaw: (event) => {
               if (process.env.SCOPE_TRACE === "true") {
-                console.log(
-                  `[trueforge:${event.type}] ${JSON.stringify(event).slice(0, 1_000)}`,
-                );
+                console.log(`[trueforge:${event.type}] ${JSON.stringify(event).slice(0, 1_000)}`);
               }
             },
             onEvent: (event) => {
@@ -1091,8 +1008,7 @@ async function main(): Promise<void> {
           });
           if (!["done", "completed", "success"].includes(result.status)) {
             throw new Error(
-              result.message ??
-                `TrueForge ended the turn with status ${result.status}`,
+              result.message ?? `TrueForge ended the turn with status ${result.status}`,
             );
           }
           pool.restore(model);
@@ -1154,19 +1070,12 @@ async function main(): Promise<void> {
       throw lastError ?? new Error("no configured model was available");
     } catch (error) {
       if (!isTerminalMissionStatus(live.status)) {
-        retireMission(
-          live,
-          registry,
-          "failed",
-          error instanceof Error ? error.message : String(error),
-        );
+        retireMission(live, registry, "failed", error instanceof Error ? error.message : String(error));
       }
     }
   }
 
-  await new Promise<void>((resolve) =>
-    server.listen(CONTROL_PORT, "127.0.0.1", resolve),
-  );
+  await new Promise<void>((resolve) => server.listen(CONTROL_PORT, "127.0.0.1", resolve));
   console.log(`Scope City control plane: http://127.0.0.1:${CONTROL_PORT}`);
 
   const close = async () => {
@@ -1174,8 +1083,7 @@ async function main(): Promise<void> {
     for (const mission of missions.values()) {
       const sessionId = mission.sessionId;
       retireMission(mission, registry, "cancelled", "server stopped");
-      if (sessionId)
-        cancellations.push(driver.cancel(sessionId).catch(() => undefined));
+      if (sessionId) cancellations.push(driver.cancel(sessionId).catch(() => undefined));
     }
     await Promise.all([
       ...cancellations,
@@ -1197,9 +1105,7 @@ async function main(): Promise<void> {
        */
       ...systems.map((system) => {
         const closable = system as { close?: () => Promise<void> };
-        return closable.close
-          ? closable.close().catch(() => undefined)
-          : Promise.resolve();
+        return closable.close ? closable.close().catch(() => undefined) : Promise.resolve();
       }),
     ]);
   };
@@ -1207,18 +1113,10 @@ async function main(): Promise<void> {
   process.once("SIGTERM", () => void close().finally(() => process.exit(0)));
 }
 
-function setStatus(
-  mission: LiveMission,
-  status: LiveMissionStatus,
-  detail?: string,
-): void {
+function setStatus(mission: LiveMission, status: LiveMissionStatus, detail?: string): void {
   if (isTerminalMissionStatus(mission.status)) return;
   mission.status = status;
-  mission.feed.append({
-    type: "mission.status",
-    status,
-    ...(detail ? { detail } : {}),
-  });
+  mission.feed.append({ type: "mission.status", status, ...(detail ? { detail } : {}) });
 }
 
 function streamEvents(
@@ -1227,11 +1125,8 @@ function streamEvents(
   mission: LiveMission,
   url: URL,
 ): void {
-  const requested = Number(
-    url.searchParams.get("after") ?? req.headers["last-event-id"] ?? 0,
-  );
-  const cursor =
-    Number.isSafeInteger(requested) && requested >= 0 ? requested : 0;
+  const requested = Number(url.searchParams.get("after") ?? req.headers["last-event-id"] ?? 0);
+  const cursor = Number.isSafeInteger(requested) && requested >= 0 ? requested : 0;
   res.writeHead(200, {
     "content-type": "text/event-stream",
     "cache-control": "no-cache, no-transform",
@@ -1240,8 +1135,9 @@ function streamEvents(
   });
   res.flushHeaders();
 
-  const { replay, unsubscribe } = mission.feed.subscribeFrom(cursor, (entry) =>
-    writeSse(res, entry.sequence, entry.event),
+  const { replay, unsubscribe } = mission.feed.subscribeFrom(
+    cursor,
+    (entry) => writeSse(res, entry.sequence, entry.event),
   );
   if (replay.truncated) {
     writeSse(res, replay.cursor, {
@@ -1262,9 +1158,7 @@ function writeSse(res: ServerResponse, id: number, event: CityFeedEvent): void {
   res.write(`id: ${id}\nevent: mission\ndata: ${JSON.stringify(event)}\n\n`);
 }
 
-async function readJson(
-  req: IncomingMessage,
-): Promise<Record<string, unknown>> {
+async function readJson(req: IncomingMessage): Promise<Record<string, unknown>> {
   const chunks: Buffer[] = [];
   let bytes = 0;
   for await (const chunk of req) {
@@ -1287,8 +1181,6 @@ function json(res: ServerResponse, status: number, value: unknown): void {
 }
 
 main().catch((error: unknown) => {
-  console.error(
-    error instanceof Error ? (error.stack ?? error.message) : String(error),
-  );
+  console.error(error instanceof Error ? (error.stack ?? error.message) : String(error));
   process.exitCode = 1;
 });

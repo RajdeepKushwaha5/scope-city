@@ -2,7 +2,7 @@ import { QuotaLedger } from "@scope-city/ledger";
 import {
   IRREVERSIBLE_OFFICES,
   exchequerSystem,
-  officeRegistry,
+  grantableRegistry,
   postHouseSystem,
   recordsSystem,
   type SystemDefinition,
@@ -89,7 +89,16 @@ export function createFixtureMission(params: {
   const mission: Mission = {
     id: params.missionId,
     scope,
-    registry: officeRegistry(),
+    /*
+     * What this mission's systems implement, and nothing else.
+     *
+     * The registry is what the proxy validates calls against, so an office
+     * listed here with no handler behind it is a tool the agent can see, call,
+     * and be answered with "no system implements" from inside the boundary --
+     * past the evaluator, past the gate. `handlers` is built from the systems
+     * this mission was actually given, which is the only honest source.
+     */
+    registry: grantableRegistry([...handlers.keys()]),
     ledger: new QuotaLedger(),
     upstream: async (call, context) => {
       const handler = handlers.get(call.office);

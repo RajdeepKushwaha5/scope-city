@@ -163,25 +163,34 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
   },
 ];
 
-export function officeRegistry(districts?: readonly string[]): OfficeRegistry {
-  /*
-   * Grantable means implemented, and the Forge is the first office that can be
-   * absent.
-   *
-   * Records, the Exchequer and the Post House always exist -- fixtures when
-   * there is no key, the real thing when there is -- so every registered office
-   * had a handler and this took no argument. A district behind somebody else's
-   * MCP server is different: with no `FORGE_REPOSITORY` it is simply not there.
-   * A registry that still lists its offices offers an operator a scope over
-   * `issue.close` that fails at the first call with "no system implements",
-   * after the grant, after the gate.
-   *
-   * Passing the districts that actually connected keeps the two in step. No
-   * argument means every office, which is what the specs and the docs want.
-   */
-  if (!districts) return buildRegistry(OFFICE_SPECS);
-  const live = new Set(districts);
-  return buildRegistry(OFFICE_SPECS.filter((spec) => live.has(spec.district)));
+/**
+ * Every office in the specs, for the callers that mean every office.
+ *
+ * The docs, the invariant tests and the offline fixture missions all want the
+ * whole registry and are not enforcing anything with it. Enforcement paths use
+ * `grantableRegistry`, which has no full-set behaviour to fall into.
+ */
+export function officeRegistry(): OfficeRegistry {
+  return buildRegistry(OFFICE_SPECS);
+}
+
+/**
+ * The offices a mission can actually be granted: exactly the ones implemented.
+ *
+ * Takes office ids, not districts. Filtering by district would say "the
+ * Exchequer connected, so every Exchequer office is grantable" -- and
+ * `stripeSystem()` implements a subset of what the district registers, so a
+ * live Stripe run could derive a scope containing `customer.list` and fail at
+ * the first call. The handlers know exactly which offices exist; nothing else
+ * does.
+ *
+ * There is no argument-less form on purpose. An omitted list would mean "no
+ * configuration, so allow everything", which is the inversion this exists to
+ * prevent: absent configuration denies.
+ */
+export function grantableRegistry(offices: readonly string[]): OfficeRegistry {
+  const implemented = new Set(offices);
+  return buildRegistry(OFFICE_SPECS.filter((spec) => implemented.has(spec.office)));
 }
 
 /** Offices that change the world, and so must never be granted casually. */

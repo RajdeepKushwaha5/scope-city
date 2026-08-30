@@ -1,12 +1,12 @@
 import {
   exchequerSystem,
+  forgeSystem,
   githubRecordsSystem,
   mailpitSystem,
   postHouseSystem,
   recordsSystem,
   stripeSystem,
   type SystemDefinition,
-  forgeSystem,
 } from "@scope-city/mcp";
 
 /**
@@ -66,17 +66,6 @@ export function postHouseIsLive(): boolean {
   return MAILPIT_HOST !== "";
 }
 
-/** True when Records is backed by a real GitHub Issues repository. */
-export function recordsIsLive(): boolean {
-  if (FIXTURES_ONLY) return false;
-  if ((GITHUB_TOKEN === "") !== (GITHUB_REPOSITORY === "")) {
-    throw new Error(
-      "GitHub Records needs both GITHUB_TOKEN and GITHUB_REPOSITORY",
-    );
-  }
-  return GITHUB_TOKEN !== "";
-}
-
 /** Whether the Forge is live, and when it is not, why not. */
 export interface ForgeStatus {
   readonly live: boolean;
@@ -92,11 +81,10 @@ export interface ForgeStatus {
  * is being enforced over a server nobody here wrote, which is the only way to
  * show it is a boundary rather than three careful implementations.
  *
- * This returned a bare `boolean`, which made three quite different situations
- * -- fixtures forced on, no repository named, no token -- indistinguishable at
- * the call site. An operator who set one of the two variables and not the other
- * got a Forge that was simply absent, with nothing anywhere saying which half
- * was missing.
+ * A bare boolean made three quite different situations -- fixtures forced on,
+ * no repository named, no token -- indistinguishable at the call site. An
+ * operator who set one of the two variables and not the other got a Forge that
+ * was simply absent, with nothing anywhere saying which half was missing.
  */
 export function forgeStatus(): ForgeStatus {
   if (FIXTURES_ONLY) return { live: false, reason: "fixtures only" };
@@ -112,55 +100,49 @@ export function forgeStatus(): ForgeStatus {
  * Destructuring a `split("/")` accepted `owner/repo/extra` and quietly used the
  * first two segments. These two values are the Forge's whole authority -- every
  * office fixes them so the agent cannot choose a repository -- so a typo that
- * silently resolves to a *different* repository is the one failure mode this
- * must not have. Exactly two non-empty segments, or startup stops.
+ * silently resolves to a different repository is the one failure mode this must
+ * not have. Exactly two non-empty segments, or startup stops.
  */
-export function parseForgeRepository(value: string): {
-  owner: string;
-  repo: string;
-} {
+export function parseForgeRepository(value: string): { owner: string; repo: string } {
   const parts = value.split("/");
   if (parts.length !== 2 || parts[0] === "" || parts[1] === "") {
-    throw new Error(
-      `FORGE_REPOSITORY must look like "owner/repo", not "${value}"`,
-    );
+    throw new Error(`FORGE_REPOSITORY must look like "owner/repo", not "${value}"`);
   }
   return { owner: parts[0]!, repo: parts[1]! };
 }
 
 /**
- * The systems, including any that have to be connected to rather than
- * constructed.
+ * The systems, including any that have to be connected to rather than built.
  *
  * Separate from `missionSystems` because a district behind somebody else's MCP
- * server cannot be built synchronously: it has to start the process, ask what
- * tools exist, and refuse at startup if an office names one that does not. The
- * synchronous list stays for the scripted paths, which have nothing to connect
- * to and should not have to await anything.
+ * server cannot be constructed synchronously: it has to start the process, ask
+ * what tools exist, and refuse at startup if an office names one that does not.
+ * The synchronous list stays for the scripted paths, which have nothing to
+ * connect to and should not have to await anything.
  */
-export async function missionSystemsAsync(): Promise<
-  readonly SystemDefinition[]
-> {
+export async function missionSystemsAsync(): Promise<readonly SystemDefinition[]> {
   const local = missionSystems();
   if (!forgeStatus().live) return local;
 
-  const { owner, repo } = parseForgeRepository(
-    process.env.FORGE_REPOSITORY ?? "",
-  );
+  const { owner, repo } = parseForgeRepository(process.env.FORGE_REPOSITORY ?? "");
   return [...local, await forgeSystem({ owner, repo, token: GITHUB_TOKEN })];
+}
+
+/** True when Records is backed by a real GitHub Issues repository. */
+export function recordsIsLive(): boolean {
+  if (FIXTURES_ONLY) return false;
+  if ((GITHUB_TOKEN === "") !== (GITHUB_REPOSITORY === "")) {
+    throw new Error("GitHub Records needs both GITHUB_TOKEN and GITHUB_REPOSITORY");
+  }
+  return GITHUB_TOKEN !== "";
 }
 
 export function missionSystems(): readonly SystemDefinition[] {
   return [
     recordsIsLive()
-      ? githubRecordsSystem({
-          token: GITHUB_TOKEN,
-          repository: GITHUB_REPOSITORY,
-        })
+      ? githubRecordsSystem({ token: GITHUB_TOKEN, repository: GITHUB_REPOSITORY })
       : recordsSystem(),
-    exchequerIsLive()
-      ? stripeSystem({ apiKey: STRIPE_API_KEY })
-      : exchequerSystem(),
+    exchequerIsLive() ? stripeSystem({ apiKey: STRIPE_API_KEY }) : exchequerSystem(),
     postHouseIsLive()
       ? mailpitSystem({ host: MAILPIT_HOST, port: MAILPIT_PORT })
       : postHouseSystem(),
@@ -171,18 +153,11 @@ export function missionSystems(): readonly SystemDefinition[] {
 export function systemsSummary(): string {
   const records = recordsIsLive() ? `GitHub ${GITHUB_REPOSITORY}` : "fixture";
   const exchequer = exchequerIsLive() ? "Stripe test mode" : "fixture";
-  const post = postHouseIsLive()
-    ? `Mailpit ${MAILPIT_HOST}:${MAILPIT_PORT}`
-    : "fixture";
-  if (
-    FIXTURES_ONLY &&
-    (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")
-  ) {
+  const post = postHouseIsLive() ? `Mailpit ${MAILPIT_HOST}:${MAILPIT_PORT}` : "fixture";
+  if (FIXTURES_ONLY && (STRIPE_API_KEY !== "" || GITHUB_TOKEN !== "" || GITHUB_REPOSITORY !== "")) {
     return "Systems: all fixtures — SCOPE_FIXTURES is set, so external credentials are ignored";
   }
   const forgeOn = forgeStatus();
-  const forge = forgeOn.live
-    ? ` · The Forge (GitHub MCP, ${forgeOn.reason})`
-    : "";
+  const forge = forgeOn.live ? ` · The Forge (GitHub MCP, ${forgeOn.reason})` : "";
   return `Systems: Records (${records}) · Exchequer (${exchequer}) · Post House (${post})${forge}`;
 }

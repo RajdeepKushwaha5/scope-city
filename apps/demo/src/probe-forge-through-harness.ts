@@ -51,9 +51,13 @@ async function rpc(
   url: string,
   token: string,
   body: unknown,
+  signal?: AbortSignal,
 ): Promise<unknown> {
   const response = await fetch(url, {
     method: "POST",
+    // So a stalled preflight ends at the probe's own deadline rather than at
+    // the socket's, which is neither configured nor short.
+    signal,
     headers: {
       "content-type": "application/json",
       // The spec requires a client to accept both; omitting either is a common
@@ -88,26 +92,35 @@ async function rpc(
 async function officesVisibleThroughTheBoundary(
   url: string,
   token: string,
+  signal: AbortSignal,
 ): Promise<readonly string[]> {
-  await rpc(url, token, {
-    jsonrpc: "2.0",
-    id: 1,
-    method: "initialize",
-    params: {
-      protocolVersion: "2025-06-18",
-      capabilities: {},
-      clientInfo: { name: "probe", version: "0" },
+  await rpc(
+    url,
+    token,
+    {
+      jsonrpc: "2.0",
+      id: 1,
+      method: "initialize",
+      params: {
+        protocolVersion: "2025-06-18",
+        capabilities: {},
+        clientInfo: { name: "probe", version: "0" },
+      },
     },
-  });
-  await rpc(url, token, {
-    jsonrpc: "2.0",
-    method: "notifications/initialized",
-  });
-  const listed = (await rpc(url, token, {
-    jsonrpc: "2.0",
-    id: 2,
-    method: "tools/list",
-  })) as { result?: { tools?: { name: string }[] } };
+    signal,
+  );
+  await rpc(
+    url,
+    token,
+    { jsonrpc: "2.0", method: "notifications/initialized" },
+    signal,
+  );
+  const listed = (await rpc(
+    url,
+    token,
+    { jsonrpc: "2.0", id: 2, method: "tools/list" },
+    signal,
+  )) as { result?: { tools?: { name: string }[] } };
   return (listed.result?.tools ?? []).map((tool) => tool.name).sort();
 }
 
@@ -249,26 +262,60 @@ async function main(): Promise<void> {
     }
   };
 
+  /*
+   * One race, around everything the deadline is supposed to bound.
+   *
+   * The rejection has to be observed from the moment it can happen. Building
+   * the timeout promise and only reaching the `Promise.race` after an awaited
+   * preflight left a window where an abort during `initialize` or `tools/list`
+   * rejected a promise nobody was watching, which Node treats as unhandled --
+   * the process dies without running the cleanup below, leaving a subprocess
+   * and a live TrueForge session behind. So the preflight and the drain are
+   * inside one function, and that function is raced.
+   */
   const expired = new Promise<never>((_resolve, reject) => {
     deadline.signal.addEventListener("abort", () => {
       timedOut = true;
-      reject(new Error(`the turn did not finish within ${TURN_MS}ms`));
+      reject(new Error(`the probe did not finish within ${TURN_MS}ms`));
     });
   });
 
-  try {
+  const run = async (): Promise<void> => {
     // Asked before the turn, so what the boundary showed is recorded whatever
     // the agent then does with it.
     visible = await officesVisibleThroughTheBoundary(
       `http://${PUBLIC_HOST}:${PORT}/mission/${missionId}/mcp`,
       token,
+      deadline.signal,
     );
-    await Promise.race([drain(), expired]);
+    await drain();
+  };
+
+  try {
+    await Promise.race([run(), expired]);
   } catch (error) {
     if (!timedOut) throw error;
     console.error(`  ${(error as Error).message}`);
   } finally {
     clearTimeout(timer);
+
+    /*
+     * The turn is cancelled, not merely stopped being listened to.
+     *
+     * `Promise.race` does not cancel the promise that lost, and abandoning an
+     * async generator does not end the turn behind it. On a timeout the probe
+     * would close its proxy and exit while the harness went on spending model
+     * calls and retrying an MCP endpoint that had just been shut, until
+     * TrueForge's own timeout. Cancelling first is also why the proxy is closed
+     * after this and not before.
+     */
+    if (timedOut) {
+      await driver.cancel(sessionId).catch((error: unknown) => {
+        // The timeout is the diagnosis; a failure to cancel is a footnote to it.
+        console.error(`  could not cancel ${sessionId}: ${String(error)}`);
+      });
+    }
+
     await proxy.close();
     const closable = forge as { close?: () => Promise<void> };
     if (closable.close) await closable.close();

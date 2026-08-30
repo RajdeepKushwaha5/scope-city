@@ -417,7 +417,19 @@ export async function upstreamMcpSystem(
          */
         const idem = office.idempotency;
         if (idem && context?.idempotencyKey) {
-          const key = context.idempotencyKey;
+          /*
+           * The mission is part of the key, because the connection is not.
+           *
+           * One Forge connection serves every mission -- it spawns a subprocess
+           * and holds a token, so it is deliberately not per-mission -- while
+           * the proxy derives its key from the office and the arguments. Two
+           * missions posting the same sentence to the same issue produce the
+           * same key, and without the mission in front of it the second one
+           * would silently receive the first one's result and never post.
+           *
+           * The ledger has always namespaced by mission. This matches it.
+           */
+          const key = `${context.missionId ?? "no-mission"}:${context.idempotencyKey}`;
           const marker = idempotencyMarker(key);
 
           /*
@@ -482,7 +494,10 @@ export async function upstreamMcpSystem(
           if (found) {
             // The action happened. Saying so is the whole point: reporting a
             // failure here is what makes a caller retry into a duplicate.
-            const settled = { deduplicated: true, idempotencyKey: key };
+            const settled = {
+              deduplicated: true,
+              idempotencyKey: context.idempotencyKey,
+            };
             attempts.set(key, settled);
             return settled;
           }
@@ -532,7 +547,10 @@ export async function upstreamMcpSystem(
         if (office.idempotency && context?.idempotencyKey) {
           // The attempt is no longer ambiguous. A retry now gets this back
           // rather than a refusal.
-          attempts.set(context.idempotencyKey, flat);
+          attempts.set(
+            `${context.missionId ?? "no-mission"}:${context.idempotencyKey}`,
+            flat,
+          );
         }
         return flat;
       },

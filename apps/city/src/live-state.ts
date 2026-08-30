@@ -163,6 +163,9 @@ function moveAgent(state: LiveCityState, office: string): LiveCityState {
 }
 
 /** Pure event fold: reconnecting and replaying the same feed builds the same city. */
+/** How many of the adversary's attempts reach the log. A model chooses how many exist. */
+const MAX_ATTACK_LINES = 6;
+
 export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveCityState {
   if (feed.type === "scope.expired") {
     return addLog(
@@ -287,13 +290,63 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
     // Logged as well as stored, so the findings land in THE RECORD in the order
     // they were produced -- before the first call -- rather than only appearing
     // in a panel that a viewer may never open.
-    const lines = feed.report.clean
-      ? [`YARD  ${feed.report.probesRun} probes, no holes`]
+    /*
+     * The Yard answers twice, and the second answer is the interesting one.
+     *
+     * The first report is the perturbation grammar: synchronous, deterministic,
+     * and blind to what the ticket says. The second arrives ten seconds later
+     * with a local model's attacks folded in, and it is logged as its own line
+     * rather than replacing the first -- so the record shows a scope that was
+     * probed mechanically and then attacked, in that order, before anyone
+     * granted anything.
+     */
+    const adversary = feed.report.adversary;
+    const attackLine = !adversary
+      ? []
+      : adversary.declined
+        ? [`YARD  local adversary did not run: ${adversary.declined}`]
+        : [
+            `YARD  ${adversary.model} wrote ${adversary.wrote} attack(s) on this machine, ` +
+              `${adversary.holes === 0 ? "none got through" : `${adversary.holes} got through`}`,
+            /*
+             * And what they were, because the count is the least interesting
+             * true thing here. "4 attacks, 0 holes" reads as nothing having
+             * happened; `mail.send refused for resource_not_in_scope` is the
+             * wall doing its job in public, before anything was granted, and it
+             * is the only evidence a reader has that the model wrote anything
+             * real.
+             *
+             * Capped, because a model decides how many of these exist.
+             */
+            ...adversary.attempts
+              .slice(0, MAX_ATTACK_LINES)
+              .map(
+                (attempt) =>
+                  `YARD  ${attempt.refused ? "REFUSED" : "ALLOWED"}  ${attempt.office}` +
+                  `${attempt.reason ? ` (${attempt.reason})` : ""}  ${attempt.why}`,
+              ),
+          ];
+
+    /*
+     * The second report carries the first one's findings too, so logging it
+     * whole wrote every mechanical line into the record twice -- and the
+     * duplicates buried the adversary lines they were meant to introduce.
+     *
+     * A report with adversary metadata logs only what that pass added. The
+     * stored `state.yard` is still the complete merged report, because a panel
+     * showing half the findings would be a different bug.
+     */
+    const lines = adversary
+      ? attackLine
       : [
-          `YARD  ${feed.report.probesRun} probes, ${feed.report.findings.length} finding(s)`,
-          ...feed.report.findings
-            .filter((finding) => finding.severity !== "note")
-            .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
+      ...(feed.report.clean
+        ? [`YARD  ${feed.report.probesRun} probes, no holes`]
+        : [
+            `YARD  ${feed.report.probesRun} probes, ${feed.report.findings.length} finding(s)`,
+            ...feed.report.findings
+              .filter((finding) => finding.severity !== "note")
+              .map((finding) => `YARD  ${finding.severity.toUpperCase()}  ${finding.summary}`),
+          ]),
         ];
 
     return lines.reduce<LiveCityState>(

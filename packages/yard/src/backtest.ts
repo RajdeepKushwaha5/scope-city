@@ -1,5 +1,5 @@
 import type { OfficeRegistry, Scope } from "@scope-city/scope";
-import { summarise, type BacktestReport } from "./findings.js";
+import { summarise, type AdversaryReport, type BacktestReport, type Finding } from "./findings.js";
 import { runBoundaryProbes } from "./boundary.js";
 import { runCompositionProbes } from "./compose.js";
 import { runReachAnalysis, runUnusedGrantAnalysis } from "./reach.js";
@@ -29,4 +29,27 @@ export function backtest(params: {
     [...boundary.findings, ...reach.findings, ...composition.findings, ...unused],
     boundary.probesRun + reach.probesRun + composition.probesRun,
   );
+}
+
+/**
+ * The same report with an adversary's probes folded in.
+ *
+ * Separate from `backtest` because `backtest` is synchronous and pure, and a
+ * model is neither. Keeping the split means every existing caller, every test
+ * and the offline replays go on getting a report without waiting on anything --
+ * and the adversarial pass is an addition an operator can see, not a hidden
+ * dependency inside a function that used to be a calculation.
+ */
+export function withAdversary(
+  report: BacktestReport,
+  extra: {
+    readonly findings: readonly Finding[];
+    readonly probesRun: number;
+    readonly report: AdversaryReport;
+  },
+): BacktestReport {
+  return {
+    ...summarise([...report.findings, ...extra.findings], report.probesRun + extra.probesRun),
+    adversary: extra.report,
+  };
 }

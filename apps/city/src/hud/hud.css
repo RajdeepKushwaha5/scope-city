@@ -1227,6 +1227,80 @@
   margin-bottom: 8px;
 }
 
+/* The local adversary's attempts.
+ *
+ * Set apart from the findings above it because it answers a different
+ * question. The findings say what is wrong with the scope; this says what was
+ * thrown at it and bounced. A clean scope has no findings and should still
+ * show this, or the panel reads as though nothing was tried. */
+.yard__adversary {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--hud-rule, rgba(255, 255, 255, 0.08));
+  margin-bottom: 8px;
+}
+
+.yard__adversary-head {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--hud-dim, #7f8c9b);
+}
+
+.yard__attempt {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  line-height: 1.45;
+}
+
+/* Refused is the ordinary outcome here, so it stays quiet. An allowed attempt
+   is a hole in a scope nobody has granted yet, and it should be the loudest
+   thing in the panel. */
+.yard__verdict {
+  flex: none;
+  font-size: 9px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  padding: 1px 4px;
+  border-radius: 2px;
+}
+
+.yard__verdict--refused {
+  color: var(--hud-dim, #7f8c9b);
+  background: rgba(255, 255, 255, 0.05);
+}
+
+.yard__verdict--allowed {
+  color: var(--danger, #ff6b6b);
+  background: rgba(255, 107, 107, 0.12);
+}
+
+.yard__reason {
+  flex: none;
+  color: var(--hud-dim, #7f8c9b);
+  font-family: var(--hud-mono, ui-monospace, monospace);
+  font-size: 10px;
+}
+
+/* A model wrote this, so it wraps rather than truncating: a sentence cut in
+   half reads as a bug in the panel rather than as brevity.
+ *
+ * `min-width: 0` alone was not enough. A flex item defaults to the width of its
+ * longest unbreakable run, so a model returning 160 characters without a space
+ * -- which is a thing a model does, and a thing an attacker can ask it to do --
+ * pushed the row past the panel and took the layout with it. `overflow-wrap`
+ * breaks that run at the edge. */
+.yard__why {
+  color: var(--hud-ink, #c8d2dc);
+  min-width: 0;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
 .yard__list {
   display: flex;
   flex-direction: column;

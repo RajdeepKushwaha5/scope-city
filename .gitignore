@@ -19,3 +19,8 @@ gcm-diagnose.log
 
 # local keys, never committed
 .env
+
+# Scratch from probing a running server by hand.
+.ev.txt
+.mid
+.p.json

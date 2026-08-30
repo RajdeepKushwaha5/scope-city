@@ -36,6 +36,61 @@ point. The scope exists, and is attacked, before there is an agent to constrain.
 
 ---
 
+## See it working
+
+| | |
+|---|---|
+| **Watch a real mission replay** | `pnpm --filter @scope-city/city dev` → **Replay a real run**. No keys, no backend. It is a hash-chained record of a session that happened, not an animation. |
+| **Check that record yourself** | [One command](#checking-the-record-yourself), run against the same file the UI replays. An independent verifier, not the code that wrote it. |
+| **Run a live mission** | [Running it](#running-it). Needs TrueForge, one model key, and a Stripe **test** key. |
+| **See the boundary in front of a server we did not write** | `pnpm --filter @scope-city/demo probe:forge-harness` — GitHub's own MCP server offers 26 tools; the scope grants one, and one is all `tools/list` returns. |
+
+---
+
+## Index
+
+**What is this?**
+- [The problem](#the-problem) — why broad access is the default, and why that is wrong
+- [What Scope City does](#what-scope-city-does)
+- [How it works](#how-it-works) — the four surfaces every call crosses
+- [Architecture](#how-it-works) and [repository layout](#repository-layout)
+
+**How the hackathon's three pieces are used**
+- [How TrueForge is used](#how-trueforge-is-used) — five load-bearing capabilities, with evidence for each
+- [TrueForge, TrueFoundry, and what we did not use](#trueforge-truefoundry-and-what-we-did-not-use)
+- [Qodo Code Review Evidence](#qodo-code-review-evidence) — every finding quoted from its thread, and a script that proves the coverage claim
+
+**Does it work?**
+- [Verifying the claim](#verifying-the-claim) — the safety claim is a test suite
+- [Delegation](#delegation-and-the-thing-that-nearly-stopped-it), [code mode](#the-agent-can-write-code-the-boundary-does-not-care), [checking the record](#checking-the-record-yourself)
+- [Where this goes, and what it is not yet](#where-this-goes-and-what-it-is-not-yet) — the honest limits
+
+**Can I run it?**
+- [Requirements](#requirements) · [Quick start](#quick-start--live-mission) · [Real systems, and fixtures](#real-systems-and-fixtures)
+- [Judge mode — no install, no credentials](#judge-mode--no-install-no-credentials)
+
+---
+
+## TrueForge, TrueFoundry, and what we did not use
+
+Two products share a name and confusing them costs a day, so this states plainly
+which one this project is built on.
+
+| | What it is | Used here |
+|---|---|---|
+| **TrueForge** | TrueFoundry's **open-source agent harness**. `@truefoundry/trueforge`, run locally, SQLite or Compose. | **Yes, centrally.** It runs the agent, the subagents, the sandbox and the approval gate. See [How TrueForge is used](#how-trueforge-is-used). |
+| **TrueFoundry platform** | The hosted product — AI Gateway, MCP Gateway, `truefoundry_gateway_sdk`. Needs an account. | **No, deliberately.** A judge must be able to clone this and run it with no TrueFoundry account. |
+| **Qodo** | AI code review on every pull request. | **Yes, on every PR.** See [Qodo Code Review Evidence](#qodo-code-review-evidence). |
+
+The distinction matters beyond bookkeeping. This project's claim is that an
+agent should hold no standing credential, so it would be odd to require a
+platform account to evaluate it. Everything here runs on a laptop:
+[docs/TRUEFORGE.md](docs/TRUEFORGE.md) is the verified integration note, written
+because the published documentation and the harness disagree in two places we
+found by probing rather than by reading.
+
+---
+
 ## The problem
 
 Every agent integration today makes the same mistake: the user has broad access,
@@ -504,6 +559,19 @@ that says so is more use than one that lets you find out.
 Every change reaches `main` through a pull request that Qodo reviews first. Nothing
 below is a summary written after the fact: each finding is quoted from the review
 thread on the linked PR, and each fix is in the PR that answers it.
+
+**If you are checking this section against the criteria, start here:**
+
+| Question | Answer | Where |
+|---|---|---|
+| Is Qodo actually on every PR? | Yes, and it is checked by a script rather than asserted. `node scripts/audit-qodo.mjs` reads the review Qodo posts on each merged PR, compares its timestamp to the merge, and exits non-zero if any merged without one. | [The record](#the-record) |
+| Did findings change the code? | Yes, including a **security bug in the code written to prevent security bugs**, and a fix whose own five faults Qodo then caught. | [below](#a-security-bug-in-the-code-written-to-prevent-security-bugs) |
+| Were findings ever declined? | Yes, with the trade written into the thread rather than ignored. | [Findings dismissed, and why](#findings-dismissed-and-why) |
+| Did the process ever fail? | Yes. Two PRs merged with six findings unread because a script filtered on the wrong bot login. It is disclosed here, not hidden. | [Where the reasoning lives](#where-the-reasoning-lives) |
+
+The findings below are the ones worth reading, not a complete list — the
+complete list is the [pull request
+list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged).
 
 ### The banner that lied about its own run
 

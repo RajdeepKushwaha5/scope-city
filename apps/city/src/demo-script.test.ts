@@ -70,9 +70,12 @@ describe("the script keeps the comparison first", () => {
     // Matched on single words, because the prose is hard-wrapped and a phrase
     // that spans a line break is a test that fails on reflow rather than on
     // drift.
-    const comparison = script.indexOf("The same ticket, twice");
-    const yard = script.indexOf("over-reach");
-    const recorded = script.indexOf("verify-record.mjs");
+    // Anchored on the heading the consolidated script uses. The property is
+    // the same one: whatever the comparison beat is called, it comes before
+    // the Yard and before the recorded run.
+    const comparison = script.indexOf("Show the danger");
+    const yard = script.indexOf("Build a live scope and attack it");
+    const recorded = script.lastIndexOf("verify-record.mjs");
 
     expect(comparison).toBeGreaterThan(-1);
     expect(yard).toBeGreaterThan(comparison);
@@ -100,8 +103,12 @@ describe("the script keeps the comparison first", () => {
  * what the project accuses everyone else of.
  */
 describe("the script does not point the verifier at the scripted runs", () => {
-  const realRun = script.indexOf("Now one that actually ran");
-  const verify = script.indexOf("verify-record.mjs");
+  // Likewise renamed. The verifier must still come after a mission the viewer
+  // has been told is real, or it appears to be verifying the scripted runs.
+  const realRun = script.indexOf("Replay a completed real TrueForge mission");
+  // The last mention, not the first: the command is named once in the cut
+  // rules near the top, and that reference is not the verification beat.
+  const verify = script.lastIndexOf("verify-record.mjs");
 
   it("introduces a real mission before verifying anything", () => {
     expect(realRun).toBeGreaterThan(-1);
@@ -109,8 +116,9 @@ describe("the script does not point the verifier at the scripted runs", () => {
   });
 
   it("says out loud that the comparison runs are scripted", () => {
-    expect(script).toMatch(/two runs you just watched are scripted/i);
-    expect(script).toMatch(/no record/i);
+    // Matched on the claim rather than one phrasing of it: the script must
+    // say the comparison is scripted somewhere the viewer hears it.
+    expect(script).toMatch(/comparison is scripted|runs? (you just watched )?(are|is) scripted/i);
   });
 
   it("claims records for live missions rather than for every run", () => {

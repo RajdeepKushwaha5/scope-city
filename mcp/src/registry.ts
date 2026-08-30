@@ -163,8 +163,25 @@ export const OFFICE_SPECS: readonly OfficeSpec[] = [
   },
 ];
 
-export function officeRegistry(): OfficeRegistry {
-  return buildRegistry(OFFICE_SPECS);
+export function officeRegistry(districts?: readonly string[]): OfficeRegistry {
+  /*
+   * Grantable means implemented, and the Forge is the first office that can be
+   * absent.
+   *
+   * Records, the Exchequer and the Post House always exist -- fixtures when
+   * there is no key, the real thing when there is -- so every registered office
+   * had a handler and this took no argument. A district behind somebody else's
+   * MCP server is different: with no `FORGE_REPOSITORY` it is simply not there.
+   * A registry that still lists its offices offers an operator a scope over
+   * `issue.close` that fails at the first call with "no system implements",
+   * after the grant, after the gate.
+   *
+   * Passing the districts that actually connected keeps the two in step. No
+   * argument means every office, which is what the specs and the docs want.
+   */
+  if (!districts) return buildRegistry(OFFICE_SPECS);
+  const live = new Set(districts);
+  return buildRegistry(OFFICE_SPECS.filter((spec) => live.has(spec.district)));
 }
 
 /** Offices that change the world, and so must never be granted casually. */

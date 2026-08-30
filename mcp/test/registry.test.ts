@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { resolverSafeFields } from "@scope-city/scope";
-import { OFFICE_SPECS } from "../src/registry.js";
+import { OFFICE_SPECS, officeRegistry } from "../src/registry.js";
 
 /**
  * The free-text classification is a security control, not documentation.
@@ -74,5 +74,43 @@ describe("office free-text classification", () => {
         "issue.close",
       ].sort(),
     );
+  });
+});
+
+describe("what an operator can be offered", () => {
+  /*
+   * Grantable has to mean implemented.
+   *
+   * Records, the Exchequer and the Post House are always there -- fixtures with
+   * no key, the real thing with one -- so every registered office had a handler
+   * and this never came up. The Forge is the first district that can simply be
+   * absent, and a registry that still lists its offices hands an operator a
+   * scope over `issue.close` that fails at the first call, after the grant and
+   * after the gate, with "no system implements".
+   */
+
+  it("does not offer an office whose district did not connect", () => {
+    const grantable = officeRegistry(["records", "exchequer", "post-house"]);
+    expect(grantable.has("issue.get")).toBe(false);
+    expect(grantable.has("issue.comment")).toBe(false);
+    expect(grantable.has("issue.close")).toBe(false);
+  });
+
+  it("offers nothing at all when nothing connected", () => {
+    expect(officeRegistry([]).size).toBe(0);
+  });
+
+  // --- and what it does offer ---------------------------------------------
+
+  it("offers the Forge once its district is there", () => {
+    const grantable = officeRegistry(["records", "exchequer", "post-house", "forge"]);
+    expect(grantable.has("issue.get")).toBe(true);
+    expect(grantable.has("charge.refund")).toBe(true);
+  });
+
+  it("offers every office when the caller does not say", () => {
+    // The specs and the docs both want the whole registry, and every test
+    // above this file's own does too.
+    expect(officeRegistry().size).toBe(OFFICE_SPECS.length);
   });
 });

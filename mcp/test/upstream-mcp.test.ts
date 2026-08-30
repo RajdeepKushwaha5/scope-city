@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import {
   alreadyWritten,
   flattenMcpResult,
+  canonicalInteger,
   idempotencyMarker,
   mapArgs,
 } from "../src/systems/upstream-mcp.js";
@@ -133,6 +134,26 @@ describe("mapping arguments onto the upstream's names", () => {
 
   it("omits a declared argument the caller did not supply", () => {
     expect(mapArgs({}, { argMap: { issue_id: "issue_number" } })).toEqual({});
+  });
+
+  it("refuses a string that is not the number it spells", () => {
+    /*
+     * The sharpest hole in this file, and it is invisible until written out.
+     *
+     * The evaluator compares `String(value)` against the grant, so a scope
+     * granting issue `"0x10"` authorises the string "0x10". `Number("0x10")` is
+     * 16. The operator approved one issue and GitHub would have received
+     * another -- through the argument the whole scope is built around.
+     */
+    expect(mapArgs({ issue_number: "0x10" }, { numericArgs: ["issue_number"] })).toEqual({
+      issue_number: "0x10",
+    });
+    expect(mapArgs({ issue_number: "1e3" }, { numericArgs: ["issue_number"] })).toEqual({
+      issue_number: "1e3",
+    });
+    expect(mapArgs({ issue_number: " 7 " }, { numericArgs: ["issue_number"] })).toEqual({
+      issue_number: " 7 ",
+    });
   });
 
   it("leaves a value alone when it is not a number at all", () => {
@@ -320,5 +341,52 @@ ${marker}`,
     // A key per attempt makes every retry a new action, which is the bug.
     expect(idempotencyMarker(key)).toBe(idempotencyMarker(key));
     expect(idempotencyMarker("op_other")).not.toBe(marker);
+  });
+});
+
+describe("turning a granted string into the number an upstream wants", () => {
+  /*
+   * Refusals first, and here they are the whole point: this function exists to
+   * refuse the strings that mean one thing to the evaluator and another to
+   * `Number()`.
+   */
+
+  it("refuses a form the evaluator never saw", () => {
+    // Granted as "0x10", sent as 16.
+    expect(canonicalInteger("0x10")).toBeUndefined();
+    expect(canonicalInteger("1e3")).toBeUndefined();
+    expect(canonicalInteger("0b11")).toBeUndefined();
+    expect(canonicalInteger("0o17")).toBeUndefined();
+  });
+
+  it("refuses padding and signs that do not round trip", () => {
+    expect(canonicalInteger(" 7 ")).toBeUndefined();
+    expect(canonicalInteger("007")).toBeUndefined();
+    expect(canonicalInteger("+7")).toBeUndefined();
+    expect(canonicalInteger("7.0")).toBeUndefined();
+  });
+
+  it("refuses an integer past the point where they stay distinct", () => {
+    // 9007199254740993 parses to 9007199254740992. Two granted issues would
+    // become the same call.
+    expect(canonicalInteger("9007199254740993")).toBeUndefined();
+  });
+
+  it("refuses what is not a number at all", () => {
+    expect(canonicalInteger("seven")).toBeUndefined();
+    expect(canonicalInteger("")).toBeUndefined();
+    expect(canonicalInteger("Infinity")).toBeUndefined();
+  });
+
+  // --- and the strings that are the number they spell ---------------------
+
+  it("converts a plain decimal integer", () => {
+    expect(canonicalInteger("7")).toBe(7);
+    expect(canonicalInteger("0")).toBe(0);
+    expect(canonicalInteger("102")).toBe(102);
+  });
+
+  it("converts a negative integer that round trips", () => {
+    expect(canonicalInteger("-7")).toBe(-7);
   });
 });

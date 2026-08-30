@@ -81,6 +81,7 @@ export const LEASE_CEILING_MS = 30 * 60 * 1000;
  */
 const BOUNDS = {
   registry: officeRegistry(),
+
   alwaysCountersign: IRREVERSIBLE_OFFICES,
   maxAmountMinorCeiling: 50_000,
   maxCallsCeiling: 3,
@@ -139,12 +140,22 @@ export async function deriveScopeFromJob(params: {
   readonly systems?: readonly SystemDefinition[];
 }): Promise<DerivedScope> {
   const now = params.now ?? Date.now();
-  const registry = BOUNDS.registry;
+  /*
+   * Only the districts that are actually there.
+   *
+   * A derivation that can reach an office no system implements produces a
+   * scope an operator grants and an agent then fails at -- after the gate, with
+   * "no system implements". The Forge is absent unless configured, so the
+   * registry follows what connected.
+   */
+  const registry = params.systems
+    ? officeRegistry([...new Set(params.systems.map((system) => system.district))])
+    : BOUNDS.registry;
 
   const envelope = constrainEnvelope({
     job: params.job,
     raw: draftFromText(params.job),
-    bounds: BOUNDS,
+    bounds: { ...BOUNDS, registry },
   });
 
   const resolution = await resolve({

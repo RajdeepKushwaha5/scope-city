@@ -196,6 +196,18 @@ export function flattenMcpResult(result: unknown): Record<string, unknown> {
   }
 }
 
+/**
+ * A string turned into the integer it literally spells, or nothing.
+ *
+ * Exported because it is the join between what a scope grants and what an
+ * upstream receives, and that join is worth testing on its own.
+ */
+export function canonicalInteger(raw: string): number | undefined {
+  const parsed = Number(raw);
+  if (!Number.isSafeInteger(parsed)) return undefined;
+  return String(parsed) === raw ? parsed : undefined;
+}
+
 /** Renames declared arguments onto the upstream's own parameter names. */
 export function mapArgs(
   args: Record<string, unknown>,
@@ -204,10 +216,23 @@ export function mapArgs(
   const numeric = new Set(office.numericArgs ?? []);
   const value = (name: string, raw: unknown): unknown => {
     if (!numeric.has(name)) return raw;
-    const asNumber = typeof raw === "string" ? Number(raw) : raw;
-    return typeof asNumber === "number" && Number.isFinite(asNumber)
-      ? asNumber
-      : raw;
+    if (typeof raw !== "string") return raw;
+    /*
+     * Only a string that is already the number it says it is.
+     *
+     * `Number()` was doing the conversion, and `Number()` is generous in ways
+     * the evaluator is not. The evaluator compares `String(value)` against the
+     * grant, so a scope granting issue `"0x10"` authorises the string "0x10" --
+     * and `Number("0x10")` is 16. The call the operator approved and the call
+     * GitHub receives would be about two different issues. `"1e3"`, `" 7 "`
+     * and integers past `Number.MAX_SAFE_INTEGER` all break the same way.
+     *
+     * `canonical` is the round trip: convert, and require that converting back
+     * gives the string that was granted. Anything else is left as it arrived,
+     * so the upstream answers with a schema error naming the argument -- a
+     * legible refusal instead of a silent redirection.
+     */
+    return canonicalInteger(raw) ?? raw;
   };
 
   const out: Record<string, unknown> = {};

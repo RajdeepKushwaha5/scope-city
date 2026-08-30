@@ -1,15 +1,21 @@
-# What we are actually being judged on
+# What the brief asked for, and what we did about it
 
-The brief, verbatim where it matters, with an honest column for where Scope
-City stands. Kept in the repo rather than in someone's head, because the gaps
-below are the kind that stay comfortable until the day before a deadline.
+This is a build log, not a scorecard. It was written while the work was
+happening, to stop the gaps staying comfortable until the day before a
+deadline, and it is kept because the record of what was missing and when it
+closed is more useful than a claim that nothing ever was.
 
-**Status as of 2026-08-30.** This file is a running assessment, and for part of
-the week it was a stale one: it went on calling the sandbox and the operator
-gate gaps after both were working, which is worse than never having written it
-down. A reader comparing documents and finding them in disagreement is right to
-believe the pessimistic one, so the rows below are dated and the ones that moved
-say what moved them.
+**Read the [README](../README.md) for what the project is and what it does
+now.** This file is the working-out: what the brief asked, what was true at the
+time, and what changed. Where the two disagree, the README is current and this
+is history.
+
+**Dated 2026-08-30.** For part of the week it was a stale log rather than a
+running one: it went on calling the sandbox and the operator gate gaps days
+after both were working, which is worse than never having written it down. A
+reader comparing documents and finding them in disagreement is right to believe
+the pessimistic one, so the rows below carry dates and the ones that moved say
+what moved them.
 
 ---
 
@@ -26,7 +32,7 @@ say what moved them.
 **Where we are: met for the district that matters.**
 
 The Exchequer talks to Stripe test mode: real API, real network, real charge
-objects, and refunds that genuinely cannot be undone. Verified end to end — a
+objects, and refunds that genuinely cannot be undone. Verified end to end: a
 mission derived a scope that resolved a real charge id from an order id in
 metadata, the operator granted it, the agent ran, and the countersign produced:
 
@@ -95,8 +101,8 @@ changes nothing.
 
 So the sandbox needs a Daytona API key. With `DAYTONA_API_KEY` set the
 provider is configured at boot and the verification step runs; without it the
-startup log says so and the brief omits the step. What must not happen — and
-did, before this was resolved at boot — is a session created with
+startup log says so and the brief omits the step. What must not happen, and
+did before this was resolved at boot, is a session created with
 `sandbox.enabled` and no provider: the harness rejects it with a 422, so
 *every* mission fails at creation and the operator sees "mission failed" with
 nothing on the map.
@@ -158,13 +164,13 @@ of the same capability.
 
 | Requirement | Status |
 |---|---|
-| **Install at the start** — "installing it the night before defeats the point" | Done. PR #1 was the Qodo config itself. |
+| **Install at the start**, since "installing it the night before defeats the point" | Done. PR #1 was the Qodo config itself. |
 | **Work through pull requests, not straight to main** | Done. Seven PRs; no feature has gone straight to main. |
 | **Deal with what it finds before you merge** | Done. Eight findings, each fixed with a regression test and answered on the thread. |
 
 Findings addressed so far, with the two that mattered:
 
-- **Negative amounts defeated the scope ceiling.** `-1000` passed `Number.isInteger`, passed `value > ceiling`, and ran the downstream arithmetic backwards — restoring refundable headroom. The ceiling meant nothing. Fixed at both layers.
+- **Negative amounts defeated the scope ceiling.** `-1000` passed `Number.isInteger`, passed `value > ceiling`, and ran the downstream arithmetic backwards, restoring refundable headroom. The ceiling meant nothing. Fixed at both layers.
 - **A retried call performed an irreversible action twice.** A replay was treated as a won claim; worse, refusing it afterwards released the *original* entry and handed back quota for money that had already moved.
 
 Both were security-relevant, both were ours, and both have a
@@ -185,7 +191,7 @@ show one.
 
 | A judge must see | Us |
 |---|---|
-| TrueForge reaching a tool | **Yes.** Live session, real MCP connection, refusals over the wire — and since #103, over a server nobody here wrote. |
+| TrueForge reaching a tool | **Yes.** Live session, real MCP connection, refusals over the wire, and since #103 over a server nobody here wrote. |
 | Code running in the sandbox | **Yes, when configured.** `SCOPE_SANDBOX=true` with a provider. Off in a fresh clone on purpose: the demo must run without an account. |
 | Stopping for a person | **Yes, in the city.** `useLiveMission.countersign` posts the operator's decision to `/api/missions/:id/decisions`. The "headlessly only" note here was true for about a day. |
 
@@ -223,7 +229,7 @@ decision rather than an oversight.
 
 | Capability | Us |
 |---|---|
-| Connects to your tools (MCP) | **Central.** The proxy is the product — and Scope City is an MCP *client* too, so the boundary holds in front of a third-party server. |
+| Connects to your tools (MCP) | **Central.** The proxy is the product, and Scope City is an MCP *client* too, so the boundary holds in front of a third-party server. |
 | Runs code safely (sandbox) | **Used when configured.** The Yard runs there, which is where a local model's attacks are evaluated before the grant. |
 | Waits for a human | **Used.** `tool.approval_required`, countersign bound to a call fingerprint. |
 | Delegates (subagents) | Enabled in the spec; the city renders `thread.created` as a second figure in the field. A mission does not *force* one, and saying otherwise would be the drift this file exists to prevent. |
@@ -239,10 +245,10 @@ doing: **sandbox** and **reconnect**.
 
 ## Order of work
 
-1. **Sandbox** — the only criterion at zero, and the brief names it explicitly.
-2. **Real systems** — Stripe test mode first; it is the one that turns
+1. **Sandbox.** The only criterion at zero, and the brief names it explicitly.
+2. **Real systems.** Stripe test mode first; it is the one that turns
    "connected, not mocked" from arguable into true.
-3. **Countersign from the UI** — the control story is built but not visible.
+3. **Countersign from the UI.** The control story is built but not visible.
 
 ---
 
@@ -250,7 +256,7 @@ doing: **sandbox** and **reconnect**.
 
 `mode: "unscoped"` runs the same job with the authority an ordinary
 integration hands over: every office, every record, no ceiling, no gate. It is
-not a bypass — the same evaluator, proxy and map are used, and only the scope
+not a bypass: the same evaluator, proxy and map are used, and only the scope
 differs. Comparing "our enforcement" against "no enforcement" would prove only
 that code which runs does something.
 
@@ -275,7 +281,7 @@ being careful about what it means.
 It is not evidence that broad access is safe. It is one model, on one prompt,
 on a handful of runs, and the next model or the next phrasing is a coin toss.
 The argument for enforcement has never been that models always fall for
-injections — it is that **you cannot tell in advance whether this one will**,
+injections. It is that **you cannot tell in advance whether this one will**,
 and an architecture that is fine only when the model behaves is not an
 architecture. The blast radius above is a fact about the authority; the
 refusal is a fact about one afternoon.
@@ -283,6 +289,6 @@ refusal is a fact about one afternoon.
 The briefing is held equal so the comparison isolates authority. The unscoped
 run gets a plain integration brief with the same job, the same tools and the
 same record ids, but none of our framing about untrusted content or refusals
-being answers — handing it those would quietly help it resist something a real
+being answers, and handing it those would quietly help it resist something a real
 integration meets undefended, and omitting the ids would show an agent
 fumbling rather than an agent with power.

@@ -4,7 +4,12 @@ Everything here was read from the TrueForge docs or verified against a running
 instance. **If it is not in this file, do not assume it** — check first and add
 it, rather than coding against a guess.
 
-Last verified: 2026-08-24.
+Last verified: 2026-08-30.
+
+Dated at the top and meant literally: this file's authority is that everything
+in it was checked against a running instance, so a stale date on new content
+would undercut the one thing it is for. What moved since 2026-08-24 is listed
+under "Verified live" below, with what proved it.
 
 ---
 
@@ -381,6 +386,22 @@ would be the kind of overclaim that unravels in a question.
 - [x] Browser-facing SSE replay resumes from the last Scope City sequence.
 - [x] Dynamic subagents genuinely spawn: six child threads on one run, titled
       from the brief's two assignments, drawn on the map as separate figures.
+- [x] **Sandbox execution.** `yard.opened` once and `yard.verified` twice in the
+      shipped recording, against a configured Daytona provider. This sat under
+      "still unverified" until 2026-08-30 while it was already working, which is
+      the drift this file exists to prevent.
+- [x] **TrueForge as an MCP client of a server nobody here wrote.** A harness
+      session reached GitHub's own MCP server through the scope proxy:
+      `tools/list` returned one office where the upstream advertises twenty-six,
+      and `call.allowed issue.get` crossed the boundary. Three runs out of
+      three on 2026-08-30. See `apps/demo/src/probe-forge-through-harness.ts`.
+- [x] **A local model driving a mission.** `local/qwen` on Ollama, registered as
+      a provider, completed the same chain. Tool calling is less reliable than
+      the hosted models: one run in seven emitted the call as prose instead of
+      calling it, which is a completed turn with no call in it rather than an
+      error the pool can rotate over.
+- [x] **The harness in Docker on Windows.** Standalone will not start; Compose
+      does, on host port 8791. See the section at the end of this file.
 
 ## Still unverified
 
@@ -393,11 +414,11 @@ Kept honest so nothing unproven reaches the demo:
       tier; see "What delegation costs" above.
 - [ ] Whether `tools/list` is re-requested between turns, so a scope granted
       mid-session changes the visible tool set.
-- [ ] Sandbox execution on the demo machine. Needs a `DAYTONA_API_KEY`:
-      0.1.4's provider manifest accepts only `type: "daytona"`, so the local
-      bwrap/socat/ripgrep route does not exist on this version. Verified by
-      reading `SandboxProviderManifest` in the running instance's OpenAPI
-      document, after installing those binaries achieved nothing.
+- [ ] A **local** sandbox provider. 0.1.4's provider manifest accepts only
+      `type: "daytona"`, so the bwrap/socat/ripgrep route does not exist on this
+      version. Verified by reading `SandboxProviderManifest` in the running
+      instance's OpenAPI document, after installing those binaries achieved
+      nothing. Execution itself is verified above, with a Daytona key.
 
 ## Standalone will not start on Windows; Compose will
 

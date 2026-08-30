@@ -99,6 +99,7 @@ altered.*
 - [Verifying the claim](#verifying-the-claim): the safety claim is a test suite
 - [Delegation](#delegation-and-the-thing-that-nearly-stopped-it), [code mode](#the-agent-can-write-code-the-boundary-does-not-care), [checking the record](#checking-the-record-yourself)
 - [Where this goes, and what it is not yet](#where-this-goes-and-what-it-is-not-yet): the honest limits
+- [docs/CHALLENGE.md](docs/CHALLENGE.md): the build log, what the brief asked and when each gap closed
 
 **Can I run it?**
 - [Requirements](#requirements) · [Quick start](#quick-start-a-live-mission) · [Real systems, and fixtures](#real-systems-and-fixtures)
@@ -586,8 +587,9 @@ boundary, and they are the first two things in the palette for that reason.
 Press **1 · Without a scope**, then **2 · With a scope**. Everything else the
 city can show is evidence for what those two minutes claim.
 
-[docs/DEMO.md](docs/DEMO.md) is the three-minute running order, with the lines
-to read aloud and what to cut when you are over time.
+[docs/DEMO.md](docs/DEMO.md) is the script the video is recorded from: the
+running order, the lines to read aloud, both branches the live grant can take,
+and what to cut first when a take runs long.
 
 ### Checking the record yourself
 

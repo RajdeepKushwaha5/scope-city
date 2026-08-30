@@ -1,7 +1,12 @@
 import "./load-env.js";
 import { officeRegistry } from "@scope-city/mcp";
 import { backtest, runAdversary, withAdversary } from "@scope-city/yard";
-import { adversaryStatus, evidenceFor, localAdversary } from "./adversary.js";
+import {
+  adversaryModel,
+  adversaryStatus,
+  evidenceFor,
+  localAdversary,
+} from "./adversary.js";
 import { deriveScopeFromJob } from "./derive-scope.js";
 import { missionSystems } from "./systems.js";
 
@@ -22,8 +27,13 @@ async function main(): Promise<void> {
     process.argv[2] ?? "Refund order 184 and email the customer about it";
 
   const status = adversaryStatus();
+  const picked = status.live ? await adversaryModel() : undefined;
   console.log(
-    `  adversary        ${status.live ? status.reason : `off (${status.reason})`}`,
+    `  adversary        ${
+      status.live
+        ? `${picked?.model ?? "no model pulled"} on ${status.reason} (${picked?.why ?? "nothing to choose from"})`
+        : `off (${status.reason})`
+    }`,
   );
 
   const systems = missionSystems();

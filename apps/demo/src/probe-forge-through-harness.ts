@@ -12,6 +12,7 @@ import { CountersignBook } from "@scope-city/mission";
 import type { Scope } from "@scope-city/scope";
 import { createFixtureMission } from "./fixture-mission.js";
 import { missionSystemsAsync, forgeStatus } from "./systems.js";
+import { boundaryReachability, urlHost } from "./reachability.js";
 
 /**
  * The arrow this project had never actually tested.
@@ -138,6 +139,25 @@ async function main(): Promise<void> {
     process.exit(2);
   }
 
+  /*
+   * The same check the city makes, for the same reason.
+   *
+   * This probe registers its endpoint with TrueForge and then waits for the
+   * harness to connect back. With the harness in a container and the proxy on
+   * loopback, the connection is refused and the failure arrives as an MCP
+   * transport error naming a Docker gateway address -- which reads like the
+   * boundary is broken rather than like two flags disagreeing.
+   */
+  const reachable = boundaryReachability({
+    bind: BIND,
+    publicHost: PUBLIC_HOST,
+    names: { bind: "PROBE_BIND", publicHost: "PROBE_PUBLIC_HOST" },
+  });
+  if (!reachable.ok) {
+    console.error(reachable.reason);
+    process.exit(2);
+  }
+
   const issue = process.env.FORGE_ISSUE ?? "102";
   const systems = await missionSystemsAsync();
   const forge = systems.find((system) => system.district === "forge");
@@ -216,7 +236,7 @@ async function main(): Promise<void> {
   await driver.registerMcpServer({
     type: "remote",
     name,
-    url: `http://${PUBLIC_HOST}:${PORT}/mission/${missionId}/mcp`,
+    url: `http://${urlHost(PUBLIC_HOST)}:${PORT}/mission/${missionId}/mcp`,
     description: "Scope City boundary over GitHub's MCP server",
     auth: { type: "header", headers: { Authorization: `Bearer ${token}` } },
   });
@@ -236,7 +256,9 @@ async function main(): Promise<void> {
 
   console.log(`  harness session  ${sessionId} on ${models[0]}`);
 
-  let text = "";
+  // Kept apart so one can be preferred over the other rather than concatenated.
+  let assembled = "";
+  let streamed = "";
   let visible: readonly string[] = [];
   let timedOut = false;
 
@@ -260,9 +282,36 @@ async function main(): Promise<void> {
       },
     ])) {
       if (deadline.signal.aborted) return;
-      const e = event as { type?: string; text?: string };
-      if (e.type === "assistant.text" && typeof e.text === "string")
-        text += e.text;
+      /*
+       * `model.message.delta.content`, which is where the words actually are.
+       *
+       * This read `assistant.text`, an event type the harness does not emit, so
+       * the probe printed "the agent said (nothing)" after every successful run
+       * -- on Gemini as well as on the local model. The tool call and the
+       * refusals were reported correctly, which made the silence look like a
+       * model that would not answer rather than a reader looking in the wrong
+       * field. Confirmed against the stream: a turn asking "what is 2 + 2"
+       * arrives as `{"content":"4","type":"model.message.delta"}`.
+       */
+      const e = event as { type?: string; content?: unknown };
+      /*
+       * Both shapes, and neither counted twice.
+       *
+       * A turn can arrive as an assembled `model.message` carrying the whole
+       * answer, or as an empty one followed by `model.message.delta` fragments.
+       * Reading only the deltas reported "(nothing)" for a run that answered in
+       * one piece; reading both without care would print the answer twice when
+       * a server sends an assembled message *and* fragments.
+       *
+       * The assembled form wins when it has content, because it is the whole
+       * answer rather than a piece of one.
+       */
+      if (e.type === "model.message" && typeof e.content === "string" && e.content !== "") {
+        assembled += e.content;
+      }
+      if (e.type === "model.message.delta" && typeof e.content === "string") {
+        streamed += e.content;
+      }
     }
   };
 
@@ -292,7 +341,7 @@ async function main(): Promise<void> {
       // a harness inside a container can find this process --
       // `host.docker.internal` does not necessarily resolve from the host
       // itself -- and this request starts here.
-      `http://${LOCAL_HOST}:${PORT}/mission/${missionId}/mcp`,
+      `http://${urlHost(LOCAL_HOST)}:${PORT}/mission/${missionId}/mcp`,
       token,
       deadline.signal,
     );
@@ -366,6 +415,7 @@ async function main(): Promise<void> {
   const calls = seen.filter((line) => line.startsWith("call."));
   console.log(`  visible to the agent  ${visible.join(", ") || "(nothing)"}`);
   console.log(`  through the boundary  ${calls.join(", ") || "(nothing)"}`);
+  const text = assembled !== "" ? assembled : streamed;
   console.log(`  the agent said   ${text.trim().slice(0, 200) || "(nothing)"}`);
 
   /*

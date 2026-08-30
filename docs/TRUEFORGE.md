@@ -457,3 +457,32 @@ container, so `127.0.0.1` is the container**. An MCP server running on the host
 has to be registered as `host.docker.internal`, and bound to `0.0.0.0` rather
 than loopback, or the harness registers a URL it can never reach and every tool
 call fails with a connection error that looks like a boundary refusal.
+
+That applies to **every** address handed to the harness, and the second one is
+easy to miss because it fails so quietly.
+
+| What is registered | Set it to | Symptom when loopback |
+|---|---|---|
+| The mission's MCP endpoint | `SCOPE_PROXY_PUBLIC_HOST=host.docker.internal`, with `SCOPE_PROXY_BIND=0.0.0.0` | `ECONNREFUSED 192.168.65.254:<port>` in TrueForge's UI, tens of seconds in |
+| The local model's endpoint | `OLLAMA_PUBLIC_HOST=http://host.docker.internal:11434` | **Nothing at all.** The provider saves, the model appears in the picker, and it never answers |
+
+The model one is worse than the MCP one because there is no error anywhere a
+person is looking. The provider is accepted, the model shows up, the operator
+selects it, sends a message, and waits. Every request dies at connect inside the
+container. Gemini keeps working throughout, which points suspicion at the local
+model rather than at the address it was registered under.
+
+`OLLAMA_HOST` stays whatever *this* process uses to reach Ollama --
+`http://127.0.0.1:11434` is right there. `OLLAMA_PUBLIC_HOST` is what TrueForge
+is told, and it defaults to `OLLAMA_HOST`, which is correct whenever both are on
+the same machine.
+
+Ollama also has to be listening where the container can reach it. Started as a
+Windows service it binds loopback; confirm with:
+
+```bash
+docker exec trueforge-server-1 node -e "fetch('http://host.docker.internal:11434/api/tags').then(r=>console.log(r.status))"
+```
+
+`200` means the harness can see it. Anything else is a network problem, not a
+model problem.

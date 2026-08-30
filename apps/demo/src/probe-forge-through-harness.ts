@@ -281,9 +281,21 @@ async function main(): Promise<void> {
       },
     ])) {
       if (deadline.signal.aborted) return;
-      const e = event as { type?: string; text?: string };
-      if (e.type === "assistant.text" && typeof e.text === "string")
-        text += e.text;
+      /*
+       * `model.message.delta.content`, which is where the words actually are.
+       *
+       * This read `assistant.text`, an event type the harness does not emit, so
+       * the probe printed "the agent said (nothing)" after every successful run
+       * -- on Gemini as well as on the local model. The tool call and the
+       * refusals were reported correctly, which made the silence look like a
+       * model that would not answer rather than a reader looking in the wrong
+       * field. Confirmed against the stream: a turn asking "what is 2 + 2"
+       * arrives as `{"content":"4","type":"model.message.delta"}`.
+       */
+      const e = event as { type?: string; content?: unknown };
+      if (e.type === "model.message.delta" && typeof e.content === "string") {
+        text += e.content;
+      }
     }
   };
 

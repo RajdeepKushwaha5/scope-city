@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { Client } from "@modelcontextprotocol/sdk/client/index.js";
 import {
   StdioClientTransport,
@@ -265,7 +266,20 @@ const LOOKUP_PAGE_SIZE = 100;
 const MAX_LOOKUP_PAGES = 10;
 
 export function idempotencyMarker(key: string): string {
-  return `<!-- scope-city:${key} -->`;
+  /*
+   * A digest, because the key contains the mission id.
+   *
+   * The marker is appended to a GitHub comment body, which is public, and the
+   * mission id is an unguessable capability: it is the path segment on
+   * `/mission/:id/mcp` and on the event and decision routes. Writing it into a
+   * comment published it -- anyone reading the comment source could then reach
+   * a live mission's routes.
+   *
+   * The digest keeps the only property the marker needs: the same intended
+   * action produces the same marker, so a retry recognises its own. It carries
+   * nothing back the other way.
+   */
+  return `<!-- scope-city:${createHash("sha256").update(key).digest("hex").slice(0, 32)} -->`;
 }
 
 /** Whether a previous attempt at this exact operation already landed. */

@@ -331,10 +331,21 @@ ${marker}`,
 
   // --- and what the marker itself is --------------------------------------
 
+  it("does not carry the mission id into a public comment", () => {
+    /*
+     * The marker is appended to a GitHub comment body, and the key it is built
+     * from contains the mission id -- which is an unguessable capability, the
+     * path segment on `/mission/:id/mcp` and on the event and decision routes.
+     * Writing it into a comment published it.
+     */
+    expect(idempotencyMarker("m_secret_mission:op_1")).not.toContain("m_secret_mission");
+    expect(idempotencyMarker("m_secret_mission:op_1")).not.toContain("op_1");
+  });
+
   it("is invisible where it lands", () => {
     // An HTML comment, because GitHub renders one as nothing. The reader sees
-    // the agent's sentence; the boundary sees a key it can recognise.
-    expect(marker).toBe(`<!-- scope-city:${key} -->`);
+    // the agent's sentence; the boundary sees something it can recognise.
+    expect(marker).toMatch(/^<!-- scope-city:[0-9a-f]{32} -->$/);
   });
 
   it("carries the operation key, not the attempt", () => {

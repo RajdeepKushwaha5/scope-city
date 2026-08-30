@@ -35,6 +35,8 @@ import { missionSystemsAsync, forgeStatus } from "./systems.js";
 const PORT = Number(process.env.PROBE_PORT ?? 8794);
 const BIND = process.env.PROBE_BIND ?? "127.0.0.1";
 const PUBLIC_HOST = process.env.PROBE_PUBLIC_HOST ?? "127.0.0.1";
+/** How long a cancel gets before cleanup stops waiting for it. */
+const CANCEL_MS = Number(process.env.PROBE_CANCEL_MS ?? 10_000);
 /** Where this process reaches its own proxy. `0.0.0.0` is a bind, not an address. */
 const LOCAL_HOST = BIND === "0.0.0.0" ? "127.0.0.1" : BIND;
 const TURN_MS = Number(process.env.PROBE_TURN_MS ?? 120_000);
@@ -316,10 +318,44 @@ async function main(): Promise<void> {
      * after this and not before.
      */
     if (timedOut) {
-      await driver.cancel(sessionId).catch((error: unknown) => {
-        // The timeout is the diagnosis; a failure to cancel is a footnote to it.
-        console.error(`  could not cancel ${sessionId}: ${String(error)}`);
-      });
+      /*
+       * Cancelling gets its own, much shorter, deadline.
+       *
+       * `HarnessDriver` requests carry a ten-minute timeout by default, so a
+       * cancel against a TrueForge that has stopped answering would hold the
+       * probe open for ten more minutes past the deadline it just missed --
+       * with the proxy still listening and the token-bearing subprocess still
+       * running. The bound is passed into the request so the request itself
+       * ends; the timer below is the second line, for a client that does not
+       * honour it. The cleanup after this is the part that must happen.
+       */
+      let giveUp: NodeJS.Timeout | undefined;
+      try {
+        await Promise.race([
+          // The bound goes into the request, not just around the await. A
+          // timer that wins a race leaves the request itself running under the
+          // driver's ten-minute default, which is the thing being avoided.
+          driver.cancel(sessionId, Math.ceil(CANCEL_MS / 1000)).catch((error: unknown) => {
+            // The timeout is the diagnosis; a failure to cancel is a footnote.
+            console.error(`  could not cancel ${sessionId}: ${String(error)}`);
+          }),
+          new Promise<void>((resolve) => {
+            giveUp = setTimeout(() => {
+              console.error(`  cancel of ${sessionId} did not answer in ${CANCEL_MS}ms`);
+              resolve();
+            }, CANCEL_MS);
+            // Node keeps a process alive for a pending timer, and this one
+            // exists only to stop waiting.
+            giveUp.unref();
+          }),
+        ]);
+      } finally {
+        // `unref()` stops the timer holding the process open; it does not stop
+        // the callback. Left armed, a cancel that answered in a second would
+        // still print "did not answer" ten seconds later, while the proxy was
+        // closing -- a false diagnostic about the one step that worked.
+        clearTimeout(giveUp);
+      }
     }
 
     await proxy.close();

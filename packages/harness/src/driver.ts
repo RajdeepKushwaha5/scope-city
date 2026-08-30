@@ -228,8 +228,22 @@ export class HarnessDriver {
     } as never);
   }
 
-  async cancel(sessionId: string): Promise<void> {
-    await this.#client.sessions.cancel(sessionId, {} as never);
+  /**
+   * Ends a session's current turn, with a bound the caller can set.
+   *
+   * The default client timeout is 600 seconds, which is right for a turn and
+   * wrong for a cancel: cancelling is what a caller does when it has already
+   * given up waiting, usually in a cleanup path with a proxy and a subprocess
+   * still open behind it. Racing a timer around this call only stops the
+   * *waiting* -- the request stays live under the client's own timeout -- so
+   * the bound has to be passed down to where the request is made.
+   */
+  async cancel(sessionId: string, timeoutSeconds?: number): Promise<void> {
+    await this.#client.sessions.cancel(
+      sessionId,
+      {} as never,
+      timeoutSeconds === undefined ? undefined : { timeoutInSeconds: timeoutSeconds },
+    );
   }
 
   /**

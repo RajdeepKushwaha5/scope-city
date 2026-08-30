@@ -321,17 +321,21 @@ async function main(): Promise<void> {
       /*
        * Cancelling gets its own, much shorter, deadline.
        *
-       * `HarnessDriver` requests carry a ten-minute timeout, so awaiting a
+       * `HarnessDriver` requests carry a ten-minute timeout by default, so a
        * cancel against a TrueForge that has stopped answering would hold the
        * probe open for ten more minutes past the deadline it just missed --
        * with the proxy still listening and the token-bearing subprocess still
-       * running. The cleanup below is the part that must happen; the cancel is
-       * the part that would be nice to.
+       * running. The bound is passed into the request so the request itself
+       * ends; the timer below is the second line, for a client that does not
+       * honour it. The cleanup after this is the part that must happen.
        */
       let giveUp: NodeJS.Timeout | undefined;
       try {
         await Promise.race([
-          driver.cancel(sessionId).catch((error: unknown) => {
+          // The bound goes into the request, not just around the await. A
+          // timer that wins a race leaves the request itself running under the
+          // driver's ten-minute default, which is the thing being avoided.
+          driver.cancel(sessionId, Math.ceil(CANCEL_MS / 1000)).catch((error: unknown) => {
             // The timeout is the diagnosis; a failure to cancel is a footnote.
             console.error(`  could not cancel ${sessionId}: ${String(error)}`);
           }),

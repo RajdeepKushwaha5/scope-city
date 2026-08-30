@@ -1,6 +1,7 @@
 export {
   sortFindings,
   summarise,
+  type AdversaryAttempt,
   type AdversaryReport,
   type BacktestReport,
   type Finding,

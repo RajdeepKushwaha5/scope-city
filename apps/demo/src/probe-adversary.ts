@@ -85,9 +85,13 @@ async function main(): Promise<void> {
     );
   }
 
-  console.log(`\n  the probes it wrote`);
-  for (const probe of extra.findings)
-    console.log(`      HOLE  ${probe.summary}`);
+  console.log(`\n  what it tried`);
+  for (const attempt of a.attempts) {
+    console.log(
+      `      ${attempt.refused ? "REFUSED" : "ALLOWED"}  ${attempt.office.padEnd(22)}` +
+        `${(attempt.reason ?? "").padEnd(24)}  ${attempt.why}`,
+    );
+  }
 
   console.log(
     `\n  report           ${report.probesRun} probes, ${report.findings.length} findings`,

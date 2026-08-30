@@ -1,6 +1,6 @@
 import { evaluate, type OfficeRegistry, type Scope } from "@scope-city/scope";
 import type { Probe } from "./boundary.js";
-import type { Finding } from "./findings.js";
+import type { AdversaryAttempt, AdversaryReport, Finding } from "./findings.js";
 
 /**
  * The probes a grammar cannot write.
@@ -79,19 +79,6 @@ export interface AdversaryResult {
  * testable: the Yard has never made a network call and does not start now.
  */
 export type Adversary = (request: AdversaryRequest) => Promise<AdversaryResult>;
-
-/** What the adversary did, for the operator reading the report. */
-export interface AdversaryReport {
-  readonly model: string;
-  /** Probes the model returned. */
-  readonly wrote: number;
-  /** How many survived validation. The gap is the model inventing offices. */
-  readonly admitted: number;
-  /** Admitted probes the evaluator *allowed*. Each one is a finding. */
-  readonly holes: number;
-  /** Set when the adversary did not run, and why. Never silently absent. */
-  readonly declined?: string;
-}
 
 /**
  * A hard ceiling on how much a model can ask the Yard to do.
@@ -252,6 +239,7 @@ export async function runAdversary(params: {
         wrote: 0,
         admitted: 0,
         holes: 0,
+        attempts: [],
         declined: error instanceof Error ? error.message : String(error),
       },
     };
@@ -259,6 +247,7 @@ export async function runAdversary(params: {
 
   const probes = admissibleProbes(result.probes, registry, now);
   const findings: Finding[] = [];
+  const attempts: AdversaryAttempt[] = [];
 
   for (const probe of probes) {
     const decision = evaluate({
@@ -267,6 +256,13 @@ export async function runAdversary(params: {
       registry,
       now: probe.at,
       consumed: {},
+    });
+
+    attempts.push({
+      office: probe.office,
+      why: probe.why,
+      refused: !decision.allowed,
+      ...(decision.allowed ? {} : { reason: decision.reason }),
     });
 
     if (decision.allowed) {
@@ -289,6 +285,7 @@ export async function runAdversary(params: {
       wrote: result.probes.length,
       admitted: probes.length,
       holes: findings.length,
+      attempts,
     },
   };
 }

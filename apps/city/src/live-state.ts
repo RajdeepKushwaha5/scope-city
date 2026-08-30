@@ -163,6 +163,9 @@ function moveAgent(state: LiveCityState, office: string): LiveCityState {
 }
 
 /** Pure event fold: reconnecting and replaying the same feed builds the same city. */
+/** How many of the adversary's attempts reach the log. A model chooses how many exist. */
+const MAX_ATTACK_LINES = 6;
+
 export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveCityState {
   if (feed.type === "scope.expired") {
     return addLog(
@@ -305,6 +308,23 @@ export function reduceLiveCity(state: LiveCityState, feed: CityFeedEvent): LiveC
         : [
             `YARD  ${adversary.model} wrote ${adversary.admitted} attack(s) on this machine, ` +
               `${adversary.holes === 0 ? "none got through" : `${adversary.holes} got through`}`,
+            /*
+             * And what they were, because the count is the least interesting
+             * true thing here. "4 attacks, 0 holes" reads as nothing having
+             * happened; `mail.send refused for resource_not_in_scope` is the
+             * wall doing its job in public, before anything was granted, and it
+             * is the only evidence a reader has that the model wrote anything
+             * real.
+             *
+             * Capped, because a model decides how many of these exist.
+             */
+            ...adversary.attempts
+              .slice(0, MAX_ATTACK_LINES)
+              .map(
+                (attempt) =>
+                  `YARD  ${attempt.refused ? "REFUSED" : "ALLOWED"}  ${attempt.office}` +
+                  `${attempt.reason ? ` (${attempt.reason})` : ""}  ${attempt.why}`,
+              ),
           ];
 
     const lines = [

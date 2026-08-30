@@ -57,6 +57,24 @@ export interface BacktestReport {
   readonly adversary?: AdversaryReport;
 }
 
+/**
+ * One attack the adversary wrote, and what the evaluator did with it.
+ *
+ * Carried rather than counted, because a count is the least interesting true
+ * thing that can be said here. "4 attacks, 0 holes" reads as nothing having
+ * happened; `charge.refund refused for resource_not_granted` is the wall doing
+ * its job, in public, before anyone granted anything -- and it is the only
+ * evidence a reader has that the adversary wrote anything real.
+ */
+export interface AdversaryAttempt {
+  readonly office: string;
+  /** The model's own words for what it was trying, already trimmed. */
+  readonly why: string;
+  readonly refused: boolean;
+  /** The evaluator's reason. Ours, not the model's, and absent on a hole. */
+  readonly reason?: string;
+}
+
 /** Declared here rather than imported, so `findings.ts` depends on nothing. */
 export interface AdversaryReport {
   readonly model: string;
@@ -64,6 +82,15 @@ export interface AdversaryReport {
   readonly admitted: number;
   readonly holes: number;
   readonly declined?: string;
+  /**
+   * What it tried, capped.
+   *
+   * This lands in an operator's panel and in the record, and every `why` in it
+   * is text a model produced from a ticket an attacker may have written. It is
+   * displayed as data and never counted as a finding: the finding is the
+   * evaluator's verdict, which is on the same row.
+   */
+  readonly attempts: readonly AdversaryAttempt[];
 }
 
 const ORDER: Record<Severity, number> = { critical: 0, warning: 1, note: 2 };
@@ -71,11 +98,15 @@ const ORDER: Record<Severity, number> = { critical: 0, warning: 1, note: 2 };
 /** Most serious first, then stable by office so reruns render identically. */
 export function sortFindings(findings: readonly Finding[]): readonly Finding[] {
   return [...findings].sort(
-    (a, b) => ORDER[a.severity] - ORDER[b.severity] || a.office.localeCompare(b.office),
+    (a, b) =>
+      ORDER[a.severity] - ORDER[b.severity] || a.office.localeCompare(b.office),
   );
 }
 
-export function summarise(findings: readonly Finding[], probesRun: number): BacktestReport {
+export function summarise(
+  findings: readonly Finding[],
+  probesRun: number,
+): BacktestReport {
   return {
     findings: sortFindings(findings),
     probesRun,

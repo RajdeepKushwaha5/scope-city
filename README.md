@@ -63,14 +63,15 @@ flowchart LR
   link or a staged panel in the first screenful is worse than neither.
 -->
 
-<!-- Uncomment once docs/screenshots/city-wide.png exists:
+![Scope City granting a scope, attacking it locally, and then enforcing it call by call](docs/media/scope-city-demo.gif)
 
-![Scope City](docs/screenshots/city-wide.png)
-
-*Districts are connected systems. Buildings are their MCP tools. The city limits
-are the authority one agent has been granted for one job.*
-
--->
+*A real run against the live control plane, at six times speed. The sentence
+becomes a scope. The Yard reports 49 probes. A model on this machine attacks
+that scope and refuses the first grant because it found something. Then the
+agent works inside the boundary, and the console shows `ALLOWED charge.get`
+followed by `REDACTED charge.get, customer.address, customer.history`: the
+response filter removing fields the scope never granted. Only the speed is
+altered.*
 
 | | |
 |---|---|

@@ -277,14 +277,29 @@ sequenceDiagram
 
 That contrast is the whole thesis, rendered.
 
-<!-- Uncomment once docs/screenshots/gate.png and refused.png exist:
+Three moments from one real mission, in order. These are frames from the run in
+the recording above, not staged panels.
 
-| The Gate holding | A refusal at the line |
-|---|---|
-| ![The Gate](docs/screenshots/gate.png) | ![Refused](docs/screenshots/refused.png) |
-| An irreversible call, stopped for a human, showing the exact charge and amount being approved. | A call outside the scope. Nobody was asked, because the tool was never in `tools/list`. |
+![The scope proposed, and the Yard reporting 49 probes with no holes](docs/screenshots/yard-clean.png)
 
--->
+**Before anyone is asked.** The permit on the left is the whole licence: two
+exact ids, a $49 ceiling, one recipient, one send. The console reads `YARD 49
+probes, no holes`. Nothing has run, and there is no agent yet.
+
+![The local adversary reporting that one of its attacks got through, and the grant being refused](docs/screenshots/adversary-refused-the-grant.png)
+
+**The local model disagreeing.** `qwen2.5:7b wrote 2 attack(s) on this machine,
+1 got through`. It finished after the operator clicked Grant, so the grant was
+refused and handed back: *read it and grant again to proceed*. An over-reach
+caught here costs nothing. The same one caught later costs a refund.
+
+![charge.get allowed, then redacted down to the granted fields](docs/screenshots/projection-redacting.png)
+
+**Inside the boundary.** `ALLOWED charge.get`, and immediately under it
+`REDACTED charge.get, customer.address, customer.history`. The call was in
+scope, so it ran; the response still lost the two fields the scope never
+granted. Allowing a call and handing back everything it returned are different
+decisions, and the second one is where most of the data leaves.
 
 ## How TrueForge is used
 
@@ -304,13 +319,19 @@ Eleven harness event types are translated into what the city draws
 every held gate is an event from TrueForge or a decision from the proxy. None
 of it is on a timer.
 
-Four other capabilities are deliberately off: generative UI, clarifying
-questions, code mode and skills.
+Three capabilities are deliberately off: generative UI, clarifying questions and
+skills.
 [docs/TRUEFORGE.md](docs/TRUEFORGE.md#capabilities-considered-and-not-used) says
 why for each. The short version: generative UI would let the model draw its own
 account of the mission into the operator's view, and clarifying questions are an
 unbound channel from a model that has just read an attacker's text to the person
 approving its work.
+
+Code mode is **on**, and that is the deliberate one. The sandbox is enabled on
+every mission, which means the agent can write Python that calls MCP tools
+directly. Turning that off would have been the easy way to keep the claim safe,
+and it would have made the claim worth less. It is
+[probed instead](#the-agent-can-write-code-the-boundary-does-not-care).
 
 What the harness does **not** do is enforce the scope. That is deliberate and it
 is the point of the project: the approval gate asks a human, and the proxy asks
@@ -324,15 +345,20 @@ mechanisms.
 packages/
   scope/     scope schema, request evaluator, response projector  (pure)
   ledger/    atomic quota claims, idempotency, replay protection  (pure)
+  intent/    the sentence to scope compiler and its resolution rules
+  yard/      the probe generator and the local adversary that writes its own
   proxy/     the enforcing MCP proxy: decide, claim, countersign, execute, project
   harness/   TrueForge SDK driver, event translation, model rotation
-  mission/   countersign binding, mission brief, replayable event log
+  mission/   countersign binding, signing, mission brief, replayable event log
 apps/
   demo/      live control API, SSE replay, fixture mission, TrueForge setup
   city/      the React + Canvas isometric city and operator HUD
 mcp/         the demo MCP servers (ticket, payments, mail)
+scripts/     verify-record.mjs and the Qodo coverage audit
 docs/
   TRUEFORGE.md   verified notes on the harness API, worth reading first
+  DEMO.md        the recording script
+  CHALLENGE.md   the build log
 ```
 
 The scope and ledger packages are the security substrate and have no I/O:
@@ -498,7 +524,7 @@ sign-in, no backend, and no keys, and the **Replay a real run** button plays a
 mission that actually happened.
 
 That recording is not a script. It is what the control plane produced during a
-live TrueForge session: the derivation, the Yard's 46 probes, the gates, the
+live TrueForge session: the derivation, the Yard's 36 probes, the gates, the
 countersigns, the quota. It is hash-chained, so anyone doubting the order
 of events can check it:
 
@@ -529,8 +555,18 @@ pnpm test        # no network
 The tests that matter most:
 
 - `packages/scope`: boundaries, expiry, integer-minor-unit amounts, deny-by-default
-- `packages/ledger`: the ten-way race where evaluate() would say yes to all of them
+- `packages/ledger`: the ten-way race where `evaluate()` would say yes to all ten
 - `packages/proxy`: the poisoned ticket refused end to end, and the countersign
+  that is void because it belongs to a different call
+- `packages/yard`: which probes are admissible, and what the adversary is
+  allowed to reach while it writes them
+- `packages/mission`: the hash chain, and a verifier held to the same answers as
+  the writer without sharing its code
+
+```
+101 test files, 1118 tests, no network
+```
+
 ### Delegation, and the thing that nearly stopped it
 
 Subagents spawn and the map draws them, titled from the brief. For a while a

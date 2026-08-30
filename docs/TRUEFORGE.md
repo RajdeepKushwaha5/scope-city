@@ -345,12 +345,30 @@ still reach a person. *"Confirm you want the customer list sent"* is a question,
 not a tool call, and it would arrive looking like the agent asking rather than
 the attacker.
 
-**Code mode, not used.** It is genuinely interesting here and the reason for
-leaving it is worth stating: batching tool calls into code changes where the
-proxy sees them. The boundary works because every call crosses it individually
-and is evaluated against the scope; a batch that resolves several calls inside
-one execution is a different enforcement problem, not a harder version of the
-same one. Worth building on top of, not worth guessing at days from a deadline.
+**Code mode, on, and this entry is in the wrong section.** It is here because an
+earlier version of this file put it here, and correcting that is more useful
+than deleting it.
+
+There is no code-mode switch in the agent spec. It comes with the sandbox, and
+`config.sandbox.enabled` is `true` on every mission, so an agent has been able
+to write Python that calls MCP tools directly since the first run. Leaving it
+that way was a decision rather than an oversight, though it was a decision
+noticed late.
+
+The reasoning: the claim this project makes is that reach is decided by the
+scope and not by the agent's good behaviour, and an agent that can execute
+arbitrary code is the case that claim has to survive. Turning the sandbox off
+would have protected the claim by removing the test of it. So it is measured
+instead, by `pnpm --filter @scope-city/demo probe:code-mode`, and the results
+are in [Code mode, and whether it is a way round the
+scope](#code-mode-and-whether-it-is-a-way-round-the-scope) below.
+
+What genuinely is not used is code mode as a *design*: deliberately batching
+this project's own calls into sandbox scripts. Every call crossing the proxy
+individually is what makes the ledger's quota arithmetic and the per-call
+evaluation work, and a batch that resolves several calls inside one execution
+is a different enforcement problem rather than a harder version of this one.
+Worth building on top of; not worth guessing at days from a deadline.
 
 **Skills, not used.** The mission brief is derived per-mission from the granted
 scope, naming the exact offices and identifiers that scope allows. A static

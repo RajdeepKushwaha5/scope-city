@@ -53,6 +53,11 @@ describe("the script tells you to press what the buttons say", () => {
 
     expect(script).toContain("probe:code-mode");
     expect(demoPkg).toContain('"probe:code-mode"');
+    // The Forge beat runs the probe that goes through the boundary, not the one
+    // that only starts the district. They print different things and only one
+    // of them supports the sentence said over it.
+    expect(script).toContain("probe:forge-harness");
+    expect(demoPkg).toContain('"probe:forge-harness"');
     expect(script).toContain("scripts/verify-record.mjs");
     expect(cityPkg).toContain('"dev"');
   });

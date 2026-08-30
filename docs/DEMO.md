@@ -343,20 +343,29 @@ anybody has to ask.
 > MCP server, which I did not write a line of.
 
 ```bash
-pnpm --filter @scope-city/mcp probe:forge
+pnpm --filter @scope-city/demo probe:forge-harness
 ```
 
 ```
-  upstream advertises 26 tools
-  the scope grants   3: issue.get, issue.comment, issue.close
-  issue.get -> {"number":102,"title":"Scope City demo…","state":"open"}
+  upstream tools        3 offices exposed by the Forge
+  harness session       01m18hxd8atjrh1vahjcnxvtyq on gemini-a/flash-a
+  visible to the agent  issue.get
+  through the boundary  call.allowed issue.get
+
+  HELD  one office visible, and the harness reached GitHub through it
 ```
 
-Point at the gap between the two numbers:
+This is the whole chain, not an adapter: a real TrueForge session, the proxy,
+and GitHub's server at the far end. `visible to the agent` is a `tools/list`
+asked through the boundary — what the harness could see, not what it happened
+to call.
+
+Point at the gap between the numbers:
 
 > Twenty-six tools on that server. Among them `merge_pull_request`, `push_files`,
-> `create_repository` — everything a token can reach. The scope grants three, over
-> one issue. The other twenty-three are not refused. They are not in the list.
+> `create_repository` — everything a token can reach. This agent's scope grants
+> one, over one issue, and one is what its tool list contains. The other
+> twenty-five are not refused. They are not there.
 
 And the detail that makes it more than a filter, which is worth the last ten
 seconds:
@@ -364,6 +373,9 @@ seconds:
 > The repository name is not an argument the agent can set. The office supplies
 > its own. So there is no sentence anyone can write, in an issue or anywhere
 > else, that points this at a different repository.
+
+(`probe:forge` is the same district without the harness in front of it — useful
+when this one fails and you need to know which half broke.)
 
 **Cut this before anything else** if you are over time, and say the one line
 instead: *"the same scope works in front of GitHub's own MCP server, and it is in

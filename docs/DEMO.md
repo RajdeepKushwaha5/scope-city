@@ -108,19 +108,24 @@ faster way into their attention than being introduced to.
 > You have heard the one about the coding agent that deleted a production
 > database after it was told to stop.
 
-> TrueForge answers that, out of the box. A tool the server marks destructive
-> does not run without a human. That is the default, and you have to ask in
-> writing to turn it off.
+> TrueForge answers that. Name a tool in `require_approval_for_tools` and it
+> does not run without a human, whatever the model has decided. The gate you
+> will see is that mechanism, holding the offices this project marks
+> irreversible.
 
 Then the turn, and this is the whole video:
 
 > Here is the one it does not answer. Last year a crafted email made Microsoft
 > 365 Copilot leak internal data. No click. The user did nothing.
 >
-> **Nothing destructive happened.** Reading is not destructive, so nothing
-> paused, because there was nothing to approve. An approval gate is a brake. It
-> is the wrong instrument for a car being steered somewhere it should never have
-> been able to go.
+> **Nothing on that list ran.** It was all reads, and nobody puts reads on the
+> list -- an agent that stops for every lookup is an agent whose approvals stop
+> being read. And gating them would not have helped anyway: approval is yes or
+> no on a call. Say yes and the entire response comes back. What the agent got
+> to *see* is not a question the gate asks.
+
+> An approval gate is a brake. It is the wrong instrument for a car being
+> steered somewhere it should never have been able to go.
 
 > So I built the road instead. The agent gets one order, one charge, one
 > recipient, ten minutes — and everything else is not refused to it. It is
@@ -129,9 +134,9 @@ Then the turn, and this is the whole video:
 
 Two sentences of positioning, said once and never repeated:
 
-> The gate in this demo is TrueForge's own `require_approval_for_tools`. I did
-> not replace the brakes. I added a road, and kept the brakes for the last step
-> you cannot undo.
+> The gate in this demo is TrueForge's own `require_approval_for_tools`, given
+> the list of offices that cannot be undone. I did not replace the brakes. I
+> added a road, and kept the brakes for the last step you cannot take back.
 
 ---
 
@@ -154,7 +159,7 @@ words before the first claim is what makes this project hard to follow.
 
 ---
 
-## 0:55 — The same ticket, twice (70 seconds)
+## 0:55 — The same ticket, twice (65 seconds)
 
 This is the demo. Everything before it is setup and everything after is
 evidence.
@@ -211,9 +216,10 @@ for, so give it a beat:
 > customer's payment history stripped out. The scope decides what comes *back*,
 > not just what goes out.
 
-> That is the Copilot case. Nothing there was destructive, so nothing would have
-> paused for a human — the data simply left. An approval gate cannot help you,
-> because there is no moment to approve. This is the layer that can.
+> That is the Copilot case. It was all reads, and the data simply left. You
+> could put the read on the approval list — and then approve it, because it is
+> a legitimate lookup, and the whole response comes back regardless. Approval
+> answers *whether the call happens*. This layer answers *what comes back*.
 
 ---
 
@@ -348,7 +354,7 @@ pnpm --filter @scope-city/demo probe:forge-harness
 
 ```
   upstream tools        3 offices exposed by the Forge
-  harness session       01m18hxd8atjrh1vahjcnxvtyq on gemini-a/flash-a
+  harness session       <id> on <model>          # both vary per run
   visible to the agent  issue.get
   through the boundary  call.allowed issue.get
 

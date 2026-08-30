@@ -163,7 +163,7 @@ export function CityConsole(props: {
               ?
             </span>
           ) : (
-            <EffortGauge effort={props.crew} />
+            <EffortGauge effort={props.crew} className="console__portrait-img" />
           )}
         </span>
         <div>

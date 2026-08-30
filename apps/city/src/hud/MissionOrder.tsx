@@ -150,7 +150,7 @@ export function MissionOrder(props: {
             }
           >
             <div className="crew-card__avatar-box">
-              <EffortGauge effort={thinkingEffort} />
+              <EffortGauge effort={thinkingEffort} className="crew-card__avatar-img" />
             </div>
             <div className="crew-card__detail">
               <strong>

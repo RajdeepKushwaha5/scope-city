@@ -2714,7 +2714,7 @@ canvas.world:active {
 
 .crew-modal-v2__card-img {
   height: 90px;
-  width: auto;
+  width: 90px;
   object-fit: contain;
   image-rendering: pixelated;
 }

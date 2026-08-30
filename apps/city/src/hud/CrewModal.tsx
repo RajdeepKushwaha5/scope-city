@@ -76,15 +76,29 @@ export function effortBars(effort: EffortLevel): number {
  * Three bars, filling left to right, which says what the setting means: more
  * thinking. A portrait never said that.
  */
-export function EffortGauge(props: { effort: EffortLevel }): React.JSX.Element {
+export function EffortGauge(props: {
+  effort: EffortLevel;
+  /**
+   * The container's own sizing class, because there are three of them.
+   *
+   * The images this replaced each had a class per context -- 90px tall in the
+   * modal, 54x54 in the console portrait, 28x28 on the mission card -- and
+   * hard-coding the modal's class here put a 90px drawing inside two boxes
+   * that hide their overflow. It rendered clipped in the console and almost
+   * invisible on the card, which is worse than the placeholder it replaced.
+   */
+  className?: string;
+}): React.JSX.Element {
   const filled = effortBars(props.effort);
 
   return (
     <svg
-      className="crew-modal-v2__card-img"
+      className={props.className ?? "crew-modal-v2__card-img"}
       viewBox="0 0 72 72"
-      width={72}
-      height={72}
+      // No intrinsic size: the container decides, and `viewBox` scales the
+      // geometry to whatever it decides. Fixed 72x72 attributes were what made
+      // this depend on the class matching the box.
+      preserveAspectRatio="xMidYMid meet"
       // Decorative: the level is named in text beside it, and announcing the
       // shape as well would read the same thing twice.
       aria-hidden="true"

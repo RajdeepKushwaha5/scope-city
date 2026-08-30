@@ -27,7 +27,11 @@ describe("the crew portrait", () => {
      * still the wrong answer -- an SVG that says something is not a tan
      * rectangle that says nothing.
      */
-    expect(console_).toContain("<EffortGauge effort={props.crew} />");
+    expect(console_).toContain("<EffortGauge effort={props.crew}");
+    // With the console's own sizing class: the gauge is shared across three
+    // containers of different sizes, and hard-coding the modal's 90px class
+    // clipped it here and nearly hid it on the mission card.
+    expect(console_).toContain('className="console__portrait-img"');
     expect(console_, "the placeholder boxes are still being drawn").not.toContain(
       "crew-card__head",
     );

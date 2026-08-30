@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { existsSync } from "node:fs";
-import { EFFORT_LEVELS, effortSpriteUrl } from "./CrewModal.js";
+import { EFFORT_LEVELS, effortBars } from "./CrewModal.js";
 
 /**
  * The operator console: the panel a judge reads while the demo runs.
@@ -16,23 +16,46 @@ const view = read("../city-view.ts");
 const css = read("./hud.css");
 
 describe("the crew portrait", () => {
-  it("uses the artwork that has been in the repo all along", () => {
-    // The console drew a 10x9px tan rectangle for a head and a 14x15px blue one
-    // for a body. It was not that the portrait was missing -- it was a
-    // placeholder that outlived the asset it stood in for, and the asset was
-    // sitting in `public/crew` being used by the panel on the other side of the
-    // screen.
-    expect(console_).toContain("effortSpriteUrl(props.crew)");
+  it("draws the effort rather than fetching a picture of it", () => {
+    /*
+     * This asserted the console used "the artwork that has been in the repo all
+     * along". It should not have been in the repo: the three PNGs were
+     * byte-identical copies of another project's crew portraits, renamed. They
+     * are gone, and the console draws the level instead.
+     *
+     * The placeholder assertion stays, because the boxes it guards against are
+     * still the wrong answer -- an SVG that says something is not a tan
+     * rectangle that says nothing.
+     */
+    expect(console_).toContain("<EffortGauge effort={props.crew}");
+    // With the console's own sizing class: the gauge is shared across three
+    // containers of different sizes, and hard-coding the modal's 90px class
+    // clipped it here and nearly hid it on the mission card.
+    expect(console_).toContain('className="console__portrait-img"');
     expect(console_, "the placeholder boxes are still being drawn").not.toContain(
       "crew-card__head",
     );
   });
 
-  it("has a file behind every crew it can show", () => {
-    for (const level of EFFORT_LEVELS) {
-      const url = effortSpriteUrl(level);
-      const file = fileURLToPath(new URL(`../../public${url.replace(/^\/?/, "/")}`, import.meta.url));
-      expect(existsSync(file), `${url} has no file`).toBe(true);
+  it("has something to draw for every crew it can show", () => {
+    // Was: a file behind every level. Now there are no files, so the question
+    // is whether every level maps to a distinct gauge.
+    const bars = EFFORT_LEVELS.map((level) => effortBars(level));
+    expect(new Set(bars).size).toBe(EFFORT_LEVELS.length);
+    expect(bars.every((n) => n >= 1 && n <= 3)).toBe(true);
+  });
+
+  it("ships no bitmap artwork at all", () => {
+    /*
+     * The repository's claim is that everything on screen is generated from
+     * code. That was true of the map and not of the dispatch dialog, and the
+     * exception was somebody else's work.
+     */
+    for (const file of ["effort-low.png", "effort-medium.png", "effort-high.png"]) {
+      expect(
+        existsSync(fileURLToPath(new URL(`../../public/crew/${file}`, import.meta.url))),
+        `${file} is back`,
+      ).toBe(false);
     }
   });
 

@@ -4,7 +4,7 @@ import { soundEngine } from "./sound-engine.js";
 import {
   CrewModal,
   effortLabel,
-  effortSpriteUrl,
+  EffortGauge,
   type EffortLevel,
 } from "./CrewModal.js";
 
@@ -150,11 +150,7 @@ export function MissionOrder(props: {
             }
           >
             <div className="crew-card__avatar-box">
-              <img
-                src={effortSpriteUrl(thinkingEffort)}
-                alt=""
-                className="crew-card__avatar-img"
-              />
+              <EffortGauge effort={thinkingEffort} className="crew-card__avatar-img" />
             </div>
             <div className="crew-card__detail">
               <strong>

@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Meter, Stat, Window } from "./Window.js";
 import { soundEngine } from "./sound-engine.js";
 import type { GateRequest, LogLine } from "../useMission.js";
-import { effortLabel, effortSpriteUrl, type EffortLevel } from "./CrewModal.js";
+import { EffortGauge, effortLabel, type EffortLevel } from "./CrewModal.js";
 
 const PHASE_LABEL: Record<string, string> = {
   drafting: "DRAFTING",
@@ -163,7 +163,7 @@ export function CityConsole(props: {
               ?
             </span>
           ) : (
-            <img className="console__portrait-img" src={effortSpriteUrl(props.crew)} alt="" />
+            <EffortGauge effort={props.crew} className="console__portrait-img" />
           )}
         </span>
         <div>

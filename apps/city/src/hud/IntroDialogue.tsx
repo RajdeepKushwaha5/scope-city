@@ -2,6 +2,54 @@ import { useEffect, useRef } from "react";
 import { soundEngine } from "./sound-engine.js";
 import { dialogueKeydown } from "./focus-trap.js";
 
+/**
+ * The Boundary Agent's mark, drawn rather than stacked out of coloured boxes.
+ *
+ * This was three `<span>`s -- an amber bar for a hat, a cream 10x10 square for
+ * a face, a navy 20x10 rectangle for a coat -- in a 32px box. At that size the
+ * shapes do not resolve into a person; they resolve into a pale square on a
+ * blue rectangle, which is what a browser draws when an image fails to load.
+ * The first thing a judge sees on opening the city looked broken.
+ *
+ * What it draws now is the product rather than a mascot: a figure standing
+ * inside a boundary. The square is the granted scope, the figure is the agent
+ * inside it, and the gap between them is the whole argument -- the agent is not
+ * being told "no" at the wall, it is simply not outside it.
+ *
+ * Geometry sits on half-pixel centres so the 1px strokes land on device pixels
+ * instead of straddling two and rendering grey.
+ */
+function BoundaryAgentMark(): React.JSX.Element {
+  return (
+    <svg
+      className="dialogue-avatar"
+      viewBox="0 0 32 32"
+      width={32}
+      height={32}
+      // Decorative: the name is written beside it in text.
+      aria-hidden="true"
+      focusable="false"
+    >
+      {/* The scope. Drawn first, so the figure sits inside it. */}
+      <rect
+        x={2.5}
+        y={2.5}
+        width={27}
+        height={27}
+        fill="#030c14"
+        stroke="var(--hud-amber)"
+        strokeWidth={1}
+      />
+      {/* The agent: head and shoulders, clear of the boundary on every side. */}
+      <circle cx={16} cy={13} r={4} fill="#ffedd5" />
+      <path
+        d="M8.5 25.5c0-4.1 3.4-6.5 7.5-6.5s7.5 2.4 7.5 6.5z"
+        fill="#c7d7e6"
+      />
+    </svg>
+  );
+}
+
 export function IntroDialogue(props: {
   open: boolean;
   onDismiss: () => void;
@@ -71,11 +119,7 @@ export function IntroDialogue(props: {
         aria-label="What am I looking at?"
       >
         <div className="dialogue-speaker">
-          <div className="dialogue-avatar" aria-hidden="true">
-            <span className="dialogue-avatar__hat" />
-            <span className="dialogue-avatar__face" />
-            <span className="dialogue-avatar__coat" />
-          </div>
+          <BoundaryAgentMark />
           <span className="dialogue-speaker__name">BOUNDARY AGENT</span>
         </div>
 

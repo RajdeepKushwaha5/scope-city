@@ -2,7 +2,7 @@ import { existsSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 import { describe, expect, it } from "vitest";
 import { REASONING_EFFORTS } from "@scope-city/harness";
-import { EFFORT_LEVELS, effortLabel, effortSpriteUrl } from "./CrewModal.js";
+import { EFFORT_LEVELS, effortBars, effortLabel } from "./CrewModal.js";
 import { modelSummary } from "./MissionOrder.js";
 
 /**
@@ -28,30 +28,27 @@ describe("offered effort levels", () => {
     }
   });
 
-  it("builds sprite paths from the base url, so judge mode does not 404", () => {
-    // Judge mode is served from a repository subpath. A hardcoded "/crew/..."
-    // resolves against the domain root and 404s there, which is the same bug
-    // the recording URL was written to avoid.
-    //
-    // Asserted against BASE_URL itself rather than against a literal: under
-    // test the base is "/", so checking that the path does not start with
-    // "/crew/" would pass for the hardcoded version too and prove nothing.
-    const base = import.meta.env.BASE_URL;
-    const url = effortSpriteUrl("low");
-
-    expect(url).toBe(`${base}crew/effort-low.png`);
-    expect(url.startsWith(base)).toBe(true);
+  it("gives every level a different gauge", () => {
+    /*
+     * These were three PNG portraits, and they were not ours -- byte-identical
+     * copies of another project's crew art, renamed. The tests here asserted a
+     * URL built from `BASE_URL` and a file behind every level; both questions
+     * stopped existing when the files did.
+     *
+     * What is worth asserting now is that the drawn gauge still distinguishes
+     * the levels, because a control where every option looks the same is worse
+     * than one with no picture at all.
+     */
+    const bars = EFFORT_LEVELS.map((level) => effortBars(level));
+    expect(new Set(bars).size).toBe(EFFORT_LEVELS.length);
   });
 
-  it("names a sprite that exists for every level offered", () => {
-    // A level with no artwork renders a broken image in the dialog.
-    for (const level of EFFORT_LEVELS) {
-      const file = effortSpriteUrl(level).split("/").pop()!;
-      expect(existsSync(fileURLToPath(new URL(`../../public/crew/${file}`, import.meta.url)))).toBe(
-        true,
-      );
-    }
+  it("fills more bars for more thinking", () => {
+    // The shape carries the meaning: low is one bar, high is three. A portrait
+    // never said which way round the setting went.
+    expect(effortBars("low")).toBeLessThan(effortBars("high"));
   });
+
 });
 
 describe("naming the models a mission will run on", () => {

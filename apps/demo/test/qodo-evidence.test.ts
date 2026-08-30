@@ -146,7 +146,10 @@ describe("the Qodo evidence section", () => {
      * eleven, and nothing here would notice. The claim is about a set, and only
      * comparing sets checks a claim about a set.
      */
-    const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97];
+    // #100 joined the list on 2026-08-30: it was open for forty-one minutes,
+    // well past the window the others were merged inside, and no review
+    // arrived at all.
+    const NO_QODO = [28, 41, 46, 55, 56, 76, 85, 92, 97, 100];
 
     /*
      * The sentence that lists them, not the whole section, which also links

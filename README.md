@@ -644,7 +644,7 @@ took four rounds and all four are in the thread.
 
 ### The record
 
-**Every merged pull request goes through review, and all but nine carry a Qodo
+**Every merged pull request goes through review, and all but ten carry a Qodo
 one.** No total is printed here on purpose -- two have gone stale already, and
 the first draft of this very correction hard-coded a count of seventy-six out of
 eighty-five, which the next merge would have falsified. What does not go stale is which pull requests
@@ -657,15 +657,18 @@ are
 [#56](https://github.com/RajdeepKushwaha5/scope-city/pull/56),
 [#76](https://github.com/RajdeepKushwaha5/scope-city/pull/76),
 [#85](https://github.com/RajdeepKushwaha5/scope-city/pull/85),
-[#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92) and
-[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97). Every one of them
-was reviewed by Sourcery; what they lack is the Qodo pass.
+[#92](https://github.com/RajdeepKushwaha5/scope-city/pull/92),
+[#97](https://github.com/RajdeepKushwaha5/scope-city/pull/97) and
+[#100](https://github.com/RajdeepKushwaha5/scope-city/pull/100). Every one of
+them was reviewed by Sourcery; what they lack is the Qodo pass.
 
 This section said "every one" until an audit counted them, which is the second
 time a claim here has outlived the fact behind it -- and the third was caught in
 review, on the PR fixing the second. Qodo posts about five minutes
-after a push, and most of those nine were merged inside that window -- #28 was
-open for one minute and #97 for three. Merging on a green CI check rather than on
+after a push, and most of those ten were merged inside that window -- #28 was
+open for one minute and #97 for three. #100 is the exception to the exception:
+it was open for forty-one minutes and no review arrived, which is a different
+failure and not one merging more slowly would have fixed. Merging on a green CI check rather than on
 a completed review is the mistake, and it is mine.
 
 The [pull request list](https://github.com/RajdeepKushwaha5/scope-city/pulls?q=is%3Apr+is%3Amerged)
